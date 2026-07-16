@@ -2,6 +2,10 @@
 
 set -eu
 
+if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then
+  shift
+fi
+
 if [ "$#" -ne 2 ]; then
   echo "Usage: pnpm ios:device-install -- DEVICE_ID DEVELOPMENT_TEAM_ID" >&2
   exit 64
