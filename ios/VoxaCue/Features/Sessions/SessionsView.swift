@@ -1,0 +1,231 @@
+import SwiftUI
+import VoxaCore
+
+struct SessionsView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: CueTheme.Space.large) {
+                ScreenTitle(
+                    eyebrow: "Practice history",
+                    title: "Sessions",
+                    subtitle: "Every rehearsal becomes a clearer baseline for your next one."
+                )
+                if model.demoMode {
+                    StatusPill(
+                        label: "Deterministic demo data",
+                        symbol: "testtube.2",
+                        color: CueTheme.amber
+                    )
+                }
+                if model.sessions.isEmpty {
+                    emptyState
+                } else {
+                    overview
+                    sessionList
+                }
+            }
+            .padding(.horizontal, CueTheme.Space.large)
+            .padding(.top, CueTheme.Space.medium)
+            .padding(.bottom, 36)
+        }
+        .background(CueTheme.canvas)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    model.setupPresented = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(CueTheme.ink)
+                        .frame(width: 34, height: 34)
+                        .background(CueTheme.surface)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle().stroke(CueTheme.border.opacity(0.8), lineWidth: 0.7)
+                        }
+                }
+                .accessibilityLabel("Start a new session")
+            }
+        }
+    }
+
+    private var overview: some View {
+        PremiumCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("YOUR PRACTICE")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .tracking(1.3)
+                            .foregroundStyle(CueTheme.violet)
+                        Text("A useful pattern is forming")
+                            .font(.cueSection)
+                            .foregroundStyle(CueTheme.ink)
+                    }
+                    Spacer()
+                    ZStack {
+                        Circle()
+                            .fill(CueTheme.green.opacity(0.10))
+                        Image(systemName: "waveform.path.ecg")
+                            .font(.system(size: 21, weight: .light))
+                            .foregroundStyle(CueTheme.green)
+                    }
+                    .frame(width: 48, height: 48)
+                }
+                HStack(spacing: 10) {
+                    overviewMetric(value: "\(model.sessions.count)", label: "SESSIONS")
+                    overviewMetric(value: totalPracticeTime, label: "PRACTICE")
+                    overviewMetric(value: onTimeRate, label: "ON TIME")
+                }
+            }
+        }
+    }
+
+    private var sessionList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("RECENT SESSIONS")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .tracking(1.3)
+                .foregroundStyle(CueTheme.secondaryInk)
+                .padding(.horizontal, 3)
+            ForEach(model.sessions, id: \.sessionID) { session in
+                sessionRow(session)
+            }
+        }
+    }
+
+    private func sessionRow(_ session: SessionSummary) -> some View {
+        Button {
+            model.selectedSummary = session
+        } label: {
+            PremiumCard(padding: 18) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .fill(timingColor(for: session).opacity(0.11))
+                            Image(systemName: timingSymbol(for: session))
+                                .font(.system(size: 18, weight: .light))
+                                .foregroundStyle(timingColor(for: session))
+                        }
+                        .frame(width: 44, height: 44)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(session.name)
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .foregroundStyle(CueTheme.ink)
+                                .lineLimit(1)
+                            Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.secondaryInk)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(CueTheme.secondaryInk.opacity(0.65))
+                            .padding(.top, 6)
+                    }
+                    HStack(spacing: 10) {
+                        rowMetric(
+                            value: "\(Int(session.averageWPM.rounded()))",
+                            label: "WPM",
+                            tint: CueTheme.violet
+                        )
+                        rowMetric(
+                            value: String(format: "%.1f", session.fillersPerSpeakingMinute),
+                            label: "FILLERS/MIN",
+                            tint: session.fillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
+                        )
+                        rowMetric(
+                            value: session.durationSeconds.clockString,
+                            label: "DURATION",
+                            tint: timingColor(for: session)
+                        )
+                    }
+                }
+            }
+        }
+        .buttonStyle(SpringPressStyle())
+        .accessibilityHint("Opens the session summary")
+    }
+
+    private func overviewMetric(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(value)
+                .font(.system(size: 23, weight: .light, design: .rounded).monospacedDigit())
+                .foregroundStyle(CueTheme.ink)
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(0.8)
+                .foregroundStyle(CueTheme.secondaryInk)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func rowMetric(value: String, label: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.system(size: 18, weight: .light, design: .rounded).monospacedDigit())
+                .foregroundStyle(CueTheme.ink)
+            Text(label)
+                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                .tracking(0.55)
+                .foregroundStyle(CueTheme.secondaryInk)
+            Capsule()
+                .fill(tint.opacity(0.38))
+                .frame(height: 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var emptyState: some View {
+        PremiumCard(padding: 24) {
+            VStack(alignment: .leading, spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(CueTheme.violetSoft.opacity(0.72))
+                    Image(systemName: "waveform.badge.plus")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(CueTheme.violet)
+                }
+                .frame(width: 64, height: 64)
+                Text("Build your first baseline")
+                    .font(.cueSection)
+                    .foregroundStyle(CueTheme.ink)
+                Text("Record one rehearsal to see pace, filler words, timing, talk ratio, and vocal range together.")
+                    .font(.cueBody)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .lineSpacing(3)
+                VoxaButton(
+                    title: "Start a session",
+                    symbol: "arrow.up.right",
+                    style: .primary,
+                    disabled: false,
+                    action: { model.setupPresented = true }
+                )
+            }
+        }
+    }
+
+    private var totalPracticeTime: String {
+        let totalSeconds = model.sessions.reduce(0.0) { $0 + $1.durationSeconds }
+        let totalMinutes = Int((totalSeconds / 60).rounded())
+        return totalMinutes < 60 ? "\(totalMinutes)m" : String(format: "%.1fh", totalSeconds / 3_600)
+    }
+
+    private var onTimeRate: String {
+        let onTimeCount = model.sessions.filter { $0.durationSeconds <= $0.targetDurationSeconds }.count
+        let ratio = Double(onTimeCount) / Double(model.sessions.count)
+        return "\(Int((ratio * 100).rounded()))%"
+    }
+
+    private func timingColor(for session: SessionSummary) -> Color {
+        session.durationSeconds <= session.targetDurationSeconds ? CueTheme.green : CueTheme.amber
+    }
+
+    private func timingSymbol(for session: SessionSummary) -> String {
+        session.durationSeconds <= session.targetDurationSeconds ? "checkmark" : "timer"
+    }
+}
