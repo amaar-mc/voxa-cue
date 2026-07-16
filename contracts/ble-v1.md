@@ -1,6 +1,6 @@
 # Voxa Cue BLE Protocol v1
 
-The phone is the BLE central. The Nano ESP32 advertises as `Voxa Cue` and is the peripheral. All multi-byte integers are little-endian.
+The phone is the BLE central. The Nano 33 IoT or supported Nano ESP32 advertises as `Voxa Cue` and is the peripheral. All multi-byte integers are little-endian.
 
 ## GATT
 
@@ -22,7 +22,7 @@ Exactly six bytes:
 | 4 | `uint8` | Intensity: `0` soft, `1` medium, `2` strong |
 | 5 | `uint8` | Repeat count, `1...3` |
 
-Pattern IDs: `1` too fast, `2` too slow, `3` filler burst, `4` deck behind, `5` time 75%, `6` time 90%, `7` time 100%.
+Pattern IDs: `1` too fast, `2` too slow, `3` filler burst, `4` reserved deck-behind pattern, `5` time 75%, `6` time 90%, `7` time 100%. Pattern `4` remains valid for protocol compatibility but is not emitted by the current MVP app.
 
 ## Status packet
 
@@ -38,4 +38,3 @@ Exactly seven bytes:
 | 6 | `uint8` | Firmware minor |
 
 The peripheral sends `accepted` before playback and `completed` afterward. It rejects duplicate completed sequence numbers without replaying the motor. The app never replays commands generated before a reconnect.
-

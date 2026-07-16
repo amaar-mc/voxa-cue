@@ -2,11 +2,11 @@
 
 ## Product boundary
 
-Voxa Cue is phone-first. The iPhone built-in microphone is the only audio source. Live transcription, DSP, metrics, cue selection, persistence, and BLE control run on-device. Do not add Raspberry Pi, external-microphone, cloud-audio, or network-dependent live-cue paths. The optional API may process extracted deck text before a session and a finalized transcript only after explicit post-session consent.
+Voxa Cue is phone-first. The iPhone built-in microphone is the only audio source. Live transcription, DSP, metrics, cue selection, persistence, and BLE control run on-device. Do not add Raspberry Pi, external-microphone, cloud-audio, network-dependent live-cue paths, or PowerPoint UI to the MVP. The optional API may process a finalized transcript only after explicit post-session consent; retained deck-plan code is dormant.
 
 The live haptic path is:
 
-`AVAudioEngine → SpeechAnalyzer/local DSP → CueEngine → CoreBluetooth → Nano ESP32 → DRV2605L → LRA`
+`AVAudioEngine → SpeechAnalyzer/local DSP → CueEngine → CoreBluetooth → Nano 33 IoT → DRV2605L → LRA`
 
 `contracts/ble-v1.md` is normative for app/firmware transport. Keep both implementations compatible with it.
 
@@ -15,11 +15,11 @@ The live haptic path is:
 - `ios/VoxaCue`: SwiftUI application and feature screens.
 - `ios/Packages/VoxaKit`: strict Swift 6 domain logic and platform integrations.
 - `api`: Hono/Vercel TypeScript API using schema-constrained OpenAI Responses.
-- `firmware/voxa-wearable`: Nano ESP32 firmware and native protocol/pattern tests.
+- `firmware/voxa-wearable`: Nano 33 IoT and Nano ESP32 firmware plus native protocol/pattern tests.
 - `contracts`: shared BLE and JSON contracts.
 - `docs`: architecture, privacy, support, and release gates.
 
-Generate `ios/VoxaCue.xcodeproj` from `ios/project.yml`; never hand-edit the generated project. Put local API settings in ignored `ios/Local.xcconfig`, copied from `ios/Config/BuildSettings.xcconfig.example`.
+Generate `ios/VoxaCue.xcodeproj` from `ios/project.yml`; never hand-edit the generated project. Put local API settings in ignored `ios/Local.xcconfig` and a physical-device development team in ignored `ios/LocalSigning.xcconfig`, copied from their examples under `ios/Config`.
 
 ## Verification
 
