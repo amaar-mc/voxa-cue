@@ -57,7 +57,7 @@ struct InsightsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
-                        CueSectionLabel(text: "Pace consistency", color: CueTheme.violet)
+                        CueSectionLabel(text: "Pace consistency", color: CueTheme.signal)
                         Text("\(Int((averagePaceRange * 100).rounded()))%")
                             .font(.cueMetric)
                             .foregroundStyle(CueTheme.ink)
@@ -74,8 +74,8 @@ struct InsightsView: View {
                 }
                 SessionSparkline(
                     values: orderedSessions.map(\.timeInPaceRange),
-                    lineColor: CueTheme.violet,
-                    fillColor: CueTheme.violetSoft
+                    lineColor: CueTheme.signal,
+                    fillColor: CueTheme.signalSoft
                 )
                 .frame(height: 92)
                 .accessibilityLabel("Pace consistency trend")
@@ -90,7 +90,7 @@ struct InsightsView: View {
                 label: "Average pace",
                 value: "\(Int(averageWPM.rounded()))",
                 detail: "WPM",
-                tint: CueTheme.violet
+                tint: CueTheme.signal
             )
             MetricTile(
                 label: "Filler rate",
@@ -108,7 +108,7 @@ struct InsightsView: View {
                 label: "Talk ratio",
                 value: "\(Int((averageTalkRatio * 100).rounded()))%",
                 detail: "active speech",
-                tint: CueTheme.violet
+                tint: CueTheme.signal
             )
         }
     }
@@ -122,14 +122,14 @@ struct InsightsView: View {
                         HStack {
                             Label("Next practice focus", systemImage: "sparkles")
                                 .font(.cueCaption)
-                                .foregroundStyle(CueTheme.violet)
+                                .foregroundStyle(CueTheme.signal)
                             Spacer()
                             coachingSourcePill
                         }
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Next practice focus", systemImage: "sparkles")
                                 .font(.cueCaption)
-                                .foregroundStyle(CueTheme.violet)
+                                .foregroundStyle(CueTheme.signal)
                             coachingSourcePill
                         }
                     }
@@ -144,8 +144,10 @@ struct InsightsView: View {
                         model.selectedSummary = selection.session
                     } label: {
                         Label("Open \(selection.session.name)", systemImage: "arrow.up.right")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CueTheme.violet)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundStyle(CueTheme.signal)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(SpringPressStyle())
                 }
@@ -155,7 +157,7 @@ struct InsightsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Label("Next practice focus", systemImage: "sparkles")
                         .font(.cueCaption)
-                        .foregroundStyle(CueTheme.violet)
+                        .foregroundStyle(CueTheme.signal)
                     Text("Turn a session into a focused drill")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
@@ -168,8 +170,10 @@ struct InsightsView: View {
                             model.selectedSummary = latest
                         } label: {
                             Label("Open latest session", systemImage: "arrow.up.right")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundStyle(CueTheme.violet)
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(CueTheme.signal)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(SpringPressStyle())
                     }
@@ -188,12 +192,12 @@ struct InsightsView: View {
 
     private var coachingAvailabilityCopy: String {
         if model.demoMode {
-            return "Open a completed session and generate a labeled coaching fixture. No session data leaves the phone."
+            return "Open a session for a labeled coaching fixture. No data leaves the phone."
         }
         if !model.demoMode, case .localOnly = model.coachingAPIState {
-            return "Your session analytics stay available locally. A configured coaching service is required to generate an AI practice plan."
+            return "Session analytics stay local. Configure the coaching service for AI practice plans."
         }
-        return "Open a completed session and choose Generate AI coaching. Nothing is sent until you confirm."
+        return "Open a session and choose Generate AI coaching. Nothing is sent until you confirm."
     }
 
     private var recentSessions: some View {
@@ -207,7 +211,7 @@ struct InsightsView: View {
                     HStack(spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(session.name)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
                             Text(session.startedAt.formatted(date: .abbreviated, time: .omitted))
                                 .font(.cueCaption)
@@ -254,7 +258,7 @@ struct InsightsView: View {
     private func snapshotValue(value: String, label: String) -> some View {
         VStack(alignment: .trailing, spacing: 3) {
             Text(value)
-                .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
+                .font(.system(.subheadline, design: .rounded, weight: .medium).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
                 .font(.system(.caption2, design: .rounded, weight: .semibold))
@@ -265,18 +269,11 @@ struct InsightsView: View {
     private var emptyState: some View {
         PremiumCard(padding: 24) {
             VStack(alignment: .leading, spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(CueTheme.violetSoft.opacity(0.72))
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(CueTheme.violet)
-                }
-                .frame(width: 64, height: 64)
+                SectionMark(assetName: "DeliveryAnalytics", size: 76)
                 Text("Your trends start after one session")
                     .font(.cueSection)
                     .foregroundStyle(CueTheme.ink)
-                Text("Cue will compare pace, filler rate, timing, and talk ratio without retaining your raw audio.")
+                Text("After one session, compare pace, fillers, timing, and talk ratio.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
@@ -296,15 +293,15 @@ struct InsightsView: View {
             HStack(alignment: .top, spacing: 15) {
                 Image(systemName: "calendar.badge.clock")
                     .font(.system(size: 23, weight: .light))
-                    .foregroundStyle(CueTheme.violet)
+                    .foregroundStyle(CueTheme.signal)
                     .frame(width: 42, height: 42)
-                    .background(CueTheme.violetSoft.opacity(0.62))
+                    .background(CueTheme.signalSoft.opacity(0.62))
                     .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 5) {
                     Text("No sessions in the last 7 days")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
-                    Text("Choose All sessions to review your longer-term baseline, or record a new rehearsal.")
+                    Text("Choose All sessions or record a new rehearsal.")
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
                         .lineSpacing(2)
@@ -370,7 +367,7 @@ struct InsightsView: View {
     }
 
     private var paceTrendColor: Color {
-        guard orderedSessions.count > 1 else { return CueTheme.violet }
+        guard orderedSessions.count > 1 else { return CueTheme.signal }
         if paceTrend > 0 { return CueTheme.green }
         if paceTrend < 0 { return CueTheme.amber }
         return CueTheme.secondaryInk

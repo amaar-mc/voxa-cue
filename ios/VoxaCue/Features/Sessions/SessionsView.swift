@@ -57,20 +57,13 @@ struct SessionsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        CueSectionLabel(text: "Your practice", color: CueTheme.violet)
+                        CueSectionLabel(text: "Your practice", color: CueTheme.signal)
                         Text(practiceHeadline)
                             .font(.cueSection)
                             .foregroundStyle(CueTheme.ink)
                     }
                     Spacer()
-                    ZStack {
-                        Circle()
-                            .fill(CueTheme.green.opacity(0.10))
-                        Image(systemName: "waveform.path.ecg")
-                            .font(.system(size: 21, weight: .light))
-                            .foregroundStyle(CueTheme.green)
-                    }
-                    .frame(width: 48, height: 48)
+                    SectionMark(assetName: "SessionHistory", size: 54)
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
@@ -111,7 +104,7 @@ struct SessionsView: View {
                         .frame(width: 44, height: 44)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(session.name)
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .font(.system(.body, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
                                 .lineLimit(1)
                             Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
@@ -154,7 +147,7 @@ struct SessionsView: View {
         rowMetric(
             value: "\(Int(session.averageWPM.rounded()))",
             label: "WPM",
-            tint: CueTheme.violet
+            tint: CueTheme.signal
         )
         rowMetric(
             value: String(format: "%.1f", session.fillersPerSpeakingMinute),
@@ -171,7 +164,7 @@ struct SessionsView: View {
     private func overviewMetric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
-                .font(.system(size: 23, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(.title3, design: .rounded, weight: .light).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
                 .font(.system(.caption2, design: .rounded, weight: .semibold))
@@ -183,7 +176,7 @@ struct SessionsView: View {
     private func rowMetric(value: String, label: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value)
-                .font(.system(size: 18, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(.body, design: .rounded, weight: .light).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
                 .font(.system(.caption2, design: .rounded, weight: .semibold))
@@ -198,18 +191,11 @@ struct SessionsView: View {
     private var emptyState: some View {
         PremiumCard(padding: 24) {
             VStack(alignment: .leading, spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(CueTheme.violetSoft.opacity(0.72))
-                    Image(systemName: "waveform.badge.plus")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(CueTheme.violet)
-                }
-                .frame(width: 64, height: 64)
+                SectionMark(assetName: "SessionHistory", size: 76)
                 Text("Build your first baseline")
                     .font(.cueSection)
                     .foregroundStyle(CueTheme.ink)
-                Text("Record one rehearsal to see pace, filler words, timing, talk ratio, and vocal range together.")
+                Text("Record one rehearsal to see your pace, fillers, timing, and vocal range.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
