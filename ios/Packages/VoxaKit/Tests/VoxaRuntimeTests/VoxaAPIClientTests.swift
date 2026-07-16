@@ -11,7 +11,8 @@ func insightRequestPreservesExplicitNullFields() async throws {
     let client = VoxaAPIClient(
         baseURL: try #require(URL(string: "https://api.example.test")),
         bearerToken: "test-bearer-token",
-        session: session
+        session: session,
+        requestTimeoutSeconds: 28
     )
     let sessionID = try #require(UUID(uuidString: "60B7DB55-58A2-4B69-80B7-AEBC95E708DC"))
     let summary = SessionSummary(
@@ -64,6 +65,8 @@ func insightRequestPreservesExplicitNullFields() async throws {
     )
     #expect(capturedRequest.request.url?.path == "/v1/insights")
     #expect(capturedRequest.request.value(forHTTPHeaderField: "Authorization") == "Bearer test-bearer-token")
+    #expect(capturedRequest.request.value(forHTTPHeaderField: "X-Request-Id")?.isEmpty == false)
+    #expect(capturedRequest.request.timeoutInterval == 28)
     let json = try #require(JSONSerialization.jsonObject(with: capturedRequest.body) as? [String: Any])
     let metrics = try #require(json["metrics"] as? [String: Any])
     #expect(metrics["pitchRangeSemitones"] is NSNull)
@@ -86,7 +89,8 @@ func insightRequestBoundsShortSessionRates() async throws {
     let client = VoxaAPIClient(
         baseURL: try #require(URL(string: "https://api.example.test")),
         bearerToken: "short-session-test-token",
-        session: session
+        session: session,
+        requestTimeoutSeconds: 28
     )
     let summary = SessionSummary(
         sessionID: try #require(UUID(uuidString: "806420AA-9058-4B70-8757-14BB754C861A")),
@@ -117,6 +121,100 @@ func insightRequestBoundsShortSessionRates() async throws {
     let metrics = try #require(json["metrics"] as? [String: Any])
     #expect(metrics["averageWpm"] as? Double == 400)
     #expect(metrics["fillersPerMinute"] as? Double == 100)
+    #expect(metrics["completedOnTime"] as? Bool == false)
+}
+
+@Test("Insight timing distinguishes grace-range completion from finishing by the deadline")
+func insightRequestReportsLateGraceRangeAsNotCompletedOnTime() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [InsightRequestURLProtocol.self]
+    let client = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "late-grace-range-token",
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
+    )
+    let summary = SessionSummary(
+        sessionID: try #require(UUID(uuidString: "ECED7C87-0BEC-49D3-827F-31BCF5A7697A")),
+        name: "Slightly late pitch",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+        durationSeconds: 315,
+        targetDurationSeconds: 300,
+        targetMinimumWPM: 130,
+        targetMaximumWPM: 160,
+        speakingSeconds: 250,
+        averageWPM: 145,
+        timeInPaceRange: 0.8,
+        fillerCount: 3,
+        fillersPerSpeakingMinute: 0.72,
+        talkRatio: 0.79,
+        pitchRangeSemitones: 7,
+        energyRangeDB: 11,
+        cueCount: 1,
+        transcript: "The presentation landed inside Voxa Cue's display grace range but after the configured deadline."
+    )
+
+    _ = try await client.createInsight(summary: summary, checkpoints: [], cueEvents: [])
+
+    let capturedRequest = try #require(
+        InsightRequestURLProtocol.capture.snapshot(authorization: "Bearer late-grace-range-token")
+    )
+    let json = try #require(JSONSerialization.jsonObject(with: capturedRequest.body) as? [String: Any])
+    let metrics = try #require(json["metrics"] as? [String: Any])
+    #expect(summary.timingOutcome == .onTarget)
+    #expect(metrics["completedOnTime"] as? Bool == false)
+}
+
+@Test("API readiness exposes the deployed build")
+func apiReadinessExposesBuild() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [APIBehaviorURLProtocol.self]
+    let client = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "ready-token",
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
+    )
+
+    let health = try await client.readiness()
+
+    #expect(health.status == "ready")
+    #expect(health.service == "voxa-cue-api")
+    #expect(health.schemaVersion == 1)
+    #expect(health.build == "test-build")
+}
+
+@Test("API client maps timeout and authorization failures into actionable errors")
+func apiClientMapsOperationalFailures() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [APIBehaviorURLProtocol.self]
+    let session = URLSession(configuration: configuration)
+    let timeoutClient = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "timeout-token",
+        session: session,
+        requestTimeoutSeconds: 28
+    )
+    let unauthorizedClient = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "unauthorized-token",
+        session: session,
+        requestTimeoutSeconds: 28
+    )
+
+    do {
+        _ = try await timeoutClient.readiness()
+        Issue.record("A timed-out request unexpectedly succeeded")
+    } catch let error as VoxaAPIError {
+        #expect(error == .timedOut(requestID: nil))
+    }
+
+    do {
+        _ = try await unauthorizedClient.readiness()
+        Issue.record("An unauthorized request unexpectedly succeeded")
+    } catch let error as VoxaAPIError {
+        #expect(error == .unauthorized(requestID: "11111111-1111-4111-8111-111111111111"))
+    }
 }
 
 private struct CapturedRequest: Sendable {
@@ -201,4 +299,45 @@ private final class InsightRequestURLProtocol: URLProtocol, @unchecked Sendable 
             body.append(buffer, count: bytesRead)
         }
     }
+}
+
+private final class APIBehaviorURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let token = request.value(forHTTPHeaderField: "Authorization")
+        if token == "Bearer timeout-token" {
+            client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
+            return
+        }
+
+        let statusCode = token == "Bearer unauthorized-token" ? 401 : 200
+        let body = statusCode == 200
+            ? Data(#"{"status":"ready","service":"voxa-cue-api","schemaVersion":1,"build":"test-build"}"#.utf8)
+            : Data(#"{"error":{"code":"unauthorized","message":"A valid token is required.","issues":[]}}"#.utf8)
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "Content-Type": "application/json",
+                    "X-Request-Id": "11111111-1111-4111-8111-111111111111"
+                ]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
