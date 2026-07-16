@@ -2,31 +2,18 @@
 #include <Wire.h>
 
 #include <Adafruit_DRV2605.h>
-#include <NimBLEDevice.h>
 
 #include <cstddef>
 #include <cstdint>
 
+#include "voxa_ble_transport.hpp"
 #include "voxa_patterns.hpp"
 #include "voxa_protocol.hpp"
 
 namespace {
 
 constexpr std::uint8_t kDrv2605Address = 0x5AU;
-constexpr std::size_t kMailboxCapacity = 4U;
 constexpr std::uint32_t kDriverProbeIntervalMilliseconds = 250U;
-
-struct ReceivedCommandFrame {
-  std::uint8_t bytes[voxa::kCommandPacketSize];
-  std::size_t reportedLength;
-};
-
-struct CommandMailbox {
-  ReceivedCommandFrame frames[kMailboxCapacity];
-  std::size_t readIndex;
-  std::size_t writeIndex;
-  std::size_t count;
-};
 
 struct PlaybackState {
   bool active;
@@ -46,11 +33,8 @@ enum class PlaybackUpdate : std::uint8_t {
 };
 
 Adafruit_DRV2605 hapticDriver;
-NimBLECharacteristic* statusCharacteristic = nullptr;
-CommandMailbox commandMailbox{};
 PlaybackState playback{};
 voxa::SequenceTracker sequenceTracker{};
-portMUX_TYPE mailboxMutex = portMUX_INITIALIZER_UNLOCKED;
 bool driverReady = false;
 
 bool timeReached(std::uint32_t nowMilliseconds,
@@ -65,7 +49,11 @@ bool driverPresent() {
 }
 
 bool initializeHapticDriver() {
+#if defined(ARDUINO_ARCH_ESP32)
   Wire.begin(A4, A5);
+#else
+  Wire.begin();
+#endif
   if (!hapticDriver.begin(&Wire)) {
     return false;
   }
@@ -78,10 +66,6 @@ bool initializeHapticDriver() {
 
 bool publishStatus(std::uint16_t sequence, voxa::StatusState state,
                    voxa::ErrorCode error) {
-  if (statusCharacteristic == nullptr) {
-    return false;
-  }
-
   const voxa::StatusPacket status{
       voxa::kProtocolVersion, sequence, state, error, voxa::kFirmwareMajor,
       voxa::kFirmwareMinor};
@@ -90,101 +74,7 @@ bool publishStatus(std::uint16_t sequence, voxa::StatusState state,
     return false;
   }
 
-  statusCharacteristic->setValue(bytes, sizeof(bytes));
-  return statusCharacteristic->notify();
-}
-
-bool enqueueCommand(const std::uint8_t* bytes, std::size_t length) {
-  if (bytes == nullptr && length > 0U) {
-    return false;
-  }
-
-  bool enqueued = false;
-  portENTER_CRITICAL(&mailboxMutex);
-  if (commandMailbox.count < kMailboxCapacity) {
-    ReceivedCommandFrame& frame =
-        commandMailbox.frames[commandMailbox.writeIndex];
-    for (std::size_t index = 0U; index < voxa::kCommandPacketSize; ++index) {
-      frame.bytes[index] = index < length ? bytes[index] : 0U;
-    }
-    frame.reportedLength = length;
-    commandMailbox.writeIndex =
-        (commandMailbox.writeIndex + 1U) % kMailboxCapacity;
-    ++commandMailbox.count;
-    enqueued = true;
-  }
-  portEXIT_CRITICAL(&mailboxMutex);
-  return enqueued;
-}
-
-bool dequeueCommand(ReceivedCommandFrame* output) {
-  if (output == nullptr) {
-    return false;
-  }
-
-  bool dequeued = false;
-  portENTER_CRITICAL(&mailboxMutex);
-  if (commandMailbox.count > 0U) {
-    *output = commandMailbox.frames[commandMailbox.readIndex];
-    commandMailbox.readIndex =
-        (commandMailbox.readIndex + 1U) % kMailboxCapacity;
-    --commandMailbox.count;
-    dequeued = true;
-  }
-  portEXIT_CRITICAL(&mailboxMutex);
-  return dequeued;
-}
-
-class CommandCallbacks final : public NimBLECharacteristicCallbacks {
- public:
-  void onWrite(NimBLECharacteristic* characteristic,
-               NimBLEConnInfo& connectionInfo) override {
-    (void)connectionInfo;
-    const NimBLEAttValue value = characteristic->getValue();
-    if (!enqueueCommand(value.data(), value.size())) {
-      publishStatus(voxa::sequenceFromUntrustedCommand(value.data(),
-                                                       value.size()),
-                    voxa::StatusState::kRejected,
-                    voxa::ErrorCode::kInvalidCommand);
-    }
-  }
-};
-
-class ServerCallbacks final : public NimBLEServerCallbacks {
- public:
-  void onDisconnect(NimBLEServer* server, NimBLEConnInfo& connectionInfo,
-                    int reason) override {
-    (void)server;
-    (void)connectionInfo;
-    (void)reason;
-    NimBLEDevice::getAdvertising()->start();
-  }
-};
-
-CommandCallbacks commandCallbacks;
-ServerCallbacks serverCallbacks;
-
-void initializeBluetooth() {
-  NimBLEDevice::init(voxa::kDeviceName);
-  NimBLEDevice::setPower(3);
-
-  NimBLEServer* server = NimBLEDevice::createServer();
-  server->setCallbacks(&serverCallbacks);
-  NimBLEService* service = server->createService(voxa::kServiceUuid);
-  NimBLECharacteristic* commandCharacteristic = service->createCharacteristic(
-      voxa::kCommandCharacteristicUuid, NIMBLE_PROPERTY::WRITE);
-  statusCharacteristic = service->createCharacteristic(
-      voxa::kStatusCharacteristicUuid,
-      NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  commandCharacteristic->setCallbacks(&commandCallbacks);
-
-  service->start();
-  publishStatus(0U, voxa::StatusState::kCompleted, voxa::ErrorCode::kNone);
-
-  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-  advertising->addServiceUUID(voxa::kServiceUuid);
-  advertising->enableScanResponse(true);
-  advertising->start();
+  return voxa::ble_transport::publishStatus(bytes, sizeof(bytes));
 }
 
 void beginCurrentSegment(std::uint32_t nowMilliseconds) {
@@ -268,7 +158,7 @@ PlaybackUpdate updatePlayback(std::uint32_t nowMilliseconds) {
   return PlaybackUpdate::kCompleted;
 }
 
-void handleCommandFrame(const ReceivedCommandFrame& frame,
+void handleCommandFrame(const voxa::ble_transport::ReceivedCommandFrame& frame,
                         std::uint32_t nowMilliseconds) {
   const voxa::ParseCommandResult parsed =
       voxa::parseCommand(frame.bytes, frame.reportedLength);
@@ -315,9 +205,15 @@ void setup() {
   Serial.begin(115200);
   voxa::clearSequenceTracker(&sequenceTracker);
   driverReady = initializeHapticDriver();
-  initializeBluetooth();
+  const bool bluetoothReady = voxa::ble_transport::initialize();
+  if (bluetoothReady) {
+    publishStatus(0U, voxa::StatusState::kCompleted,
+                  voxa::ErrorCode::kNone);
+  }
 
-  if (driverReady) {
+  if (!bluetoothReady) {
+    Serial.println("Bluetooth initialization failed");
+  } else if (driverReady) {
     Serial.println("Voxa Cue firmware 1.0 ready");
   } else {
     Serial.println("DRV2605L not detected; haptic commands will be rejected");
@@ -326,9 +222,10 @@ void setup() {
 
 void loop() {
   const std::uint32_t nowMilliseconds = millis();
+  voxa::ble_transport::poll();
 
-  ReceivedCommandFrame frame{};
-  if (dequeueCommand(&frame)) {
+  voxa::ble_transport::ReceivedCommandFrame frame{};
+  if (voxa::ble_transport::dequeueCommand(&frame)) {
     handleCommandFrame(frame, nowMilliseconds);
   }
 
