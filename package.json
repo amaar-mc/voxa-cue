@@ -1,0 +1,17 @@
+{
+  "name": "voxa-cue",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "api:dev": "pnpm --dir api dev",
+    "api:test": "pnpm --dir api test",
+    "api:typecheck": "pnpm --dir api typecheck",
+    "api:build": "pnpm --dir api build",
+    "ios:generate": "cd ios && xcodegen generate",
+    "ios:test": "DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --package-path ios/Packages/VoxaKit",
+    "ios:build": "pnpm ios:generate && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -project ios/VoxaCue.xcodeproj -scheme VoxaCue -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build",
+    "firmware:test": "uvx --with pip platformio test -e native -d firmware/voxa-wearable",
+    "firmware:build": "uvx --with pip platformio run -e nano_esp32 -d firmware/voxa-wearable",
+    "verify": "pnpm api:typecheck && pnpm api:test && pnpm api:build && pnpm ios:test && pnpm ios:build && pnpm firmware:test && pnpm firmware:build"
+  }
+}
