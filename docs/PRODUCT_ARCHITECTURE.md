@@ -75,12 +75,13 @@ The Nano drives a 3 V LRA through a DRV2605L in real-time playback mode. `millis
 
 ## Optional API
 
-The Hono API deploys from `api/` to Vercel. A shared prototype bearer token protects all routes. Zod validates strict requests and maximum body sizes; errors are sanitized. The service rejects audio-shaped payloads before they can reach model code.
+The Hono API deploys from `api/` to Vercel. A shared closed-prototype bearer token protects readiness and AI routes; only the minimal liveness probe is public. The token is not production user authentication. Zod validates strict requests and maximum body sizes; errors are sanitized. The service rejects audio-shaped payloads before they can reach model code.
 
 - `POST /v1/deck-plans` accepts `en-US` slide text/notes and a target duration. It returns monotonically ordered checkpoints that end at the target.
 - `POST /v1/insights` accepts a finalized transcript, aggregate metrics, checkpoint results, and cue-event summaries only after the user confirmation in the app. It returns a schema-constrained summary, strengths, priorities, and drills.
+- `GET /readyz` performs a bounded metadata-only check that the configured provider key can access the configured model. It sends no presentation content and performs no generation.
 
-The server owns the OpenAI key. It calls the Responses API with strict JSON Schema output and `store: false`. The iPhone never receives the provider key or prompt implementation.
+The server owns the OpenAI key. It strips the app's session identifier before provider processing, then calls the Responses API with strict JSON Schema output, `store: false`, zero retries, and a bounded abort signal. The iPhone never receives the provider key or prompt implementation. Request telemetry is limited to a validated correlation ID, method, path without query parameters, status, and latency; request bodies and authorization values are excluded. `store: false` disables provider application-state storage, but default abuse-monitoring retention remains a separate production privacy decision documented in the release checklist.
 
 ## Privacy and trust boundaries
 
@@ -99,6 +100,7 @@ The server owns the OpenAI key. It calls the Responses API with strict JSON Sche
 - Cue Band disconnected: speech processing, metrics, and persistence continue; haptic delivery reports failure.
 - DRV2605L unavailable: BLE remains available but the firmware returns a driver-fault rejection.
 - API unavailable: real-time coaching is unaffected, deck planning falls back locally, and new AI insight generation reports unavailable.
+- API request budget exhausted: provider work is aborted and the API returns a sanitized typed 504 response.
 - Invalid model output: the API rejects it with a sanitized 502 response rather than returning unvalidated coaching.
 - App leaves the active session path: the current prototype requires the screen to remain open and does not claim background recording.
 
