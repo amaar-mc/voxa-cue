@@ -88,7 +88,7 @@ struct SessionSummaryView: View {
                 label: "Average pace",
                 value: "\(Int(summary.averageWPM.rounded()))",
                 detail: "WPM",
-                tint: CueTheme.violet
+                tint: CueTheme.signal
             )
             MetricTile(
                 label: "In target",
@@ -106,7 +106,7 @@ struct SessionSummaryView: View {
                 label: "Talk ratio",
                 value: "\(Int(summary.talkRatio * 100))%",
                 detail: "active speech",
-                tint: CueTheme.violet
+                tint: CueTheme.signal
             )
             MetricTile(
                 label: "Cues confirmed",
@@ -126,7 +126,7 @@ struct SessionSummaryView: View {
     private var vocalCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 17) {
-                CueSectionLabel(text: "Vocal delivery", color: CueTheme.violet)
+                CueSectionLabel(text: "Vocal delivery", color: CueTheme.signal)
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 24) {
                         vocalMetrics
@@ -160,9 +160,9 @@ struct SessionSummaryView: View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .light))
-                .foregroundStyle(CueTheme.violet)
+                .foregroundStyle(CueTheme.signal)
             VStack(alignment: .leading, spacing: 3) {
-                Text(value).font(.system(size: 20, weight: .light, design: .rounded).monospacedDigit())
+                Text(value).font(.system(.title3, design: .rounded, weight: .light).monospacedDigit())
                 Text(title).font(.cueCaption).foregroundStyle(CueTheme.secondaryInk)
             }
         }
@@ -178,14 +178,14 @@ struct SessionSummaryView: View {
                         HStack {
                             Label("Personalized coaching", systemImage: "sparkles")
                                 .font(.cueCaption)
-                                .foregroundStyle(CueTheme.violet)
+                                .foregroundStyle(CueTheme.signal)
                             Spacer()
                             coachingSourcePill
                         }
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Personalized coaching", systemImage: "sparkles")
                                 .font(.cueCaption)
-                                .foregroundStyle(CueTheme.violet)
+                                .foregroundStyle(CueTheme.signal)
                             coachingSourcePill
                         }
                     }
@@ -202,7 +202,7 @@ struct SessionSummaryView: View {
                                     .foregroundStyle(CueTheme.green)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(strength.title)
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     Text(strength.evidence)
                                         .font(.cueCaption)
                                         .foregroundStyle(CueTheme.secondaryInk)
@@ -211,30 +211,30 @@ struct SessionSummaryView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 11) {
-                        CueSectionLabel(text: "Next priorities", color: CueTheme.violet)
+                        CueSectionLabel(text: "Next priorities", color: CueTheme.signal)
                         ForEach(insight.priorities) { priority in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(priority.title)
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                    .font(.system(.body, design: .rounded, weight: .semibold))
                                 Text(priority.evidence)
                                     .font(.cueCaption)
                                     .foregroundStyle(CueTheme.secondaryInk)
                                 Label(priority.nextAction, systemImage: "arrow.turn.down.right")
                                     .font(.cueCaption)
-                                    .foregroundStyle(CueTheme.violet)
+                                    .foregroundStyle(CueTheme.signal)
                             }
                             .padding(15)
-                            .background(CueTheme.violetSoft.opacity(0.62))
+                            .background(CueTheme.signalSoft.opacity(0.62))
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                     }
                     VStack(alignment: .leading, spacing: 11) {
-                        CueSectionLabel(text: "Practice drills", color: CueTheme.violet)
+                        CueSectionLabel(text: "Practice drills", color: CueTheme.signal)
                         ForEach(insight.drills) { drill in
                             VStack(alignment: .leading, spacing: 5) {
                                 HStack {
                                     Text(drill.title)
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     Spacer()
                                     Text("\(drill.durationMinutes) min")
                                         .font(.cueCaption.monospacedDigit())
@@ -256,7 +256,7 @@ struct SessionSummaryView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Label("Personalized coaching", systemImage: "sparkles")
                         .font(.cueCaption)
-                        .foregroundStyle(CueTheme.violet)
+                        .foregroundStyle(CueTheme.signal)
                     Text("Turn this session into an evidence-backed practice plan.")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
@@ -324,7 +324,7 @@ struct SessionSummaryView: View {
                     .font(.cueSection)
                     .foregroundStyle(CueTheme.ink)
             }
-            .tint(CueTheme.violet)
+            .tint(CueTheme.signal)
         }
     }
 
