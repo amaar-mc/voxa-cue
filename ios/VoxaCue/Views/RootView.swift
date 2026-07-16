@@ -3,19 +3,20 @@ import VoxaCore
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("hasCompletedVoxaOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         Group {
             if hasCompletedOnboarding {
                 MainTabView()
-                    .transition(.opacity.combined(with: .scale(scale: 0.99)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.99)))
             } else {
                 OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
                     .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.55, dampingFraction: 0.88), value: hasCompletedOnboarding)
+        .animation(CueMotion.settle(reduceMotion: reduceMotion), value: hasCompletedOnboarding)
         .background(CueTheme.canvas.ignoresSafeArea())
     }
 }
@@ -40,6 +41,8 @@ struct MainTabView: View {
                 .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
         }
         .toolbarBackground(CueTheme.surface, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .sensoryFeedback(.selection, trigger: model.selectedTab)
         .sheet(isPresented: $model.setupPresented) {
             SessionSetupView()
         }
@@ -67,16 +70,15 @@ struct MainTabView: View {
             }
         }
         .alert(
-            "Voxa Cue",
+            "Couldn’t complete that",
             isPresented: Binding(
                 get: { model.lastError != nil },
                 set: { if !$0 { model.lastError = nil } }
             )
         ) {
-            Button("OK", role: .cancel) { model.lastError = nil }
+            Button("Dismiss", role: .cancel) { model.lastError = nil }
         } message: {
             Text(model.lastError ?? "")
         }
     }
 }
-

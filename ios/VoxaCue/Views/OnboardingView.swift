@@ -2,55 +2,42 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var hasCompletedOnboarding: Bool
     @State private var page = 0
 
     private let pages = [
         OnboardingPage(
-            eyebrow: "Meet Cue",
-            title: "Your voice.\nPerfected.",
-            body: "The phone listens while you present. Your Cue Band responds with private, eyes-free coaching.",
+            eyebrow: "Meet Voxa Cue",
+            title: "Discreet guidance.\nConfident delivery.",
+            body: "Your iPhone listens while you present. The Cue Band can answer with private, eyes-free coaching patterns.",
             symbol: "waveform.and.mic"
         ),
         OnboardingPage(
             eyebrow: "Private by design",
-            title: "Fast coaching,\nwithout the cloud.",
-            body: "Live transcription, pace, fillers, and timing run on your iPhone. Raw audio is never saved.",
+            title: "Live coaching stays\non your iPhone.",
+            body: "Live transcription, pace, filler words, and timing run on-device. Raw audio is never saved.",
             symbol: "iphone.gen3.radiowaves.left.and.right"
         ),
         OnboardingPage(
-            eyebrow: "Pair the band",
-            title: "Learn each cue\nbefore the room does.",
-            body: "Connect your Cue Band and preview the vibration language. You can still rehearse with analytics only.",
+            eyebrow: "Connect the band",
+            title: "Learn the language\nof each cue.",
+            body: "Pair a Cue Band for wrist feedback. If the band is not nearby, every session still records private analytics.",
             symbol: "applewatch.radiowaves.left.and.right"
         ),
         OnboardingPage(
             eyebrow: "Ready",
             title: "Put the phone down.\nStay in the moment.",
-            body: "Keep the microphone unobstructed and the live screen open during your presentation.",
+            body: "Keep the microphone unobstructed and the live session open. Cue handles the signal; you handle the room.",
             symbol: "sparkles"
         )
     ]
 
     var body: some View {
         ZStack {
-            CueTheme.canvas.ignoresSafeArea()
-            Circle()
-                .fill(CueTheme.violetSoft.opacity(0.70))
-                .frame(width: 420, height: 420)
-                .blur(radius: 30)
-                .offset(x: 170, y: -330)
+            background
             VStack(spacing: 0) {
-                HStack {
-                    CueWordmark(compact: false)
-                    Spacer()
-                    Text("\(page + 1) / \(pages.count)")
-                        .font(.cueCaption)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-
+                header
                 TabView(selection: $page) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, item in
                         OnboardingPageView(page: item)
@@ -58,38 +45,137 @@ struct OnboardingView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(CueMotion.settle(reduceMotion: reduceMotion), value: page)
 
-                HStack(spacing: 7) {
-                    ForEach(pages.indices, id: \.self) { index in
-                        Capsule()
-                            .fill(index == page ? CueTheme.violet : CueTheme.border)
-                            .frame(width: index == page ? 24 : 7, height: 7)
-                            .animation(.spring(response: 0.38, dampingFraction: 0.78), value: page)
-                    }
+                footer
+            }
+        }
+    }
+
+    private var background: some View {
+        ZStack {
+            CueTheme.canvas
+            Circle()
+                .fill(CueTheme.periwinkle.opacity(0.20))
+                .frame(width: 420, height: 420)
+                .blur(radius: 52)
+                .offset(x: 170, y: -320)
+            Circle()
+                .fill(CueTheme.indigo.opacity(0.08))
+                .frame(width: 300, height: 300)
+                .blur(radius: 60)
+                .offset(x: -170, y: 330)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var header: some View {
+        HStack {
+            CueWordmark(compact: false)
+            Spacer()
+            Text("\(page + 1) of \(pages.count)")
+                .font(.cueCaption.monospacedDigit())
+                .foregroundStyle(CueTheme.secondaryInk)
+                .accessibilityLabel("Page \(page + 1) of \(pages.count)")
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 18)
+    }
+
+    private var footer: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 7) {
+                ForEach(pages.indices, id: \.self) { index in
+                    Capsule()
+                        .fill(index == page ? CueTheme.violet : CueTheme.border)
+                        .frame(width: index == page ? 25 : 7, height: 7)
+                        .animation(CueMotion.quick(reduceMotion: reduceMotion), value: page)
                 }
-                .padding(.bottom, 20)
+            }
+            .accessibilityHidden(true)
 
+            if page == 2 {
+                bandPairingFooter
+            } else {
                 VoxaButton(
-                    title: page == pages.count - 1 ? "Start coaching" : nextButtonTitle,
+                    title: page == pages.count - 1 ? "Start coaching" : "Continue",
                     symbol: page == pages.count - 1 ? "arrow.right" : "chevron.right",
                     style: .primary,
                     disabled: false,
                     action: advance
                 )
-                .padding(.horizontal, 24)
-                .padding(.bottom, 18)
             }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 18)
+    }
+
+    private var bandPairingFooter: some View {
+        VStack(spacing: 10) {
+            StatusPill(label: model.connectionState.label, symbol: bandStatusSymbol, color: bandStatusColor)
+
+            VoxaButton(
+                title: bandButtonTitle,
+                symbol: bandIsReady ? "checkmark" : "wave.3.right",
+                style: .primary,
+                disabled: bandIsBusy,
+                action: bandPrimaryAction
+            )
+
+            Button("Continue with analytics only", action: advance)
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .foregroundStyle(CueTheme.secondaryInk)
+                .frame(minHeight: 44)
+                .buttonStyle(SpringPressStyle())
+                .accessibilityHint("You can connect the Cue Band later in Settings")
         }
     }
 
-    private var nextButtonTitle: String {
-        page == 2 ? "Pair Cue Band" : "Continue"
+    private var bandIsReady: Bool {
+        if case .ready = model.connectionState { return true }
+        return false
+    }
+
+    private var bandIsBusy: Bool {
+        switch model.connectionState {
+        case .searching, .connecting, .discovering, .reconnecting: true
+        default: false
+        }
+    }
+
+    private var bandButtonTitle: String {
+        if bandIsReady { return "Continue with Cue Band" }
+        if bandIsBusy { return "Searching for Cue Band…" }
+        return "Connect Cue Band"
+    }
+
+    private var bandStatusSymbol: String {
+        if bandIsReady { return "checkmark.circle.fill" }
+        if bandIsBusy { return "antenna.radiowaves.left.and.right" }
+        if case .failed = model.connectionState { return "exclamationmark.triangle.fill" }
+        return "applewatch"
+    }
+
+    private var bandStatusColor: Color {
+        if bandIsReady { return CueTheme.green }
+        if bandIsBusy { return CueTheme.violet }
+        if case .failed = model.connectionState { return CueTheme.red }
+        return CueTheme.secondaryInk
+    }
+
+    private func bandPrimaryAction() {
+        if bandIsReady {
+            advance()
+        } else {
+            model.connectCueBand()
+        }
     }
 
     private func advance() {
-        if page == 2 { model.connectCueBand() }
         if page < pages.count - 1 {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { page += 1 }
+            withAnimation(CueMotion.settle(reduceMotion: reduceMotion)) {
+                page += 1
+            }
         } else {
             hasCompletedOnboarding = true
         }
@@ -104,38 +190,37 @@ private struct OnboardingPage: Hashable {
 }
 
 private struct OnboardingPageView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let page: OnboardingPage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 44, style: .continuous)
-                    .fill(CueTheme.surface)
-                    .frame(height: 250)
-                    .shadow(color: CueTheme.navy.opacity(0.08), radius: 30, y: 18)
-                Circle()
-                    .stroke(CueTheme.violet.opacity(0.22), lineWidth: 22)
-                    .frame(width: 150, height: 150)
-                Image(systemName: page.symbol)
-                    .font(.system(size: 56, weight: .ultraLight))
-                    .foregroundStyle(CueTheme.violet)
-                    .symbolEffect(.breathe, options: .repeating)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? 12 : 34)
+                PremiumCard(padding: dynamicTypeSize.isAccessibilitySize ? 16 : 24) {
+                    CuePulseGlyph(
+                        symbol: page.symbol,
+                        size: dynamicTypeSize.isAccessibilitySize ? 116 : 176,
+                        animated: true
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                CueSectionLabel(text: page.eyebrow, color: CueTheme.violet)
+                Text(page.title)
+                    .font(.cueHero)
+                    .foregroundStyle(CueTheme.ink)
+                    .lineSpacing(-1)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(page.body)
+                    .font(.cueBody)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 16)
             }
-            Text(page.eyebrow.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .tracking(1.6)
-                .foregroundStyle(CueTheme.violet)
-            Text(page.title)
-                .font(.cueHero)
-                .foregroundStyle(CueTheme.ink)
-                .lineSpacing(-2)
-            Text(page.body)
-                .font(.cueBody)
-                .foregroundStyle(CueTheme.secondaryInk)
-                .lineSpacing(4)
-            Spacer()
+            .padding(.horizontal, 24)
         }
-        .padding(.horizontal, 24)
+        .scrollIndicators(.hidden)
     }
 }
