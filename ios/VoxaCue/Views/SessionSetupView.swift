@@ -1,27 +1,15 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import VoxaCore
-import VoxaRuntime
 
 struct SessionSetupView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var name = "Practice Session"
-    @State private var mode = SessionMode.freeSpeaking
     @State private var targetMinutes = 5.0
     @State private var minimumWPM = 130.0
     @State private var maximumWPM = 160.0
     @State private var intensity = CueIntensity.medium
-    @State private var enabledCues = Set(CueKind.allCases)
-    @State private var showImporter = false
-    @State private var isPreparingDeck = false
-    @State private var deckTitle: String?
-    @State private var deckSlides: [DeckSlide] = []
-    @State private var deckPlan: DeckPlan?
-    @State private var deckPlanSource: DeckPlanSource?
-    @State private var deckTimingAdjustedLocally = false
-    @State private var deckPreparationID: UUID?
-    @State private var deckPreparationTask: Task<Void, Never>?
+    @State private var enabledCues = Set(CueKind.liveMVP)
 
     var body: some View {
         NavigationStack {
@@ -30,7 +18,7 @@ struct SessionSetupView: View {
                     ScreenTitle(
                         eyebrow: "New session",
                         title: "Set your coaching target",
-                        subtitle: "Choose what Cue should watch. Your live coaching settings stay on this iPhone."
+                        subtitle: "Cue listens through this iPhone and coaches pace, fillers, and timing."
                     )
                     basicsCard
                     paceCard
@@ -63,18 +51,6 @@ struct SessionSetupView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .fileImporter(
-                isPresented: $showImporter,
-                allowedContentTypes: [UTType(filenameExtension: "pptx") ?? .data],
-                allowsMultipleSelection: false,
-                onCompletion: handleImport
-            )
-            .onChange(of: targetMinutes) { _, _ in
-                retimePreparedDeck()
-            }
-            .onDisappear {
-                deckPreparationTask?.cancel()
-            }
         }
     }
 
@@ -94,20 +70,13 @@ struct SessionSetupView: View {
                     .textInputAutocapitalization(.sentences)
                     .submitLabel(.done)
 
-                Picker("Session mode", selection: $mode) {
-                    ForEach(SessionMode.allCases, id: \.self) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-
                 Stepper(value: $targetMinutes, in: 1...30, step: 1) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Target duration")
                                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
-                            Text("Drives time and deck-progress cues")
+                            Text("Drives private timing reminders")
                                 .font(.cueCaption)
                                 .foregroundStyle(CueTheme.secondaryInk)
                         }
@@ -117,64 +86,8 @@ struct SessionSetupView: View {
                             .foregroundStyle(CueTheme.signal)
                     }
                 }
-
-                if mode == .powerPoint {
-                    Divider().overlay(CueTheme.border)
-                    Button {
-                        showImporter = true
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: deckPlan == nil ? "doc.badge.plus" : "checkmark.circle.fill")
-                                .font(.system(size: 21, weight: .medium))
-                                .foregroundStyle(deckPlan == nil ? CueTheme.signal : CueTheme.green)
-                                .frame(width: 40, height: 40)
-                                .background((deckPlan == nil ? CueTheme.signalSoft : CueTheme.green.opacity(0.10)))
-                                .clipShape(Circle())
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(deckTitle ?? "Choose a PowerPoint")
-                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                    .foregroundStyle(CueTheme.ink)
-                                    .lineLimit(2)
-                                Text(deckStatusLabel)
-                                    .font(.cueCaption)
-                                    .foregroundStyle(CueTheme.secondaryInk)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 8)
-                            if isPreparingDeck {
-                                ProgressView().tint(CueTheme.signal)
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(CueTheme.secondaryInk)
-                            }
-                        }
-                        .frame(minHeight: 52)
-                    }
-                    .buttonStyle(SpringPressStyle())
-                    Text(deckPrivacyCopy)
-                        .font(.cueCaption)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
         }
-    }
-
-    private var deckStatusLabel: String {
-        guard let deckPlan else {
-            return "PPTX text and notes become timed checkpoints"
-        }
-        let source = deckPlanSource?.label ?? "Prepared"
-        let timing = deckTimingAdjustedLocally ? " · timing adjusted locally" : ""
-        return "\(deckPlan.checkpoints.count) checkpoints · \(source)\(timing)"
-    }
-
-    private var deckPrivacyCopy: String {
-        if model.demoMode {
-            return "The file stays local and is not retained. Demo mode prepares checkpoints on-device."
-        }
-        return "The file is never retained. Extracted text is sent only if the coaching API is configured; local planning remains available."
     }
 
     private var paceCard: some View {
@@ -193,7 +106,7 @@ struct SessionSetupView: View {
                 }
                 Text(
                     paceRangeIsValid
-                        ? "Cue evaluates a rolling window so one rushed sentence does not trigger a false alert."
+                        ? "A rolling window prevents one rushed sentence from triggering a cue."
                         : "Maximum pace must be higher than minimum pace."
                 )
                 .font(.cueCaption)
@@ -225,16 +138,16 @@ struct SessionSetupView: View {
             VStack(alignment: .leading, spacing: 16) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
-                        CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
+                        CueSectionLabel(text: "Haptic cues", color: CueTheme.signal)
                         Spacer(minLength: 8)
                         intensityPicker
                     }
                     VStack(alignment: .leading, spacing: 10) {
-                        CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
+                        CueSectionLabel(text: "Haptic cues", color: CueTheme.signal)
                         intensityPicker
                     }
                 }
-                ForEach(CueKind.allCases, id: \.self) { cue in
+                ForEach(CueKind.liveMVP, id: \.self) { cue in
                     Toggle(isOn: cueBinding(cue)) {
                         HStack(spacing: 12) {
                             Image(systemName: symbol(for: cue))
@@ -256,7 +169,7 @@ struct SessionSetupView: View {
                     .tint(CueTheme.signal)
                 }
                 if enabledCues.isEmpty {
-                    Label("No wrist cues selected. The session will still record analytics.", systemImage: "chart.xyaxis.line")
+                    Label("Analytics will continue without wrist cues.", systemImage: "chart.xyaxis.line")
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
                 }
@@ -287,11 +200,7 @@ struct SessionSetupView: View {
                     detail: model.demoMode ? "Deterministic simulation" : "Permission checked when you begin",
                     state: model.demoMode ? .ready : .pending
                 )
-                preflightRow(
-                    label: "Cue Band",
-                    detail: bandPreflightDetail,
-                    state: bandPreflightState
-                )
+                preflightRow(label: "Cue Band", detail: bandPreflightDetail, state: bandPreflightState)
                 if !isCueReady {
                     Button {
                         model.connectCueBand()
@@ -304,11 +213,6 @@ struct SessionSetupView: View {
                     .tint(CueTheme.signal)
                     .disabled(bandConnectionIsBusy)
                 }
-                preflightRow(
-                    label: "Presentation plan",
-                    detail: mode == .freeSpeaking ? "Free speaking" : (deckPlan == nil ? "PowerPoint required" : "Ready"),
-                    state: mode == .freeSpeaking || deckPlan != nil ? .ready : .blocked
-                )
             }
         }
     }
@@ -381,12 +285,6 @@ struct SessionSetupView: View {
         if !paceRangeIsValid {
             return "Set a valid pace range to continue."
         }
-        if isPreparingDeck {
-            return "Your presentation plan is still being prepared."
-        }
-        if mode == .powerPoint && deckPlan == nil {
-            return "Choose a PowerPoint to use presentation-progress cues."
-        }
         return nil
     }
 
@@ -414,80 +312,15 @@ struct SessionSetupView: View {
         case .tooFast: "Two short pulses · ease your pace"
         case .tooSlow: "One long pulse · add energy"
         case .fillerBurst: "Three short pulses · reset with a pause"
-        case .deckBehind: "Long, short, long · move forward"
+        case .deckBehind: "Reserved for a future presentation mode"
         case .time75: "One pronounced pulse · 75% elapsed"
         case .time90: "Two pronounced pulses · 90% elapsed"
         case .time100: "Three pronounced pulses · target reached"
         }
     }
 
-    private func handleImport(_ result: Result<[URL], any Error>) {
-        guard case let .success(urls) = result, let url = urls.first else {
-            model.lastError = "The PowerPoint file could not be opened. Choose a .pptx file and try again."
-            return
-        }
-        deckPreparationTask?.cancel()
-        let preparationID = UUID()
-        deckPreparationID = preparationID
-        isPreparingDeck = true
-        deckTitle = url.deletingPathExtension().lastPathComponent
-        deckSlides = []
-        deckPlan = nil
-        deckPlanSource = nil
-        deckTimingAdjustedLocally = false
-        deckPreparationTask = Task {
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            do {
-                let slides = try await Task.detached {
-                    try PowerPointParser().parse(url: url)
-                }.value
-                try Task.checkCancellation()
-                guard deckPreparationID == preparationID else { return }
-                let title = deckTitle ?? "Presentation"
-                deckSlides = slides
-                let requestedTargetDurationSeconds = Int(targetMinutes * 60)
-                let prepared = await model.createDeckPlan(
-                    title: title,
-                    targetDurationSeconds: requestedTargetDurationSeconds,
-                    slides: slides
-                )
-                try Task.checkCancellation()
-                guard deckPreparationID == preparationID else { return }
-                let latestTargetDurationSeconds = Int(targetMinutes * 60)
-                let reconciled = reconciledPreparedDeck(
-                    prepared,
-                    requestedTargetDurationSeconds: requestedTargetDurationSeconds,
-                    latestTargetDurationSeconds: latestTargetDurationSeconds
-                )
-                deckPlan = reconciled.plan
-                deckPlanSource = reconciled.source
-                deckTimingAdjustedLocally = requestedTargetDurationSeconds != latestTargetDurationSeconds
-            } catch is CancellationError {
-                return
-            } catch {
-                guard deckPreparationID == preparationID else { return }
-                deckSlides = []
-                deckPlan = nil
-                deckPlanSource = nil
-                model.lastError = "Cue could not extract slide text from that file. Confirm it is a valid .pptx and try again."
-            }
-            guard deckPreparationID == preparationID else { return }
-            isPreparingDeck = false
-        }
-    }
-
-    private func retimePreparedDeck() {
-        guard let deckPlan else { return }
-        self.deckPlan = LocalDeckPlanner.retime(
-            plan: deckPlan,
-            targetDurationSeconds: Int(targetMinutes * 60)
-        )
-        deckTimingAdjustedLocally = true
-    }
-
     private func begin() {
-        let intensityMap = Dictionary(uniqueKeysWithValues: CueKind.allCases.map { ($0, intensity) })
+        let intensityMap = Dictionary(uniqueKeysWithValues: CueKind.liveMVP.map { ($0, intensity) })
         let baseProfile = CoachingProfile.rehearsalV1()
         let profile = CoachingProfile(
             minimumWPM: minimumWPM,
@@ -500,42 +333,25 @@ struct SessionSetupView: View {
         let configuration = SessionConfiguration(
             id: UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            mode: mode,
+            mode: .freeSpeaking,
             targetDurationSeconds: targetMinutes * 60,
             profile: profile,
-            deckPlan: mode == .powerPoint ? deckPlan : nil
+            deckPlan: nil
         )
         model.beginSession(configuration: configuration)
     }
-}
-
-func reconciledPreparedDeck(
-    _ prepared: PreparedDeckPlan,
-    requestedTargetDurationSeconds: Int,
-    latestTargetDurationSeconds: Int
-) -> PreparedDeckPlan {
-    guard requestedTargetDurationSeconds != latestTargetDurationSeconds else { return prepared }
-    return PreparedDeckPlan(
-        plan: LocalDeckPlanner.retime(
-            plan: prepared.plan,
-            targetDurationSeconds: latestTargetDurationSeconds
-        ),
-        source: prepared.source
-    )
 }
 
 private enum PreflightState {
     case ready
     case pending
     case optional
-    case blocked
 
     var symbol: String {
         switch self {
         case .ready: "checkmark.circle.fill"
         case .pending: "clock.fill"
         case .optional: "minus.circle.fill"
-        case .blocked: "exclamationmark.circle.fill"
         }
     }
 
@@ -544,7 +360,6 @@ private enum PreflightState {
         case .ready: CueTheme.green
         case .pending: CueTheme.signal
         case .optional: CueTheme.secondaryInk
-        case .blocked: CueTheme.red
         }
     }
 }
