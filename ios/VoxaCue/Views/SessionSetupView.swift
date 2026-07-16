@@ -81,7 +81,7 @@ struct SessionSetupView: View {
     private var basicsCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
-                CueSectionLabel(text: "Session", color: CueTheme.violet)
+                CueSectionLabel(text: "Session", color: CueTheme.signal)
                 TextField("Session name", text: $name)
                     .font(.cueBody)
                     .padding(15)
@@ -114,7 +114,7 @@ struct SessionSetupView: View {
                         Spacer(minLength: 8)
                         Text("\(Int(targetMinutes)) min")
                             .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(CueTheme.violet)
+                            .foregroundStyle(CueTheme.signal)
                     }
                 }
 
@@ -126,9 +126,9 @@ struct SessionSetupView: View {
                         HStack(spacing: 14) {
                             Image(systemName: deckPlan == nil ? "doc.badge.plus" : "checkmark.circle.fill")
                                 .font(.system(size: 21, weight: .medium))
-                                .foregroundStyle(deckPlan == nil ? CueTheme.violet : CueTheme.green)
+                                .foregroundStyle(deckPlan == nil ? CueTheme.signal : CueTheme.green)
                                 .frame(width: 40, height: 40)
-                                .background((deckPlan == nil ? CueTheme.violetSoft : CueTheme.green.opacity(0.10)))
+                                .background((deckPlan == nil ? CueTheme.signalSoft : CueTheme.green.opacity(0.10)))
                                 .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(deckTitle ?? "Choose a PowerPoint")
@@ -142,7 +142,7 @@ struct SessionSetupView: View {
                             }
                             Spacer(minLength: 8)
                             if isPreparingDeck {
-                                ProgressView().tint(CueTheme.violet)
+                                ProgressView().tint(CueTheme.signal)
                             } else {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .semibold))
@@ -181,7 +181,7 @@ struct SessionSetupView: View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    CueSectionLabel(text: "Pace range", color: CueTheme.violet)
+                    CueSectionLabel(text: "Pace range", color: CueTheme.signal)
                     Spacer(minLength: 8)
                     Text("\(Int(minimumWPM))–\(Int(maximumWPM)) WPM")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
@@ -214,7 +214,7 @@ struct SessionSetupView: View {
                     .foregroundStyle(CueTheme.ink)
             }
             Slider(value: value, in: range, step: 5)
-                .tint(CueTheme.violet)
+                .tint(CueTheme.signal)
                 .accessibilityLabel("\(label) speaking pace")
                 .accessibilityValue("\(Int(value.wrappedValue)) words per minute")
         }
@@ -225,12 +225,12 @@ struct SessionSetupView: View {
             VStack(alignment: .leading, spacing: 16) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
-                        CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+                        CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
                         Spacer(minLength: 8)
                         intensityPicker
                     }
                     VStack(alignment: .leading, spacing: 10) {
-                        CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+                        CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
                         intensityPicker
                     }
                 }
@@ -239,9 +239,9 @@ struct SessionSetupView: View {
                         HStack(spacing: 12) {
                             Image(systemName: symbol(for: cue))
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(CueTheme.violet)
+                                .foregroundStyle(CueTheme.signal)
                                 .frame(width: 32, height: 32)
-                                .background(CueTheme.violetSoft)
+                                .background(CueTheme.signalSoft)
                                 .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(cue.label)
@@ -253,7 +253,7 @@ struct SessionSetupView: View {
                             }
                         }
                     }
-                    .tint(CueTheme.violet)
+                    .tint(CueTheme.signal)
                 }
                 if enabledCues.isEmpty {
                     Label("No wrist cues selected. The session will still record analytics.", systemImage: "chart.xyaxis.line")
@@ -281,7 +281,7 @@ struct SessionSetupView: View {
     private var preflightCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
-                CueSectionLabel(text: "Preflight", color: CueTheme.violet)
+                CueSectionLabel(text: "Preflight", color: CueTheme.signal)
                 preflightRow(
                     label: model.demoMode ? "Audio source" : "Phone microphone",
                     detail: model.demoMode ? "Deterministic simulation" : "Permission checked when you begin",
@@ -301,7 +301,7 @@ struct SessionSetupView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
-                    .tint(CueTheme.violet)
+                    .tint(CueTheme.signal)
                     .disabled(bandConnectionIsBusy)
                 }
                 preflightRow(
@@ -542,7 +542,7 @@ private enum PreflightState {
     var color: Color {
         switch self {
         case .ready: CueTheme.green
-        case .pending: CueTheme.violet
+        case .pending: CueTheme.signal
         case .optional: CueTheme.secondaryInk
         case .blocked: CueTheme.red
         }

@@ -32,7 +32,7 @@ struct LiveSessionView: View {
             }
             Button("Keep presenting", role: .cancel) {}
         } message: {
-            Text("Cue will finalize the transcript and save your local analytics. Raw audio is never saved.")
+            Text("Cue will save the final transcript and session results locally.")
         }
         .confirmationDialog("Discard this partial session?", isPresented: $confirmDiscard, titleVisibility: .visible) {
             Button("Discard session", role: .destructive) {
@@ -45,15 +45,7 @@ struct LiveSessionView: View {
     }
 
     private var background: some View {
-        ZStack(alignment: .topTrailing) {
-            CueTheme.canvas
-            Circle()
-                .fill(CueTheme.periwinkle.opacity(0.13))
-                .frame(width: 320, height: 320)
-                .blur(radius: 55)
-                .offset(x: 140, y: -160)
-        }
-        .ignoresSafeArea()
+        CueTheme.canvas.ignoresSafeArea()
     }
 
     private var preparationView: some View {
@@ -67,7 +59,7 @@ struct LiveSessionView: View {
             Text(
                 model.demoMode
                     ? "No microphone audio is captured in this labeled simulation."
-                    : "Speech assets and microphone access are checked before the countdown begins."
+                    : "Checking speech assets and microphone access."
             )
             .font(.cueBody)
             .foregroundStyle(CueTheme.secondaryInk)
@@ -79,7 +71,7 @@ struct LiveSessionView: View {
 
     private func countdownView(_ count: Int) -> some View {
         VStack(spacing: 18) {
-            CueSectionLabel(text: "Ready", color: CueTheme.violet)
+            CueSectionLabel(text: "Ready", color: CueTheme.signal)
             Text("\(count)")
                 .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 90 : 120, weight: .ultraLight, design: .rounded).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
@@ -172,7 +164,7 @@ struct LiveSessionView: View {
             Circle()
                 .trim(from: 0, to: presentationProgress)
                 .stroke(
-                    CueTheme.signalGradient,
+                    CueTheme.actionFill,
                     style: StrokeStyle(lineWidth: 12, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
@@ -224,13 +216,13 @@ struct LiveSessionView: View {
                 label: "Talk ratio",
                 value: "\(Int(session.metrics.talkRatio * 100))%",
                 detail: "Active speaking",
-                tint: CueTheme.violet
+                tint: CueTheme.signal
             )
             MetricTile(
                 label: "Cues completed",
                 value: "\(session.cueLogs.filter { $0.deliveryStatus == .completed }.count)",
                 detail: model.demoMode ? "Simulated" : (isCueReady ? "Confirmed by band" : "Analytics only"),
-                tint: model.demoMode ? CueTheme.violet : (isCueReady ? CueTheme.green : CueTheme.secondaryInk)
+                tint: model.demoMode ? CueTheme.signal : (isCueReady ? CueTheme.green : CueTheme.secondaryInk)
             )
             MetricTile(
                 label: model.demoMode ? "Simulated level" : "Mic level",
@@ -248,7 +240,7 @@ struct LiveSessionView: View {
         PremiumCard(padding: 18) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    CueSectionLabel(text: "Content progress", color: CueTheme.violet)
+                    CueSectionLabel(text: "Content progress", color: CueTheme.signal)
                     Spacer()
                     Text("\(Int(session.checkpointProgress * 100))%")
                         .font(.cueCaption.monospacedDigit())
@@ -263,7 +255,7 @@ struct LiveSessionView: View {
                         .fill(CueTheme.border)
                         .overlay(alignment: .leading) {
                             Capsule()
-                                .fill(CueTheme.signalGradient)
+                                .fill(CueTheme.actionFill)
                                 .frame(width: geometry.size.width * session.checkpointProgress)
                         }
                 }
@@ -285,10 +277,10 @@ struct LiveSessionView: View {
                     .animation(CueMotion.quick(reduceMotion: reduceMotion), value: showDetails)
             }
             .font(.system(.subheadline, design: .rounded, weight: .semibold))
-            .foregroundStyle(CueTheme.violet)
+            .foregroundStyle(CueTheme.signal)
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(CueTheme.violetSoft.opacity(0.72))
+            .background(CueTheme.signalSoft.opacity(0.72))
             .clipShape(Capsule())
         }
         .buttonStyle(SpringPressStyle())
@@ -299,7 +291,7 @@ struct LiveSessionView: View {
         PremiumCard(padding: 18) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    CueSectionLabel(text: "Live transcript", color: CueTheme.violet)
+                    CueSectionLabel(text: "Live transcript", color: CueTheme.signal)
                     Spacer()
                     Label("Not audio", systemImage: "lock.fill")
                         .font(.system(.caption2, design: .rounded, weight: .semibold))
@@ -389,7 +381,7 @@ struct LiveSessionView: View {
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 54)
-                .background(CueTheme.signalGradient)
+                .background(CueTheme.actionFill)
                 .clipShape(Capsule())
         }
         .buttonStyle(SpringPressStyle())
@@ -493,7 +485,7 @@ struct LiveSessionView: View {
 
     private var liveSourceColor: Color {
         if session.isPaused { return CueTheme.amber }
-        return model.demoMode ? CueTheme.violet : CueTheme.green
+        return model.demoMode ? CueTheme.signal : CueTheme.green
     }
 
     private var pauseHeadline: String {
@@ -531,7 +523,7 @@ struct LiveSessionView: View {
     private var paceColor: Color {
         switch paceLabel {
         case "On target": CueTheme.green
-        case "Finding your rhythm": CueTheme.violet
+        case "Finding your rhythm": CueTheme.signal
         default: CueTheme.amber
         }
     }
@@ -569,8 +561,8 @@ enum CueDeliveryPresentation: Equatable {
 
     var color: Color {
         switch self {
-        case .simulated, .sending: CueTheme.violet
-        case .accepted: CueTheme.amber
+        case .simulated: CueTheme.signal
+        case .sending, .accepted: CueTheme.haptic
         case .completed: CueTheme.green
         case .failed: CueTheme.red
         case .analyticsOnly: CueTheme.secondaryInk
