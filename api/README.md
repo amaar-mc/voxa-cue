@@ -10,7 +10,7 @@ pnpm install
 pnpm dev
 ```
 
-Set all four variables explicitly. `OPENAI_API_KEY` remains server-side, `OPENAI_MODEL` selects the Responses API model, `VOXA_BUILD_ID` identifies the deployed build in probes, and `VOXA_DEMO_API_TOKEN` must be a random value of at least 32 characters.
+Set all four variables explicitly. `OPENAI_API_KEY` remains server-side, `OPENAI_MODEL` selects the Responses API model, `VOXA_BUILD_ID` identifies the deployed build in probes, and `VOXA_DEMO_API_TOKEN` must be a random value of at least 32 characters. The checked-in MVP configuration uses `gpt-5.6-luna` for fast, cost-sensitive structured deck plans and post-session coaching.
 
 The shared bearer token is closed-prototype authentication, not a production user-authentication system or durable public secret. Every endpoint except `GET /livez` requires `Authorization: Bearer <VOXA_DEMO_API_TOKEN>`. JSON POST requests also require `Content-Type: application/json`.
 
