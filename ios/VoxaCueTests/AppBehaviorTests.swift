@@ -57,6 +57,40 @@ func localDeckPlanFallbackAnchors() {
     #expect(plan.checkpoints[0].anchorTerms == ["slide", "topic"])
 }
 
+@Test("Retiming a prepared deck is local and preserves coaching anchors")
+func preparedDeckRetimingPreservesContent() {
+    let original = DeckPlan(
+        schemaVersion: 1,
+        title: "Investor pitch",
+        checkpoints: [
+            DeckCheckpoint(
+                id: "slide-1",
+                slideIndex: 1,
+                label: "Problem",
+                targetCumulativeSeconds: 60,
+                semanticSummary: "Presenters lose feedback under pressure.",
+                anchorTerms: ["presenters", "pressure"]
+            ),
+            DeckCheckpoint(
+                id: "slide-2",
+                slideIndex: 2,
+                label: "Product",
+                targetCumulativeSeconds: 180,
+                semanticSummary: "Voxa Cue closes the coaching loop.",
+                anchorTerms: ["coaching", "haptics"]
+            )
+        ]
+    )
+
+    let retimed = LocalDeckPlanner.retime(plan: original, targetDurationSeconds: 120)
+
+    #expect(retimed.title == original.title)
+    #expect(retimed.schemaVersion == original.schemaVersion)
+    #expect(retimed.checkpoints.map(\.targetCumulativeSeconds) == [40, 120])
+    #expect(retimed.checkpoints.map(\.semanticSummary) == original.checkpoints.map(\.semanticSummary))
+    #expect(retimed.checkpoints.map(\.anchorTerms) == original.checkpoints.map(\.anchorTerms))
+}
+
 @MainActor
 @Test("App model hydrates saved insights with session history")
 func appModelHydratesSavedInsights() throws {
@@ -95,7 +129,8 @@ func demoModeAvoidsCoachingAPI() async throws {
     let apiClient = VoxaAPIClient(
         baseURL: try #require(URL(string: "https://api.example.test")),
         bearerToken: "demo-mode-must-not-send",
-        session: URLSession(configuration: configuration)
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
     )
     let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.demo-api-avoidance"))
     preferences.removePersistentDomain(forName: "VoxaCueTests.demo-api-avoidance")
@@ -118,11 +153,39 @@ func demoModeAvoidsCoachingAPI() async throws {
         )
     ]
 
-    let plan = await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
+    let preparedPlan = await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
     await model.generateInsight(for: summary)
 
-    #expect(plan.checkpoints.last?.targetCumulativeSeconds == 90)
+    #expect(preparedPlan.source == .local)
+    #expect(preparedPlan.plan.checkpoints.last?.targetCumulativeSeconds == 90)
     #expect(model.insightBySession[summary.sessionID] == DemoFixtures.insight())
+}
+
+@MainActor
+@Test("App model reports coaching API readiness with its deployed build")
+func appModelReportsCoachingAPIReadiness() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [ReadyAPIURLProtocol.self]
+    let apiClient = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "readiness-test-token-with-32-characters",
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
+    )
+    let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.api-readiness"))
+    preferences.removePersistentDomain(forName: "VoxaCueTests.api-readiness")
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: apiClient,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    await model.checkCoachingAPI()
+
+    #expect(model.coachingAPIState == .ready(build: "ios-test-build"))
 }
 
 @Test("Demo fixtures are stable across independent loads")
@@ -135,6 +198,96 @@ func demoFixturesAreDeterministic() {
 func sessionSummaryDisclosesDemoEvidence() {
     #expect(summaryEvidenceDisclosure(isDemoMode: true) == "Deterministic demo data")
     #expect(summaryEvidenceDisclosure(isDemoMode: false) == nil)
+}
+
+@Test("Live cue presentation never overstates wrist delivery")
+func liveCueDeliveryPresentationIsTruthful() {
+    #expect(cueDeliveryPresentation(status: .pending, demoMode: false) == .sending)
+    #expect(cueDeliveryPresentation(status: .accepted, demoMode: false) == .accepted)
+    #expect(cueDeliveryPresentation(status: .completed, demoMode: false) == .completed)
+    #expect(cueDeliveryPresentation(status: .failed, demoMode: false) == .failed)
+    #expect(cueDeliveryPresentation(status: .notConnected, demoMode: false) == .analyticsOnly)
+    #expect(cueDeliveryPresentation(status: .suppressed, demoMode: false) == .analyticsOnly)
+    #expect(cueDeliveryPresentation(status: .completed, demoMode: true) == .simulated)
+}
+
+@MainActor
+@Test("Leaving the foreground pauses coaching until the presenter explicitly resumes")
+func lifecyclePauseRequiresExplicitResume() throws {
+    let controller = try makeSessionControllerForBehaviorTests()
+    controller.phase = .recording
+
+    controller.pauseForLifecycle()
+    controller.pauseForLifecycle()
+
+    #expect(controller.phase == .paused(.appInactive))
+    controller.togglePause()
+    #expect(controller.phase == .recording)
+}
+
+@MainActor
+@Test("Leaving during preparation cancels session startup")
+func lifecycleCancelsSessionStartup() async throws {
+    let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.lifecycle-start-cancellation"))
+    preferences.removePersistentDomain(forName: "VoxaCueTests.lifecycle-start-cancellation")
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: true,
+        preferences: preferences
+    )
+    model.beginSession(configuration: behaviorTestSessionConfiguration())
+
+    model.handleSceneBecameInactive()
+    await Task.yield()
+
+    let controller = try #require(model.activeSession)
+    guard case .failed = controller.phase else {
+        Issue.record("Cancelled startup must remain failed, not restart in the background")
+        return
+    }
+}
+
+@MainActor
+@Test("Lost band completion becomes terminal failed evidence")
+func lostBandCompletionFailsTruthfully() throws {
+    let controller = try makeSessionControllerForBehaviorTests()
+    controller.cueLogs = [
+        LiveSessionController.CueLog(
+            id: UUID(),
+            sequence: 7,
+            decision: CueDecision(kind: .tooFast, reason: "Speaking above target pace"),
+            elapsedSeconds: 30,
+            deliveryStatus: .pending,
+            sentAtMonotonicSeconds: 99,
+            acceptedAtMonotonicSeconds: nil
+        )
+    ]
+
+    controller.handleBandStatus(
+        CueBandStatus(
+            sequence: 7,
+            state: .accepted,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    controller.expireCueDeliveryDeadlines(atMonotonicSeconds: 104)
+    controller.handleBandStatus(
+        CueBandStatus(
+            sequence: 7,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+
+    #expect(controller.cueLogs[0].deliveryStatus == .failed)
+    #expect(controller.latestBandFailure == "Cue Band did not confirm vibration completion in time.")
 }
 
 @Test("Local deck plans stay inside the persisted insight contract")
@@ -176,6 +329,67 @@ private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendab
     override func startLoading() {
         Issue.record("Demo mode attempted an unexpected API request")
         client?.urlProtocol(self, didFailWithError: URLError(.dataNotAllowed))
+    }
+
+    override func stopLoading() {}
+}
+
+@MainActor
+private func makeSessionControllerForBehaviorTests() throws -> LiveSessionController {
+    LiveSessionController(
+        configuration: behaviorTestSessionConfiguration(),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        dataStore: try VoxaDataStore(inMemory: true),
+        semanticMatcher: SemanticMatcher(),
+        demoMode: true,
+        allocateCueSequence: { 1 },
+        sendCue: { _ in },
+        monotonicNow: { 100 },
+        cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration(
+            acceptanceTimeoutSeconds: 2,
+            completionTimeoutSeconds: 4
+        ),
+        onFinish: { _ in }
+    )
+}
+
+private func behaviorTestSessionConfiguration() -> SessionConfiguration {
+    SessionConfiguration(
+        id: UUID(),
+        name: "Lifecycle rehearsal",
+        mode: .freeSpeaking,
+        targetDurationSeconds: 120,
+        profile: .rehearsalV1(),
+        deckPlan: nil
+    )
+}
+
+private final class ReadyAPIURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let body = Data(
+            #"{"status":"ready","service":"voxa-cue-api","schemaVersion":1,"build":"ios-test-build"}"#.utf8
+        )
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
     }
 
     override func stopLoading() {}
