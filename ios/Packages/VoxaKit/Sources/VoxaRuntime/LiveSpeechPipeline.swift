@@ -14,6 +14,16 @@ public enum LiveSpeechPipelineError: Error, Equatable {
     case conversionFailed
     case alreadyRunning
     case invalidInputFormat
+    case builtInMicrophoneUnavailable
+}
+
+enum LiveAudioInputKind: Equatable, Sendable {
+    case builtInMicrophone
+    case other
+}
+
+func builtInMicrophoneRouteIsValid(inputKinds: [LiveAudioInputKind]) -> Bool {
+    inputKinds == [.builtInMicrophone]
 }
 
 public enum LiveSpeechEvent: Sendable {
@@ -39,6 +49,7 @@ public final class LiveSpeechPipeline {
     private var transcriptionTask: Task<Void, Never>?
     private var detectionTask: Task<Void, Never>?
     private var interruptionTask: Task<Void, Never>?
+    private var routeChangeTask: Task<Void, Never>?
     private var eventHandler: EventHandler?
     private var tapInstalled = false
     private let captureGate = AudioCaptureGate()
@@ -53,6 +64,7 @@ public final class LiveSpeechPipeline {
         transcriptionTask?.cancel()
         detectionTask?.cancel()
         interruptionTask?.cancel()
+        routeChangeTask?.cancel()
     }
 
     public static func requestPermissions() async -> Bool {
@@ -222,6 +234,7 @@ public final class LiveSpeechPipeline {
             try audioEngine.start()
             #if os(iOS)
             observeAudioInterruptions()
+            observeAudioRouteChanges()
             #endif
         } catch {
             await rollbackFailedStart()
@@ -241,6 +254,8 @@ public final class LiveSpeechPipeline {
         captureGate.stop()
         interruptionTask?.cancel()
         interruptionTask = nil
+        routeChangeTask?.cancel()
+        routeChangeTask = nil
         audioEngine.stop()
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
@@ -266,6 +281,8 @@ public final class LiveSpeechPipeline {
         captureGate.stop()
         interruptionTask?.cancel()
         interruptionTask = nil
+        routeChangeTask?.cancel()
+        routeChangeTask = nil
         audioEngine.stop()
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
@@ -292,6 +309,7 @@ public final class LiveSpeechPipeline {
         transcriptionTask = nil
         detectionTask = nil
         interruptionTask = nil
+        routeChangeTask = nil
         self.analyzer = nil
         eventHandler = nil
     }
@@ -308,10 +326,12 @@ public final class LiveSpeechPipeline {
         try session.setCategory(.record, mode: .measurement, options: [])
         try session.setPreferredSampleRate(48_000)
         try session.setPreferredIOBufferDuration(0.02)
-        if let builtInMicrophone = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
-            try session.setPreferredInput(builtInMicrophone)
-        }
         try session.setActive(true)
+        guard let builtInMicrophone = session.availableInputs?.first(where: { $0.portType == .builtInMic }) else {
+            throw LiveSpeechPipelineError.builtInMicrophoneUnavailable
+        }
+        try session.setPreferredInput(builtInMicrophone)
+        try validateBuiltInMicrophoneRoute(session)
     }
 
     private func observeAudioInterruptions() {
@@ -327,6 +347,32 @@ public final class LiveSpeechPipeline {
                 }
                 self?.eventHandler?(.failure(message: "Audio capture was interrupted by another app or system event."))
             }
+        }
+    }
+
+    private func observeAudioRouteChanges() {
+        routeChangeTask?.cancel()
+        routeChangeTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: AVAudioSession.routeChangeNotification) {
+                guard !Task.isCancelled else { return }
+                do {
+                    try self?.validateBuiltInMicrophoneRoute(AVAudioSession.sharedInstance())
+                } catch {
+                    self?.eventHandler?(
+                        .failure(message: "The audio input changed. Voxa Cue requires the built-in iPhone microphone.")
+                    )
+                    return
+                }
+            }
+        }
+    }
+
+    private func validateBuiltInMicrophoneRoute(_ session: AVAudioSession) throws {
+        let inputKinds = session.currentRoute.inputs.map { input in
+            input.portType == .builtInMic ? LiveAudioInputKind.builtInMicrophone : .other
+        }
+        guard builtInMicrophoneRouteIsValid(inputKinds: inputKinds) else {
+            throw LiveSpeechPipelineError.builtInMicrophoneUnavailable
         }
     }
     #endif
