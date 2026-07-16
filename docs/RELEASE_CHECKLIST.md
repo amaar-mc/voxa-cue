@@ -5,20 +5,20 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 ## Closed M&TSI demo gate
 
 - [ ] `pnpm install` completes from the repository root.
-- [ ] `pnpm verify` passes API checks, Swift package and simulator app tests, Debug and credential-free Release generic-device iOS builds, privacy-manifest lint, firmware tests, and the Nano ESP32 build.
+- [ ] `pnpm verify` passes API checks, Swift package and simulator app tests, Debug and credential-free Release generic-device iOS builds, privacy-manifest lint, firmware tests, and both Nano builds.
 - [ ] The VoxaCue iOS test target compiles with `xcodebuild build-for-testing` and its tests execute on the exact demonstration iPhone.
 - [ ] A signed build installs and launches on the exact demonstration iPhone running iOS 26+.
 - [ ] Microphone, Speech Recognition, and Bluetooth permission paths are exercised from a clean install.
 - [ ] A 60-second live session produces finalized transcript text, pace, filler, timing, talk-ratio, pitch-range, and energy-range results without retaining an audio file.
-- [ ] Free Speaking works with the API disabled.
-- [ ] A representative `.pptx` produces ordered timed checkpoints; local fallback is verified with the API unavailable.
+- [ ] A complete phone-microphone session works with the API disabled.
 - [ ] Authenticated `/readyz` confirms that the deployed OpenAI key can access the configured model without sending presentation content.
 - [ ] The API receives no raw-audio fields and rejects an attempted audio payload.
-- [ ] AI coaching remains locked behind a confirmation dialog naming the transcript, aggregate metrics, cue-delivery history, and checkpoint outcomes.
+- [ ] AI coaching remains locked behind a confirmation dialog naming the transcript, aggregate metrics, and cue-delivery history.
 - [ ] `uvx --with pip platformio test -e native` passes all firmware tests.
+- [ ] `uvx --with pip platformio run -e nano_33_iot` succeeds.
 - [ ] `uvx --with pip platformio run -e nano_esp32` succeeds.
 - [ ] The exact demo Nano, driver, motor, wiring, enclosure, and power source pass the 15-minute wear test in the firmware README.
-- [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, and all seven haptic patterns.
+- [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, all six active haptic patterns, and reserved pattern ID 4 compatibility.
 - [ ] Airplane-mode testing confirms that live coaching and BLE haptics continue without the API.
 - [ ] No real API key or bearer token is present in Git history, source, generated project files, logs, screenshots, or demo materials.
 - [ ] `-demoScenario` screens and metrics are verbally identified as deterministic demo data whenever used.
@@ -42,7 +42,6 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Verify App Store privacy answers against the deployed API, hosting logs, OpenAI controls, crash reporting, and any SDKs present in the submitted binary.
 - [ ] Verify `PrivacyInfo.xcprivacy` reasons and collected-data declarations against the final binary and current Apple requirements.
 - [ ] Confirm the post-session confirmation text still matches the exact insight request body.
-- [ ] Confirm PowerPoint import copy states that extracted slide text and notes can leave the device when remote planning is configured.
 - [ ] Publish an account-deletion flow only if accounts are introduced. The current app has no account to delete.
 - [ ] Add StoreKit products, purchase restoration, and subscription terms only if payments are introduced. The current app has no payments.
 - [ ] Complete export-compliance, content-rights, age-rating, and hardware-accessory questionnaires with final production facts.

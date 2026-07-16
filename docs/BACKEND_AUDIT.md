@@ -15,7 +15,7 @@ The backend is optional. A backend outage cannot interrupt transcription, analyt
 - Strict TypeScript type-check and production bundle pass.
 - `openai.responses.create` uses `gpt-5.6-luna`, strict JSON Schema output, `store: false`, zero SDK retries, and bounded timeouts.
 - The API never accepts raw audio and never returns or logs provider bodies, credentials, bearer tokens, transcripts, or presentation content.
-- The iOS client submits only extracted deck text before a session or a finalized transcript after explicit post-session confirmation.
+- The current iOS app submits only a finalized transcript and derived session evidence after explicit post-session confirmation. The deck-plan route remains contract-tested but dormant.
 - Dependency audit reports no known production dependency vulnerabilities.
 
 ## Public-release gaps
@@ -32,7 +32,7 @@ The backend is optional. A backend outage cannot interrupt transcription, analyt
 
 ## Model and data boundary
 
-`gpt-5.6-luna` is used only for structured deck checkpoints and post-session coaching. It does not transcribe audio, count fillers, calculate pace, select a haptic, or communicate with the wearable. Those behaviors are deterministic and local.
+`gpt-5.6-luna` is used by the current app only for post-session coaching. A dormant route can still generate structured deck checkpoints for future compatibility. The model does not transcribe audio, count fillers, calculate pace, select a haptic, or communicate with the wearable; those behaviors are deterministic and local.
 
 `store: false` disables OpenAI Responses application-state storage. It does not by itself disable provider abuse-monitoring retention. The production OpenAI project retention mode and privacy disclosure must match the actual account controls before public release.
 
