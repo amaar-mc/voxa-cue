@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createOpenAIStructuredOutputGenerator } from "../src/openai";
+import {
+  createOpenAIReadinessCheck,
+  createOpenAIStructuredOutputGenerator,
+} from "../src/openai";
 
 const structuredResponse = (output: unknown): Response =>
   new Response(
@@ -58,8 +61,55 @@ const structuredResponse = (output: unknown): Response =>
   );
 
 describe("OpenAI structured output adapter", () => {
+  it("checks configured model access without sending presentation content", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>(async (_input, _init) =>
+      new Response(JSON.stringify({ id: "explicit-test-model" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const readinessCheck = createOpenAIReadinessCheck({
+      apiKey: "server-side-test-key",
+      model: "explicit-test-model",
+      timeoutMilliseconds: 2_000,
+      fetchImplementation,
+    });
+
+    const isReady = await readinessCheck();
+
+    expect(isReady).toBe(true);
+    expect(fetchImplementation).toHaveBeenCalledOnce();
+    const [request, requestInit] = fetchImplementation.mock.calls[0] ?? [];
+    expect(String(request)).toBe(
+      "https://api.openai.com/v1/models/explicit-test-model",
+    );
+    expect(requestInit).toMatchObject({
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: "Bearer server-side-test-key",
+      },
+    });
+    expect(requestInit?.body).toBeUndefined();
+  });
+
+  it("fails readiness closed when configured model access is rejected", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>(async (_input, _init) =>
+      new Response("unauthorized", { status: 401 }),
+    );
+    const readinessCheck = createOpenAIReadinessCheck({
+      apiKey: "revoked-test-key",
+      model: "explicit-test-model",
+      timeoutMilliseconds: 2_000,
+      fetchImplementation,
+    });
+
+    await expect(readinessCheck()).resolves.toBe(false);
+  });
+
   it("sends strict JSON Schema through the Responses API", async () => {
     const expectedOutput = { schemaVersion: 1, result: "ok" };
+    const controller = new AbortController();
     const fetchImplementation = vi.fn<typeof fetch>(async (_input, _init) =>
       structuredResponse(expectedOutput),
     );
@@ -86,11 +136,14 @@ describe("OpenAI structured output adapter", () => {
       input: "Input evidence",
       jsonSchema: schema,
       maximumOutputTokens: 500,
+      signal: controller.signal,
     });
 
     expect(output).toEqual(expectedOutput);
     expect(fetchImplementation).toHaveBeenCalledOnce();
     const requestInit = fetchImplementation.mock.calls[0]?.[1];
+    expect(requestInit?.signal).toBeInstanceOf(AbortSignal);
+    expect(requestInit?.signal?.aborted).toBe(false);
     const body = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       model: "explicit-test-model",
@@ -139,7 +192,80 @@ describe("OpenAI structured output adapter", () => {
         input: "Input evidence",
         jsonSchema: { type: "object" },
         maximumOutputTokens: 500,
+        signal: new AbortController().signal,
       }),
     ).rejects.toThrow();
+  });
+
+  it("normalizes an aborted provider request to a typed timeout error", async () => {
+    const controller = new AbortController();
+    const providerRequest: { signal: AbortSignal | null } = { signal: null };
+    const fetchImplementation = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          providerRequest.signal = init?.signal ?? null;
+          providerRequest.signal?.addEventListener(
+            "abort",
+            () => {
+              reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true },
+          );
+        }),
+    );
+    const generate = createOpenAIStructuredOutputGenerator({
+      apiKey: "server-side-test-key",
+      model: "explicit-test-model",
+      timeoutMilliseconds: 2_000,
+      maximumRetries: 0,
+      fetchImplementation,
+    });
+    const generation = generate({
+      schemaName: "test_schema",
+      instructions: "Return the contract.",
+      input: "Input evidence",
+      jsonSchema: { type: "object" },
+      maximumOutputTokens: 500,
+      signal: controller.signal,
+    });
+    const expectedRejection = expect(generation).rejects.toMatchObject({
+      code: "structured_generation_timed_out",
+    });
+    await vi.waitFor(() => {
+      expect(providerRequest.signal).not.toBeNull();
+    });
+
+    controller.abort();
+
+    await expectedRejection;
+    expect(providerRequest.signal?.aborted).toBe(true);
+  });
+
+  it("does not retry provider failures when retries are disabled", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>(async (_input, _init) =>
+      new Response(JSON.stringify({ error: { message: "unavailable" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const generate = createOpenAIStructuredOutputGenerator({
+      apiKey: "server-side-test-key",
+      model: "explicit-test-model",
+      timeoutMilliseconds: 2_000,
+      maximumRetries: 0,
+      fetchImplementation,
+    });
+
+    await expect(
+      generate({
+        schemaName: "test_schema",
+        instructions: "Return the contract.",
+        input: "Input evidence",
+        jsonSchema: { type: "object" },
+        maximumOutputTokens: 500,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow();
+    expect(fetchImplementation).toHaveBeenCalledOnce();
   });
 });
