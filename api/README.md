@@ -10,13 +10,13 @@ pnpm install
 pnpm dev
 ```
 
-Set all three variables explicitly. `OPENAI_API_KEY` remains server-side, `OPENAI_MODEL` selects the Responses API model, and `VOXA_DEMO_API_TOKEN` must be a random value of at least 32 characters.
+Set all four variables explicitly. `OPENAI_API_KEY` remains server-side, `OPENAI_MODEL` selects the Responses API model, `VOXA_BUILD_ID` identifies the deployed build in probes, and `VOXA_DEMO_API_TOKEN` must be a random value of at least 32 characters.
 
-All endpoints require `Authorization: Bearer <VOXA_DEMO_API_TOKEN>`. JSON POST requests also require `Content-Type: application/json`.
+The shared bearer token is closed-prototype authentication, not a production user-authentication system or durable public secret. Every endpoint except `GET /livez` requires `Authorization: Bearer <VOXA_DEMO_API_TOKEN>`. JSON POST requests also require `Content-Type: application/json`.
 
 ## Endpoints
 
-`GET /health` returns API readiness without calling OpenAI.
+`GET /livez` is an unauthenticated, minimal liveness probe. `GET /health` is its authenticated compatibility alias. Neither contacts OpenAI. `GET /readyz` is authenticated and verifies that the configured OpenAI key can access the configured model through a three-second metadata-only request; it sends no presentation content and performs no generation. Probe bodies contain only status, service, schema version, and build identifier.
 
 `POST /v1/deck-plans` accepts up to 512 KiB:
 
@@ -71,7 +71,13 @@ The response matches `contracts/deck-plan-v1.schema.json`. Checkpoints reference
 
 `fillersPerMinute` is normalized by speaking time. The nullable metric, checkpoint, and cue-sequence keys remain required and must be sent as JSON `null` when unavailable. Cue delivery status may be `pending`, `accepted`, `completed`, `failed`, `notConnected`, or `suppressed`.
 
-The response matches `contracts/insight-v1.schema.json`. Provider failures return sanitized `502` errors; they never expose prompts, credentials, or provider error bodies.
+The response matches `contracts/insight-v1.schema.json`. Provider failures return sanitized `502` errors and request-budget expirations return a typed `504 model_request_timed_out`; neither exposes prompts, credentials, or provider error bodies.
+
+## Operations and privacy
+
+The API accepts only canonical UUID `X-Request-Id` values and creates a UUID when the header is missing or malformed. Responses echo the safe identifier. Structured request logs contain only request ID, method, path without query parameters, status, and latency; authorization headers and request bodies are never logged. The insight route validates the app session identifier but strips it before creating provider input. The OpenAI adapter uses zero SDK retries, a 22-second provider timeout, and an abortable 25-second route budget within Vercel's 30-second function limit. JSON responses include no-store and standard browser hardening headers.
+
+The adapter sets `store: false`, which disables Responses API application-state storage. It does not by itself disable OpenAI's default abuse-monitoring logs. Before public release, configure and disclose the production project's actual retention mode, including any approved Modified Abuse Monitoring or Zero Data Retention controls.
 
 ## Verify
 
@@ -81,4 +87,4 @@ pnpm test
 pnpm build
 ```
 
-Deploy the `api` directory as the Vercel project root and configure the three environment variables in Vercel.
+Deploy the `api` directory as the Vercel project root and configure the four environment variables in Vercel. Set `VOXA_BUILD_ID` to the deployment commit SHA or release identifier.
