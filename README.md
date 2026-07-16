@@ -109,7 +109,7 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | iPhone → insight API | Confirmed transcript, aggregate metrics, cue and checkpoint summaries | Raw audio |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
-The API rejects audio-shaped payloads and requests structured outputs with provider storage disabled.
+The API rejects audio-shaped payloads and requests structured outputs with provider application-state storage disabled. OpenAI abuse-monitoring retention remains an explicit production release decision.
 
 ## Technology
 
@@ -164,7 +164,7 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-That single command type-checks, tests, and builds the API, iOS package/app, native firmware logic, and Nano ESP32 firmware.
+That single command type-checks, tests, and builds the API, runs package and simulator app tests, validates both Debug and credential-free Release iOS builds, lints the privacy manifest, and verifies native plus Nano ESP32 firmware.
 
 ### Launch the iPhone app
 
@@ -197,9 +197,10 @@ Set:
 
 - `OPENAI_API_KEY` to a server-side key
 - `OPENAI_MODEL` to the configured structured-output model
+- `VOXA_BUILD_ID` to the deployment commit SHA or release identifier
 - `VOXA_DEMO_API_TOKEN` to a random bearer token of at least 32 characters
 
-Deploy with `api/` as the Vercel project root. Every endpoint, including `/health`, requires `Authorization: Bearer <token>`.
+Deploy with `api/` as the Vercel project root. `GET /livez` is a public minimal liveness probe; `/health`, `/readyz`, and both AI routes require `Authorization: Bearer <token>`. This shared token is only for the closed prototype and is not production user authentication.
 
 For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to ignored `ios/Local.xcconfig`, then set the deployed HTTPS origin and matching bearer token. Provider credentials never belong in the app.
 
@@ -235,11 +236,11 @@ The current implementation is exercised across all three layers:
 
 | Surface | Verified behavior |
 | --- | --- |
-| API | Strict TypeScript, production bundle, 16 Vitest contract and failure-path tests |
-| VoxaCore + VoxaRuntime | 26 Swift tests for metrics, timing, cue logic, BLE bytes, persistence, and API payloads |
-| iPhone application | Generic-device build plus compiled app behavior test bundle |
+| API | Strict TypeScript, production bundle, 24 Vitest contract and failure-path tests |
+| VoxaCore + VoxaRuntime | 40 Swift tests for metrics, timing, cue logic, BLE bytes, persistence, and API payloads |
+| iPhone application | 14 simulator behavior tests plus unsigned Debug and Release generic-device builds |
 | Firmware | 15 native Unity tests plus a successful Nano ESP32 release build |
-| Repository | Clean source tree, privacy manifest lint, no committed credentials |
+| Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
 Physical BLE, motor calibration, microphone placement, and wear testing are intentionally tracked as hardware gates in the release checklist.
 
