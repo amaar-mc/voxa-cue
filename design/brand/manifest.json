@@ -1,0 +1,156 @@
+{
+  "01_primary_logo_dark_text.png": {
+    "dimensions": [
+      3400,
+      900
+    ],
+    "transparent": true
+  },
+  "02_primary_logo_white_text.png": {
+    "dimensions": [
+      3400,
+      900
+    ],
+    "transparent": true
+  },
+  "03_monochrome_logo_black.png": {
+    "dimensions": [
+      3400,
+      900
+    ],
+    "transparent": true
+  },
+  "04_monochrome_logo_white.png": {
+    "dimensions": [
+      3400,
+      900
+    ],
+    "transparent": true
+  },
+  "05_primary_logo_with_tagline.png": {
+    "dimensions": [
+      3400,
+      900
+    ],
+    "transparent": true
+  },
+  "06_stacked_logo_with_tagline.png": {
+    "dimensions": [
+      1800,
+      1500
+    ],
+    "transparent": true
+  },
+  "07_icon_gradient.png": {
+    "dimensions": [
+      2400,
+      2400
+    ],
+    "transparent": true
+  },
+  "08_icon_indigo.png": {
+    "dimensions": [
+      2400,
+      2400
+    ],
+    "transparent": true
+  },
+  "09_icon_black.png": {
+    "dimensions": [
+      2400,
+      2400
+    ],
+    "transparent": true
+  },
+  "10_icon_white.png": {
+    "dimensions": [
+      2400,
+      2400
+    ],
+    "transparent": true
+  },
+  "11_wordmark_dark.png": {
+    "dimensions": [
+      2200,
+      700
+    ],
+    "transparent": true
+  },
+  "12_wordmark_white.png": {
+    "dimensions": [
+      2200,
+      700
+    ],
+    "transparent": true
+  },
+  "13_feature_icon_confidence.png": {
+    "dimensions": [
+      1400,
+      1400
+    ],
+    "transparent": true
+  },
+  "14_feature_icon_timing.png": {
+    "dimensions": [
+      1400,
+      1400
+    ],
+    "transparent": true
+  },
+  "15_feature_icon_analytics.png": {
+    "dimensions": [
+      1400,
+      1400
+    ],
+    "transparent": true
+  },
+  "16_feature_icon_haptics.png": {
+    "dimensions": [
+      1400,
+      1400
+    ],
+    "transparent": true
+  },
+  "17_feature_icon_pace.png": {
+    "dimensions": [
+      1400,
+      1400
+    ],
+    "transparent": true
+  },
+  "18_app_icon.png": {
+    "dimensions": [
+      2400,
+      2400
+    ],
+    "transparent": true
+  },
+  "19_brand_pattern_transparent.png": {
+    "dimensions": [
+      3200,
+      2200
+    ],
+    "transparent": true
+  },
+  "20_color_palette.png": {
+    "dimensions": [
+      3600,
+      1100
+    ],
+    "transparent": true
+  },
+  "21_typography_system.png": {
+    "dimensions": [
+      3500,
+      1700
+    ],
+    "transparent": true
+  },
+  "22_complete_brand_toolkit_overview_transparent.png": {
+    "dimensions": [
+      4800,
+      3400
+    ],
+    "transparent": true
+  }
+}
