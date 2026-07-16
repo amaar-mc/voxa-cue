@@ -28,7 +28,9 @@ Two user-initiated features can send text through the API:
 1. When a presenter selects Presentation mode and imports a PowerPoint file, the app extracts slide text and speaker notes locally. If the API is configured, that extracted text is sent to generate timed checkpoints; if it is unavailable, a local planner is used. The original `.pptx` binary is not retained or uploaded.
 2. After a session, AI coaching is disabled until the presenter taps Generate AI coaching and confirms Send coaching context. Only then does the app send the finalized transcript, aggregate session metrics, checkpoint results, and cue-event summaries. Raw audio is never included.
 
-The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, and does not include a database. It sends the text request to OpenAI using the Responses API with response storage disabled (`store: false`). The API does not intentionally persist request bodies or generated responses. Infrastructure and AI providers may process limited operational or security telemetry under their own terms and retention controls.
+The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, strips the app's session identifier before provider processing, and does not include a database. It sends the remaining text request to OpenAI using the Responses API with application-state storage disabled (`store: false`). The Voxa Cue API does not intentionally persist request bodies or generated responses.
+
+`store: false` is not a zero-retention guarantee. Under OpenAI's default API controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project is approved and configured for Zero Data Retention or Modified Abuse Monitoring. Hosting providers may also retain request metadata under their configured logging and security controls. The team must verify and disclose the deployed provider settings before any public release. See [OpenAI's API data controls](https://platform.openai.com/docs/guides/your-data).
 
 ## Bluetooth and permissions
 
