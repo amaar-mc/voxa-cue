@@ -12,6 +12,7 @@ struct VoxaCueApp: App {
     }
 
     private let dataStore: VoxaDataStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: AppModel
 
     init() {
@@ -37,8 +38,17 @@ struct VoxaCueApp: App {
             RootView()
                 .environment(model)
                 .modelContainer(dataStore.container)
-                .preferredColorScheme(.light)
                 .tint(CueTheme.violet)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .inactive, .background:
+                model.handleSceneBecameInactive()
+            case .active:
+                break
+            @unknown default:
+                model.handleSceneBecameInactive()
+            }
         }
     }
 
