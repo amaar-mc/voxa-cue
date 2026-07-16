@@ -156,6 +156,11 @@ final class LiveSessionController: Identifiable {
                     UIApplication.shared.isIdleTimerDisabled = false
                     return
                 }
+            } catch LiveSpeechPipelineError.builtInMicrophoneUnavailable {
+                guard !Task.isCancelled else { return }
+                phase = .failed("Disconnect external audio devices and try again. Voxa Cue records only with the built-in iPhone microphone.")
+                UIApplication.shared.isIdleTimerDisabled = false
+                return
             } catch {
                 guard !Task.isCancelled else { return }
                 phase = .failed("The phone microphone could not start: \(error.localizedDescription)")
