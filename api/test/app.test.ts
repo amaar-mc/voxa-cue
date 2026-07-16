@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
+import type { RequestLogEvent, RequestLogger } from "../src/app";
 import type {
   StructuredGenerationRequest,
   StructuredOutputGenerator,
@@ -17,6 +18,11 @@ const authorizationHeaders = {
   authorization: `Bearer ${demoToken}`,
 };
 
+const buildIdentifier = "test-build-001";
+const modelRequestTimeoutMilliseconds = 25_000;
+const readinessCheck = async (): Promise<boolean> => true;
+const requestLogger: RequestLogger = (_event) => {};
+
 const jsonRequest = (body: unknown): RequestInit => ({
   method: "POST",
   headers: {
@@ -31,13 +37,54 @@ const createMockGenerator = (
 ): ReturnType<typeof vi.fn<StructuredOutputGenerator>> =>
   vi.fn<StructuredOutputGenerator>(async (_request) => result);
 
+const createTestApp = (generateStructuredOutput: StructuredOutputGenerator) =>
+  createApp({
+    buildIdentifier,
+    demoApiToken: demoToken,
+    generateStructuredOutput,
+    modelRequestTimeoutMilliseconds,
+    readinessCheck,
+    requestLogger,
+  });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("Voxa Cue API", () => {
-  it("requires the demo bearer token on every endpoint", async () => {
+  it("exposes a minimal liveness probe with hardened response headers", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
+    const app = createTestApp(generate);
+
+    const response = await app.request("/livez", {
+      headers: { "x-request-id": "unsafe-correlation-value" },
     });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      status: "ok",
+      service: "voxa-cue-api",
+      schemaVersion: 1,
+      build: buildIdentifier,
+    });
+    expect(response.headers.get("x-request-id")).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("permissions-policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(response.headers.get("cross-origin-resource-policy")).toBe(
+      "same-origin",
+    );
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("requires the demo bearer token on protected endpoints", async () => {
+    const generate = createMockGenerator(validDeckPlanResponse);
+    const app = createTestApp(generate);
 
     const healthResponse = await app.request("/health");
     const postResponse = await app.request("/v1/deck-plans", {
@@ -52,10 +99,7 @@ describe("Voxa Cue API", () => {
 
   it("reports health without contacting OpenAI", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const response = await app.request("/health", {
       headers: authorizationHeaders,
@@ -66,18 +110,130 @@ describe("Voxa Cue API", () => {
       status: "ok",
       service: "voxa-cue-api",
       schemaVersion: 1,
+      build: buildIdentifier,
     });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-request-id")).toBeTruthy();
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("creates a validated deck plan with strict structured output", async () => {
+  it("reports authenticated readiness without invoking model generation", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
+    const unavailableApp = createApp({
+      buildIdentifier,
       demoApiToken: demoToken,
       generateStructuredOutput: generate,
+      modelRequestTimeoutMilliseconds,
+      readinessCheck: async () => false,
+      requestLogger,
     });
+    const availableApp = createTestApp(generate);
+
+    const unauthorizedResponse = await availableApp.request("/readyz");
+    const unavailableResponse = await unavailableApp.request("/readyz", {
+      headers: authorizationHeaders,
+    });
+    const availableResponse = await availableApp.request("/readyz", {
+      headers: authorizationHeaders,
+    });
+
+    expect(unauthorizedResponse.status).toBe(401);
+    expect(unavailableResponse.status).toBe(503);
+    expect(await unavailableResponse.json()).toEqual({
+      status: "not_ready",
+      service: "voxa-cue-api",
+      schemaVersion: 1,
+      build: buildIdentifier,
+    });
+    expect(availableResponse.status).toBe(200);
+    expect(await availableResponse.json()).toEqual({
+      status: "ready",
+      service: "voxa-cue-api",
+      schemaVersion: 1,
+      build: buildIdentifier,
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("correlates requests while logging only privacy-safe metadata", async () => {
+    const safeRequestId = "123e4567-e89b-42d3-a456-426614174000";
+    const privateTranscript = "private transcript marker";
+    const requestLogs: RequestLogEvent[] = [];
+    const generate = createMockGenerator(validInsightResponse);
+    const app = createApp({
+      buildIdentifier,
+      demoApiToken: demoToken,
+      generateStructuredOutput: generate,
+      modelRequestTimeoutMilliseconds,
+      readinessCheck,
+      requestLogger: (event) => {
+        requestLogs.push(event);
+      },
+    });
+
+    const response = await app.request("/v1/insights?debug=private-query", {
+      ...jsonRequest({
+        ...validInsightRequest,
+        transcript: privateTranscript,
+      }),
+      headers: {
+        ...authorizationHeaders,
+        "content-type": "application/json",
+        "x-request-id": safeRequestId,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-request-id")).toBe(safeRequestId);
+    expect(requestLogs).toHaveLength(1);
+    expect(requestLogs[0]).toEqual({
+      requestId: safeRequestId,
+      method: "POST",
+      path: "/v1/insights",
+      status: 200,
+      latencyMilliseconds: expect.any(Number),
+    });
+    const serializedLog = JSON.stringify(requestLogs[0]);
+    expect(serializedLog).not.toContain(demoToken);
+    expect(serializedLog).not.toContain(privateTranscript);
+    expect(serializedLog).not.toContain("private-query");
+  });
+
+  it("aborts model work at the request budget and returns a typed timeout", async () => {
+    vi.useFakeTimers();
+    const generate = vi.fn<StructuredOutputGenerator>(
+      async (_request) => new Promise<unknown>(() => {}),
+    );
+    const app = createApp({
+      buildIdentifier,
+      demoApiToken: demoToken,
+      generateStructuredOutput: generate,
+      modelRequestTimeoutMilliseconds: 10,
+      readinessCheck,
+      requestLogger,
+    });
+
+    const responsePromise = app.request(
+      "/v1/insights",
+      jsonRequest(validInsightRequest),
+    );
+    await vi.waitFor(() => {
+      expect(generate).toHaveBeenCalledOnce();
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const response = await responsePromise;
+
+    expect(response.status).toBe(504);
+    expect(await response.json()).toMatchObject({
+      error: { code: "model_request_timed_out" },
+    });
+    expect(generate).toHaveBeenCalledOnce();
+    expect(generate.mock.calls[0]?.[0]?.signal.aborted).toBe(true);
+  });
+
+  it("creates a validated deck plan with strict structured output", async () => {
+    const generate = createMockGenerator(validDeckPlanResponse);
+    const app = createTestApp(generate);
 
     const response = await app.request(
       "/v1/deck-plans",
@@ -100,10 +256,7 @@ describe("Voxa Cue API", () => {
 
   it("rejects request fields that can carry raw audio before generation", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
     const requestWithAudio = {
       ...validDeckPlanRequest,
       metadata: {
@@ -125,10 +278,7 @@ describe("Voxa Cue API", () => {
 
   it("enforces JSON content type and request schema", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const unsupportedResponse = await app.request("/v1/deck-plans", {
       method: "POST",
@@ -153,10 +303,7 @@ describe("Voxa Cue API", () => {
 
   it("rejects oversized payloads before generation", async () => {
     const generate = createMockGenerator(validDeckPlanResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const response = await app.request("/v1/deck-plans", {
       method: "POST",
@@ -196,10 +343,7 @@ describe("Voxa Cue API", () => {
     });
 
     for (const generate of [invalidShape, invalidTiming, invalidReference]) {
-      const app = createApp({
-        demoApiToken: demoToken,
-        generateStructuredOutput: generate,
-      });
+      const app = createTestApp(generate);
       const response = await app.request(
         "/v1/deck-plans",
         jsonRequest(validDeckPlanRequest),
@@ -213,10 +357,7 @@ describe("Voxa Cue API", () => {
 
   it("creates schema-valid insights", async () => {
     const generate = createMockGenerator(validInsightResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const response = await app.request(
       "/v1/insights",
@@ -229,14 +370,14 @@ describe("Voxa Cue API", () => {
     expect(generate.mock.calls[0]?.[0]?.schemaName).toBe(
       "voxa_cue_insight_v1",
     );
+    expect(generate.mock.calls[0]?.[0]?.input).not.toContain(
+      validInsightRequest.sessionId,
+    );
   });
 
   it("accepts explicit null metrics and pending cue delivery", async () => {
     const generate = createMockGenerator(validInsightResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
     const request = {
       ...validInsightRequest,
       metrics: {
@@ -268,10 +409,7 @@ describe("Voxa Cue API", () => {
 
   it("requires nullable insight fields to be present", async () => {
     const generate = createMockGenerator(validInsightResponse);
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
     const { pitchRangeSemitones: _pitchRangeSemitones, ...metrics } =
       validInsightRequest.metrics;
     const request = {
@@ -299,10 +437,7 @@ describe("Voxa Cue API", () => {
     const generate = vi.fn<StructuredOutputGenerator>(async (_request) => {
       throw new Error(`${providerSecret} ${demoToken}`);
     });
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const response = await app.request(
       "/v1/insights",
@@ -321,10 +456,7 @@ describe("Voxa Cue API", () => {
       ...validInsightResponse,
       drills: [],
     });
-    const app = createApp({
-      demoApiToken: demoToken,
-      generateStructuredOutput: generate,
-    });
+    const app = createTestApp(generate);
 
     const response = await app.request(
       "/v1/insights",
