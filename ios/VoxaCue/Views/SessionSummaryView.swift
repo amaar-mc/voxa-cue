@@ -24,13 +24,6 @@ struct SessionSummaryView: View {
                     vocalCard
                     coachingCard
                     transcriptCard
-                    VoxaButton(
-                        title: "Done",
-                        symbol: "checkmark",
-                        style: .primary,
-                        disabled: false,
-                        action: dismissAction
-                    )
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 22)
@@ -67,14 +60,14 @@ struct SessionSummaryView: View {
             HStack(spacing: 18) {
                 ZStack {
                     Circle()
-                        .fill(completedOnTime ? CueTheme.green.opacity(0.12) : CueTheme.amber.opacity(0.12))
-                    Image(systemName: completedOnTime ? "checkmark" : "timer")
+                        .fill(timingPresentation.tint.opacity(0.12))
+                    Image(systemName: timingPresentation.symbol)
                         .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(completedOnTime ? CueTheme.green : CueTheme.amber)
+                        .foregroundStyle(timingPresentation.tint)
                 }
                 .frame(width: 72, height: 72)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(completedOnTime ? "Finished on time" : "Over target time")
+                    Text(timingPresentation.title)
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
                     Text(summary.name)
@@ -82,7 +75,7 @@ struct SessionSummaryView: View {
                         .foregroundStyle(CueTheme.secondaryInk)
                     Text("\(summary.durationSeconds.clockString) of \(summary.targetDurationSeconds.clockString)")
                         .font(.cueCaption.monospacedDigit())
-                        .foregroundStyle(completedOnTime ? CueTheme.green : CueTheme.amber)
+                        .foregroundStyle(timingPresentation.tint)
                 }
                 Spacer()
             }
@@ -90,7 +83,7 @@ struct SessionSummaryView: View {
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        CueMetricGrid(spacing: 12) {
             MetricTile(
                 label: "Average pace",
                 value: "\(Int(summary.averageWPM.rounded()))",
@@ -116,16 +109,16 @@ struct SessionSummaryView: View {
                 tint: CueTheme.violet
             )
             MetricTile(
-                label: "Cues sent",
+                label: "Cues confirmed",
                 value: "\(summary.cueCount)",
-                detail: "acknowledged",
+                detail: "accepted or completed",
                 tint: CueTheme.green
             )
             MetricTile(
                 label: "Timing",
                 value: timingDelta,
-                detail: completedOnTime ? "remaining" : "over",
-                tint: completedOnTime ? CueTheme.green : CueTheme.amber
+                detail: timingPresentation.metricDetail,
+                tint: timingPresentation.tint
             )
         }
     }
@@ -133,27 +126,34 @@ struct SessionSummaryView: View {
     private var vocalCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 17) {
-                Text("VOCAL DELIVERY")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(CueTheme.violet)
-                HStack(spacing: 24) {
-                    vocalMetric(
-                        title: "Pitch range",
-                        value: summary.pitchRangeSemitones.map { String(format: "%.1f st", $0) } ?? "—",
-                        symbol: "waveform.path"
-                    )
-                    vocalMetric(
-                        title: "Energy range",
-                        value: summary.energyRangeDB.map { String(format: "%.1f dB", $0) } ?? "—",
-                        symbol: "speaker.wave.2"
-                    )
+                CueSectionLabel(text: "Vocal delivery", color: CueTheme.violet)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 24) {
+                        vocalMetrics
+                    }
+                    VStack(alignment: .leading, spacing: 16) {
+                        vocalMetrics
+                    }
                 }
                 Text("These are descriptive acoustic ranges, not judgments about what a voice should sound like.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
             }
         }
+    }
+
+    @ViewBuilder
+    private var vocalMetrics: some View {
+        vocalMetric(
+            title: "Pitch range",
+            value: summary.pitchRangeSemitones.map { String(format: "%.1f st", $0) } ?? "—",
+            symbol: "waveform.path"
+        )
+        vocalMetric(
+            title: "Energy range",
+            value: summary.energyRangeDB.map { String(format: "%.1f dB", $0) } ?? "—",
+            symbol: "speaker.wave.2"
+        )
     }
 
     private func vocalMetric(title: String, value: String, symbol: String) -> some View {
@@ -174,17 +174,20 @@ struct SessionSummaryView: View {
         if let insight = model.insightBySession[summary.sessionID] {
             PremiumCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        Label("PERSONALIZED COACHING", systemImage: "sparkles")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.1)
-                            .foregroundStyle(CueTheme.violet)
-                        Spacer()
-                        StatusPill(
-                            label: model.demoMode ? "Demo fixture" : "AI",
-                            symbol: model.demoMode ? "testtube.2" : "checkmark",
-                            color: model.demoMode ? CueTheme.amber : CueTheme.green
-                        )
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            Label("Personalized coaching", systemImage: "sparkles")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.violet)
+                            Spacer()
+                            coachingSourcePill
+                        }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Personalized coaching", systemImage: "sparkles")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.violet)
+                            coachingSourcePill
+                        }
                     }
                     Text(insight.overallSummary)
                         .font(.cueBody)
@@ -192,10 +195,7 @@ struct SessionSummaryView: View {
                         .lineSpacing(4)
                     Divider().overlay(CueTheme.border)
                     VStack(alignment: .leading, spacing: 11) {
-                        Text("STRENGTHS")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .tracking(1.1)
-                            .foregroundStyle(CueTheme.green)
+                        CueSectionLabel(text: "Strengths", color: CueTheme.green)
                         ForEach(insight.strengths) { strength in
                             HStack(alignment: .top, spacing: 10) {
                                 Image(systemName: "checkmark.circle.fill")
@@ -211,10 +211,7 @@ struct SessionSummaryView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 11) {
-                        Text("NEXT PRIORITIES")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .tracking(1.1)
-                            .foregroundStyle(CueTheme.violet)
+                        CueSectionLabel(text: "Next priorities", color: CueTheme.violet)
                         ForEach(insight.priorities) { priority in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(priority.title)
@@ -232,10 +229,7 @@ struct SessionSummaryView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 11) {
-                        Text("PRACTICE DRILLS")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .tracking(1.1)
-                            .foregroundStyle(CueTheme.violet)
+                        CueSectionLabel(text: "Practice drills", color: CueTheme.violet)
                         ForEach(insight.drills) { drill in
                             VStack(alignment: .leading, spacing: 5) {
                                 HStack {
@@ -260,9 +254,8 @@ struct SessionSummaryView: View {
         } else {
             PremiumCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("PERSONALIZED COACHING", systemImage: "sparkles")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.1)
+                    Label("Personalized coaching", systemImage: "sparkles")
+                        .font(.cueCaption)
                         .foregroundStyle(CueTheme.violet)
                     Text("Turn this session into an evidence-backed practice plan.")
                         .font(.cueSection)
@@ -270,22 +263,51 @@ struct SessionSummaryView: View {
                     Text(
                         model.demoMode
                             ? "Demo mode returns a labeled deterministic coaching fixture without a network request."
-                            : "Only the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes are sent after you confirm."
+                            : coachingCanBeRequested
+                                ? "Only the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes are sent after you confirm."
+                                : "Live coaching and this session summary stay available locally. AI practice plans require a configured coaching service."
                     )
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
-                    VoxaButton(
-                        title: model.isGeneratingInsight
-                            ? "Generating coaching…"
-                            : (model.demoMode ? "Generate demo coaching" : "Generate AI coaching"),
-                        symbol: "sparkles",
-                        style: .secondary,
-                        disabled: model.isGeneratingInsight || summary.transcript.isEmpty,
-                        action: { confirmAI = true }
-                    )
+                    if coachingCanBeRequested {
+                        VoxaButton(
+                            title: model.isGeneratingInsight
+                                ? "Generating coaching…"
+                                : (model.demoMode ? "Generate demo coaching" : "Generate AI coaching"),
+                            symbol: "sparkles",
+                            style: .secondary,
+                            disabled: model.isGeneratingInsight || summary.transcript.isEmpty,
+                            action: { confirmAI = true }
+                        )
+                        if summary.transcript.isEmpty {
+                            Label("A finalized transcript is required for AI coaching.", systemImage: "info.circle")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.secondaryInk)
+                        }
+                    } else {
+                        StatusPill(
+                            label: "Local coaching only",
+                            symbol: "iphone",
+                            color: CueTheme.secondaryInk
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private var coachingSourcePill: some View {
+        StatusPill(
+            label: model.demoMode ? "Demo fixture" : "AI generated",
+            symbol: model.demoMode ? "testtube.2" : "checkmark",
+            color: model.demoMode ? CueTheme.amber : CueTheme.green
+        )
+    }
+
+    private var coachingCanBeRequested: Bool {
+        if model.demoMode { return true }
+        if case .localOnly = model.coachingAPIState { return false }
+        return true
     }
 
     private var transcriptCard: some View {
@@ -306,8 +328,8 @@ struct SessionSummaryView: View {
         }
     }
 
-    private var completedOnTime: Bool {
-        summary.durationSeconds <= summary.targetDurationSeconds
+    private var timingPresentation: TimingOutcomePresentation {
+        summary.timingOutcome.presentation
     }
 
     private var timingDelta: String {
