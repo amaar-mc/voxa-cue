@@ -25,8 +25,19 @@ export const createDeckPlanInput = (request: DeckPlanRequest): string =>
     presentation: request,
   });
 
-export const createInsightInput = (request: InsightRequest): string =>
-  JSON.stringify({
+export const createInsightInput = (request: InsightRequest): string => {
+  const modelEvidence = {
+    schemaVersion: request.schemaVersion,
+    locale: request.locale,
+    transcript: request.transcript,
+    target: request.target,
+    metrics: request.metrics,
+    checkpoints: request.checkpoints,
+    cueEvents: request.cueEvents,
+  };
+
+  return JSON.stringify({
     task: "Analyze this completed presentation and produce coaching feedback.",
-    session: request,
+    session: modelEvidence,
   });
+};
