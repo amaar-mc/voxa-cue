@@ -1,9 +1,9 @@
 # Voxa Cue wearable firmware
 
-Firmware v1.0 turns the Arduino Nano ESP32 into a BLE peripheral that accepts
-versioned, semantic haptic commands from the Voxa Cue iPhone app. The Nano
-drives a 3 V LRA through a DRV2605L in real-time playback mode; the main loop
-never blocks for the length of a vibration.
+Firmware v1.0 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
+BLE v1 peripheral. Both accept versioned, semantic haptic commands from the
+Voxa Cue iPhone app and drive a 3 V LRA through a DRV2605L in real-time
+playback mode. The main loop never blocks for the length of a vibration.
 
 The wire contract is defined in [`../../contracts/ble-v1.md`](../../contracts/ble-v1.md).
 The implementation rejects malformed packets, unsupported protocol versions,
@@ -13,19 +13,20 @@ the motor driver is unavailable. Every valid command reports `accepted`, then
 
 ## Hardware
 
-- Arduino Nano ESP32
+- Arduino Nano 33 IoT or Arduino Nano ESP32
 - DRV2605L breakout at I2C address `0x5A`
 - 3 V LRA coin vibration motor
-- USB-C cable for the bench prototype
+- Data-capable USB cable matching the board (Micro-USB for Nano 33 IoT;
+  USB-C for Nano ESP32)
 
 Wire with all power disconnected:
 
-| Nano ESP32 | DRV2605L breakout | Purpose |
+| Either Nano | DRV2605L breakout | Purpose |
 | --- | --- | --- |
 | `3V3` | `VIN` | Driver power for the bench prototype |
 | `GND` | `GND` | Shared ground |
-| `A4` | `SDA` | I2C data |
-| `A5` | `SCL` | I2C clock |
+| `SDA` / `A4` | `SDA` | I2C data |
+| `SCL` / `A5` | `SCL` | I2C clock |
 | — | `OUT+` / `OUT-` | LRA motor leads; polarity is not significant |
 
 Do not connect the motor directly to a Nano GPIO or directly across 3V3/GND.
@@ -34,6 +35,27 @@ breakout accepts 3.3 V on `VIN`; boards with a different input requirement need
 the power arrangement specified by their manufacturer. A wearable battery
 requires a protected cell, charging circuit, and appropriate regulation—do not
 connect a bare LiPo as a substitute for USB power.
+
+The SAMD21 firmware uses the Nano 33 IoT board's default `Wire` bus, so do not
+move I2C to alternate GPIOs. The board is a 3.3 V device; never expose its I/O
+pins to 5 V. Arduino's official
+[Nano 33 IoT pinout](https://docs.arduino.cc/resources/pinouts/ABX00027-full-pinout.pdf)
+is the source of truth when checking board labels.
+
+## Nano 33 IoT connectivity-firmware prerequisite
+
+This project pins ArduinoBLE 2.1.0. ArduinoBLE 2.x requires the Nano 33 IoT's
+NINA-W102 connectivity firmware to be **3.0.0 or newer**, as specified in the
+[official ArduinoBLE compatibility table](https://github.com/arduino-libraries/ArduinoBLE#firmware-compatibility).
+Update the NINA module before debugging the app connection; flashing this
+PlatformIO project updates the SAMD21 application but does not update the NINA
+module.
+
+Use Arduino IDE's Firmware Updater or Arduino Cloud to update the module. The
+official Arduino support guides explain how to
+[check the installed WiFiNINA firmware](https://support.arduino.cc/hc/en-us/articles/9398559561244-Check-the-WiFiNINA-firmware-version)
+and
+[update the connectivity module](https://support.arduino.cc/hc/en-us/articles/10501616961564-Update-connectivity-module-firmware-with-Arduino-Cloud).
 
 ## Build, test, and flash
 
@@ -44,14 +66,24 @@ ESP32 flashing toolchain on its first run:
 ```sh
 cd firmware/voxa-wearable
 uvx --with pip platformio test -e native
+uvx --with pip platformio run -e nano_33_iot
+uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio run -e nano_esp32
 uvx --with pip platformio run -e nano_esp32 --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
+For the current Nano 33 IoT prototype, use the `nano_33_iot` environment. The
+Nano ESP32 environment remains available and exposes the identical device
+name, service UUIDs, command packet, status packet, and vibration programs.
+
 If PlatformIO cannot find the upload port, list ports with
 `uvx --with pip platformio device list`, then pass the result explicitly with
 `--upload-port /dev/cu.usbmodem...`.
+
+If the Nano 33 IoT does not enter its bootloader for upload, double-press its
+reset button, wait for the pulsing bootloader LED, list ports again, and upload
+to the newly appeared `/dev/cu.usbmodem...` port.
 
 On startup the serial monitor prints either `Voxa Cue firmware 1.0 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
@@ -117,6 +149,8 @@ design procedure. Do not copy register values from a different motor.
 ## Design boundaries
 
 - BLE is the only phone-to-wearable transport.
+- Nano 33 IoT uses ArduinoBLE; Nano ESP32 uses NimBLE-Arduino. Both transports
+  implement the same BLE v1 contract.
 - The firmware receives semantic pattern IDs; speech analysis stays on iPhone.
 - Status has protocol and firmware versions but no fabricated battery value.
 - The mailbox and playback state use fixed-size storage. No Arduino `String`
