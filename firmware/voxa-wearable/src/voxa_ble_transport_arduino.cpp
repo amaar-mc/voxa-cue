@@ -13,6 +13,12 @@ namespace {
 constexpr std::size_t kMailboxCapacity = 4U;
 constexpr int kMaximumReceivedValueLength = 20;
 
+#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
+constexpr char kAdvertisedDeviceName[] = "Voxa D2";
+#else
+constexpr const char* kAdvertisedDeviceName = kDeviceName;
+#endif
+
 struct CommandMailbox {
   ReceivedCommandFrame frames[kMailboxCapacity];
   std::size_t readIndex;
@@ -83,8 +89,8 @@ bool initialize() {
     return false;
   }
 
-  BLE.setLocalName(kDeviceName);
-  BLE.setDeviceName(kDeviceName);
+  BLE.setLocalName(kAdvertisedDeviceName);
+  BLE.setDeviceName(kAdvertisedDeviceName);
   BLE.setAdvertisedService(cueService);
   cueService.addCharacteristic(commandCharacteristic);
   cueService.addCharacteristic(statusCharacteristic);

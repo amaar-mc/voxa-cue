@@ -17,8 +17,9 @@
     "ble:debug:test": "node --test tools/ble-debug/protocol.test.mjs",
     "firmware:test": "uvx --with pip platformio test -e native -d firmware/voxa-wearable",
     "firmware:build:nano33": "uvx --with pip platformio run -e nano_33_iot -d firmware/voxa-wearable",
+    "firmware:build:pwm-test": "uvx --with pip platformio run -e nano_33_iot_direct_pwm_test -d firmware/voxa-wearable",
     "firmware:build:esp32": "uvx --with pip platformio run -e nano_esp32 -d firmware/voxa-wearable",
-    "firmware:build": "pnpm firmware:build:nano33 && pnpm firmware:build:esp32",
+    "firmware:build": "pnpm firmware:build:nano33 && pnpm firmware:build:pwm-test && pnpm firmware:build:esp32",
     "verify": "pnpm api:typecheck && pnpm api:test && pnpm api:build && pnpm ios:test && pnpm ios:app-test && pnpm ios:build && pnpm ios:release-verify && pnpm ble:debug:test && pnpm firmware:test && pnpm firmware:build"
   }
 }
