@@ -19,7 +19,7 @@ No sign-in, user account, subscription, purchase, or in-app payment exists. Revi
 
 1. Launch the app and complete the four onboarding pages. Pairing does not block onboarding.
 2. On Today, start a new session.
-3. Choose Free Speaking, enter a session name, choose a target duration and pace range, and leave at least one cue enabled.
+3. Enter a session name, choose a target duration and pace range, and leave at least one cue enabled.
 4. Tap Begin presentation and grant Microphone and Speech Recognition permission.
 5. Speak for at least 30 seconds. The live view shows elapsed time, rolling pace, filler count, talk ratio, transcript progress, and any locally decided cue.
 6. End the session and inspect the local summary, transcript, vocal ranges, and metrics.
@@ -39,7 +39,7 @@ Raw audio is processed transiently and is never saved or uploaded. The wearable 
 
 Real-time transcription, metrics, cue selection, and BLE delivery run on the iPhone. Network access is not part of the live feedback loop.
 
-When the API is configured, importing a PowerPoint can send extracted slide text and speaker notes for a timed checkpoint plan. The original file is not retained or uploaded. Post-session AI coaching sends the final transcript, aggregate metrics, cue-delivery history, and checkpoint outcomes only after a confirmation dialog names the transmitted data. The API rejects audio payloads, does not have an application database, requests schema-constrained output, and sets OpenAI response storage to false.
+Post-session AI coaching sends the final transcript, aggregate metrics, and cue-delivery history only after a confirmation dialog names the transmitted data. The API rejects audio payloads, does not have an application database, requests schema-constrained output, and sets OpenAI response storage to false.
 
 ## Additional disclosures
 
