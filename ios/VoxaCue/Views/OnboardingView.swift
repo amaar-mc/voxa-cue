@@ -10,26 +10,20 @@ struct OnboardingView: View {
         OnboardingPage(
             eyebrow: "Meet Voxa Cue",
             title: "Discreet guidance.\nConfident delivery.",
-            body: "Your iPhone listens while you present. The Cue Band can answer with private, eyes-free coaching patterns.",
-            symbol: "waveform.and.mic"
+            body: "Your iPhone listens while you present. The band delivers private cues.",
+            assetName: "VoiceSignal"
         ),
         OnboardingPage(
             eyebrow: "Private by design",
             title: "Live coaching stays\non your iPhone.",
-            body: "Live transcription, pace, filler words, and timing run on-device. Raw audio is never saved.",
-            symbol: "iphone.gen3.radiowaves.left.and.right"
+            body: "Transcription, pace, fillers, and timing stay on-device. Raw audio is never saved.",
+            assetName: "OnDevicePrivacy"
         ),
         OnboardingPage(
             eyebrow: "Connect the band",
             title: "Learn the language\nof each cue.",
-            body: "Pair a Cue Band for wrist feedback. If the band is not nearby, every session still records private analytics.",
-            symbol: "applewatch.radiowaves.left.and.right"
-        ),
-        OnboardingPage(
-            eyebrow: "Ready",
-            title: "Put the phone down.\nStay in the moment.",
-            body: "Keep the microphone unobstructed and the live session open. Cue handles the signal; you handle the room.",
-            symbol: "sparkles"
+            body: "Pair the band for wrist feedback, or continue with phone-only analytics.",
+            assetName: "HapticBand"
         )
     ]
 
@@ -53,20 +47,7 @@ struct OnboardingView: View {
     }
 
     private var background: some View {
-        ZStack {
-            CueTheme.canvas
-            Circle()
-                .fill(CueTheme.periwinkle.opacity(0.20))
-                .frame(width: 420, height: 420)
-                .blur(radius: 52)
-                .offset(x: 170, y: -320)
-            Circle()
-                .fill(CueTheme.indigo.opacity(0.08))
-                .frame(width: 300, height: 300)
-                .blur(radius: 60)
-                .offset(x: -170, y: 330)
-        }
-        .ignoresSafeArea()
+        CueTheme.canvas.ignoresSafeArea()
     }
 
     private var header: some View {
@@ -87,7 +68,7 @@ struct OnboardingView: View {
             HStack(spacing: 7) {
                 ForEach(pages.indices, id: \.self) { index in
                     Capsule()
-                        .fill(index == page ? CueTheme.violet : CueTheme.border)
+                        .fill(index == page ? CueTheme.signal : CueTheme.border)
                         .frame(width: index == page ? 25 : 7, height: 7)
                         .animation(CueMotion.quick(reduceMotion: reduceMotion), value: page)
                 }
@@ -144,7 +125,7 @@ struct OnboardingView: View {
     }
 
     private var bandButtonTitle: String {
-        if bandIsReady { return "Continue with Cue Band" }
+        if bandIsReady { return "Start with Cue Band" }
         if bandIsBusy { return "Searching for Cue Band…" }
         return "Connect Cue Band"
     }
@@ -158,7 +139,7 @@ struct OnboardingView: View {
 
     private var bandStatusColor: Color {
         if bandIsReady { return CueTheme.green }
-        if bandIsBusy { return CueTheme.violet }
+        if bandIsBusy { return CueTheme.signal }
         if case .failed = model.connectionState { return CueTheme.red }
         return CueTheme.secondaryInk
     }
@@ -186,7 +167,7 @@ private struct OnboardingPage: Hashable {
     let eyebrow: String
     let title: String
     let body: String
-    let symbol: String
+    let assetName: String
 }
 
 private struct OnboardingPageView: View {
@@ -199,14 +180,13 @@ private struct OnboardingPageView: View {
             VStack(alignment: .leading, spacing: 24) {
                 Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? 12 : 34)
                 PremiumCard(padding: dynamicTypeSize.isAccessibilitySize ? 16 : 24) {
-                    CuePulseGlyph(
-                        symbol: page.symbol,
-                        size: dynamicTypeSize.isAccessibilitySize ? 116 : 176,
-                        animated: true
+                    SectionMark(
+                        assetName: page.assetName,
+                        size: dynamicTypeSize.isAccessibilitySize ? 116 : 176
                     )
-                    .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity)
                 }
-                CueSectionLabel(text: page.eyebrow, color: CueTheme.violet)
+                CueSectionLabel(text: page.eyebrow, color: CueTheme.signal)
                 Text(page.title)
                     .font(.cueHero)
                     .foregroundStyle(CueTheme.ink)

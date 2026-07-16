@@ -26,17 +26,7 @@ struct TodayView: View {
             .padding(.top, 14)
             .padding(.bottom, 36)
         }
-        .background {
-            ZStack(alignment: .topTrailing) {
-                CueTheme.canvas
-                Circle()
-                    .fill(CueTheme.periwinkle.opacity(0.15))
-                    .frame(width: 310, height: 310)
-                    .blur(radius: 50)
-                    .offset(x: 130, y: -160)
-            }
-            .ignoresSafeArea()
-        }
+        .background(CueTheme.canvas.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .opacity(hasAppeared ? 1 : (reduceMotion ? 1 : 0))
         .offset(y: hasAppeared || reduceMotion ? 0 : 8)
@@ -70,21 +60,21 @@ struct TodayView: View {
     }
 
     private var hero: some View {
-        PremiumCard(padding: dynamicTypeSize.isAccessibilitySize ? 20 : 24) {
+        HeroCard(padding: dynamicTypeSize.isAccessibilitySize ? 20 : 24) {
             VStack(alignment: .leading, spacing: 22) {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 18) {
                         heroCopy
                         Spacer(minLength: 10)
-                        CuePulseGlyph(symbol: "waveform", size: 88, animated: true)
+                        SectionMark(assetName: "VoiceSignal", size: 88)
                     }
                     VStack(alignment: .leading, spacing: 18) {
-                        CuePulseGlyph(symbol: "waveform", size: 78, animated: true)
+                        SectionMark(assetName: "VoiceSignal", size: 78)
                         heroCopy
                     }
                 }
 
-                Text("Set a target, place your phone nearby, and present naturally. Pace, filler words, and timing stay on-device during the session.")
+                Text("Set a time and pace target, then place your phone nearby. Live analysis stays on-device.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
@@ -126,9 +116,9 @@ struct TodayView: View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(CueTheme.violet)
+                .foregroundStyle(CueTheme.signal)
                 .frame(width: 32, height: 32)
-                .background(CueTheme.violetSoft)
+                .background(CueTheme.signalSoft)
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -156,7 +146,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 5) {
-                            CueSectionLabel(text: "Latest session", color: CueTheme.violet)
+                            CueSectionLabel(text: "Latest session", color: CueTheme.signal)
                             Text(session.name)
                                 .font(.cueSection)
                                 .foregroundStyle(CueTheme.ink)
@@ -165,9 +155,9 @@ struct TodayView: View {
                         Spacer(minLength: 8)
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(CueTheme.violet)
+                            .foregroundStyle(CueTheme.signal)
                             .frame(width: 38, height: 38)
-                            .background(CueTheme.violetSoft)
+                            .background(CueTheme.signalSoft)
                             .clipShape(Circle())
                     }
                     ViewThatFits(in: .horizontal) {
@@ -205,17 +195,12 @@ struct TodayView: View {
     private var emptyHistory: some View {
         PremiumCard(padding: 22) {
             HStack(alignment: .top, spacing: 16) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 22, weight: .light))
-                    .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(CueTheme.signalGradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                SectionMark(assetName: "DeliveryAnalytics", size: 52)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Build your speaking baseline")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
-                    Text("Complete one session to unlock real trends and evidence-based coaching.")
+                    Text("Complete one session to unlock trends and coaching.")
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
                         .fixedSize(horizontal: false, vertical: true)
@@ -225,19 +210,13 @@ struct TodayView: View {
     }
 
     private var privacyCard: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(spacing: 12) {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(CueTheme.green)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Raw audio is never saved")
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                    .foregroundStyle(CueTheme.ink)
-                Text("History stores your transcript, metrics, cue outcomes, checkpoints, and any coaching you request—never the recording.")
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.secondaryInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Raw audio is never saved")
+                .font(.system(.subheadline, design: .default, weight: .semibold))
+                .foregroundStyle(CueTheme.ink)
         }
         .padding(.horizontal, 4)
     }
