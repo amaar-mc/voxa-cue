@@ -4,6 +4,7 @@ import VoxaRuntime
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var presentedDocument: SettingsDocument?
     @State private var confirmDataDeletion = false
 
@@ -13,7 +14,7 @@ struct SettingsView: View {
                 ScreenTitle(
                     eyebrow: "Your Cue",
                     title: "Settings",
-                    subtitle: "Connect the wristband, verify feedback, and control what stays on your phone."
+                    subtitle: "Connect your band, preview cue patterns, and choose how your data is handled."
                 )
                 bandCard
                 hapticTestCard
@@ -51,34 +52,7 @@ struct SettingsView: View {
     private var bandCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(connectionColor.opacity(0.11))
-                        Image(systemName: connectionSymbol)
-                            .font(.system(size: 22, weight: .light))
-                            .foregroundStyle(connectionColor)
-                    }
-                    .frame(width: 52, height: 52)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("CUE BAND")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.2)
-                            .foregroundStyle(CueTheme.violet)
-                        Text(model.connectionState.label)
-                            .font(.cueSection)
-                            .foregroundStyle(CueTheme.ink)
-                        Text(connectionDetail)
-                            .font(.cueCaption)
-                            .foregroundStyle(CueTheme.secondaryInk)
-                    }
-                    Spacer()
-                    Circle()
-                        .fill(connectionColor)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: connectionColor.opacity(0.35), radius: 6)
-                        .accessibilityHidden(true)
-                }
+                bandHeader
                 VoxaButton(
                     title: connectionButtonTitle,
                     symbol: isConnectionActive ? "xmark" : "dot.radiowaves.left.and.right",
@@ -93,28 +67,13 @@ struct SettingsView: View {
     private var hapticTestCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("HAPTIC LANGUAGE")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.2)
-                            .foregroundStyle(CueTheme.violet)
-                        Text("Feel each coaching cue")
-                            .font(.cueSection)
-                            .foregroundStyle(CueTheme.ink)
-                    }
-                    Spacer()
-                    StatusPill(
-                        label: isBandReady ? "Ready" : "Connect first",
-                        symbol: isBandReady ? "checkmark" : "link",
-                        color: isBandReady ? CueTheme.green : CueTheme.secondaryInk
-                    )
-                }
-                Text("The patterns are distinct from normal phone notifications, so you can react without looking down.")
+                hapticHeader
+                Text("Each coaching pattern has a distinct rhythm, so you can recognize it without looking at a screen.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(2)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    .fixedSize(horizontal: false, vertical: true)
+                CueMetricGrid(spacing: 10) {
                     ForEach(CueKind.allCases, id: \.self) { cue in
                         hapticButton(
                             title: hapticTitle(for: cue),
@@ -124,6 +83,15 @@ struct SettingsView: View {
                         )
                     }
                 }
+                Label(
+                    isBandReady
+                        ? "Each tap sends a test request. Confirm delivery by feeling the Cue Band; any band error appears as an alert."
+                        : "Connect a Cue Band to send pattern test requests.",
+                    systemImage: isBandReady ? "hand.tap" : "link"
+                )
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -141,7 +109,9 @@ struct SettingsView: View {
                     .foregroundStyle(CueTheme.ink)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 74)
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 92 : 74)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .background(tint.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             .overlay {
@@ -152,7 +122,9 @@ struct SettingsView: View {
         }
         .buttonStyle(SpringPressStyle())
         .disabled(!isBandReady)
-        .accessibilityLabel("Test \(title.lowercased()) haptic")
+        .accessibilityLabel("Send \(title.lowercased()) haptic test request")
+        .accessibilityValue(isBandReady ? "Cue Band connected" : "Unavailable until Cue Band connects")
+        .accessibilityHint("Confirm delivery by feeling the wristband. Band errors appear as an alert.")
     }
 
     private func hapticTitle(for cue: CueKind) -> String {
@@ -213,15 +185,7 @@ struct SettingsView: View {
     private var apiCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 15) {
-                HStack {
-                    sectionLabel(title: "COACHING API", symbol: "sparkles", tint: CueTheme.violet)
-                    Spacer()
-                    StatusPill(
-                        label: apiStatusLabel,
-                        symbol: apiStatusSymbol,
-                        color: apiStatusColor
-                    )
-                }
+                apiHeader
                 Text(apiStatusDetail)
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
@@ -232,6 +196,15 @@ struct SettingsView: View {
                         .foregroundStyle(CueTheme.ink)
                         .textSelection(.enabled)
                 }
+                if isAPIConfigured, !model.demoMode {
+                    VoxaAsyncButton(
+                        title: "Check coaching service",
+                        loadingTitle: "Checking service…",
+                        symbol: "arrow.clockwise",
+                        isLoading: model.coachingAPIState == .checking,
+                        action: { Task { await model.checkCoachingAPI() } }
+                    )
+                }
             }
         }
     }
@@ -240,26 +213,34 @@ struct SettingsView: View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 15) {
                 sectionLabel(title: "LOCAL DATA", symbol: "internaldrive", tint: CueTheme.violet)
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(dataCountLabel)
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CueTheme.ink)
-                        Text(localDataDescription)
-                            .font(.cueCaption)
-                            .foregroundStyle(CueTheme.secondaryInk)
-                    }
-                    Spacer()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(dataCountLabel)
+                        .font(.cueBody.weight(.semibold))
+                        .foregroundStyle(CueTheme.ink)
+                    Text(localDataDescription)
+                        .font(.cueCaption)
+                        .foregroundStyle(CueTheme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Button(role: .destructive) {
                     confirmDataDeletion = true
                 } label: {
                     Label(deletionButtonTitle, systemImage: "trash")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(.body, design: .rounded, weight: .semibold))
                         .foregroundStyle(CueTheme.red)
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .background(CueTheme.red.opacity(0.07))
+                        .clipShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous)
+                                .stroke(CueTheme.red.opacity(0.16), lineWidth: 0.7)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
                 }
                 .buttonStyle(SpringPressStyle())
                 .disabled(model.sessions.isEmpty && model.insightBySession.isEmpty)
+                .opacity(model.sessions.isEmpty && model.insightBySession.isEmpty ? 0.45 : 1)
             }
         }
     }
@@ -288,13 +269,16 @@ struct SettingsView: View {
                 Text(document.title)
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(CueTheme.secondaryInk.opacity(0.6))
             }
             .padding(.horizontal, 12)
-            .frame(height: 52)
+            .padding(.vertical, 8)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
         }
         .buttonStyle(SpringPressStyle())
     }
@@ -305,7 +289,7 @@ struct SettingsView: View {
             Text("Voxa Cue \(appVersion) (\(buildNumber))")
                 .font(.cueCaption.monospacedDigit())
                 .foregroundStyle(CueTheme.secondaryInk)
-            Text("Your voice. Perfected.")
+            Text("Discreet guidance. Confident delivery.")
                 .font(.cueCaption)
                 .foregroundStyle(CueTheme.secondaryInk)
         }
@@ -314,10 +298,12 @@ struct SettingsView: View {
     }
 
     private func sectionLabel(title: String, symbol: String, tint: Color) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
-            .tracking(1.15)
-            .foregroundStyle(tint)
+        HStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.system(.caption2, design: .rounded, weight: .bold))
+            CueSectionLabel(text: title, color: tint)
+        }
+        .foregroundStyle(tint)
     }
 
     private func privacyRow(title: String, detail: String, symbol: String) -> some View {
@@ -328,12 +314,118 @@ struct SettingsView: View {
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.cueBody.weight(.semibold))
                     .foregroundStyle(CueTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bandHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 12) {
+                connectionGlyph
+                connectionText
+            }
+        } else {
+            HStack(spacing: 14) {
+                connectionGlyph
+                connectionText
+                Spacer(minLength: 8)
+                connectionIndicator
+            }
+        }
+    }
+
+    private var connectionGlyph: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(connectionColor.opacity(0.11))
+            Image(systemName: connectionSymbol)
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(connectionColor)
+        }
+        .frame(width: 52, height: 52)
+        .accessibilityHidden(true)
+    }
+
+    private var connectionText: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            CueSectionLabel(text: "Cue Band", color: CueTheme.violet)
+            Text(model.connectionState.label)
+                .font(.cueSection)
+                .foregroundStyle(CueTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(connectionDetail)
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var connectionIndicator: some View {
+        Circle()
+            .fill(connectionColor)
+            .frame(width: 8, height: 8)
+            .shadow(color: connectionColor.opacity(0.35), radius: 6)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var hapticHeader: some View {
+        let title = VStack(alignment: .leading, spacing: 5) {
+            CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+            Text("Preview coaching patterns")
+                .font(.cueSection)
+                .foregroundStyle(CueTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        let status = StatusPill(
+            label: isBandReady ? "Band connected" : "Connect first",
+            symbol: isBandReady ? "checkmark" : "link",
+            color: isBandReady ? CueTheme.green : CueTheme.secondaryInk
+        )
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 10) {
+                title
+                status
+            }
+        } else {
+            HStack(alignment: .top) {
+                title
+                Spacer(minLength: 8)
+                status
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var apiHeader: some View {
+        let label = sectionLabel(title: "COACHING API", symbol: "sparkles", tint: CueTheme.violet)
+        let status = StatusPill(
+            label: apiStatusLabel,
+            symbol: apiStatusSymbol,
+            color: apiStatusColor
+        )
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 10) {
+                label
+                status
+            }
+        } else {
+            HStack {
+                label
+                Spacer(minLength: 8)
+                status
             }
         }
     }
@@ -391,30 +483,57 @@ struct SettingsView: View {
     }
 
     private var isAPIConfigured: Bool {
-        appConfiguration.apiBaseURL != nil && appConfiguration.demoAPIToken.count >= 32
+        appConfiguration.demoAPIIsAvailable
     }
 
     private var apiStatusLabel: String {
         if model.demoMode { return "Demo mode" }
-        return isAPIConfigured ? "Configured" : "Local only"
+        return switch model.coachingAPIState {
+        case .localOnly: "Local only"
+        case .configured: "Not checked"
+        case .checking: "Checking"
+        case .ready: "Ready"
+        case .unavailable: "Needs attention"
+        }
     }
 
     private var apiStatusSymbol: String {
-        model.demoMode || isAPIConfigured ? "checkmark.circle.fill" : "iphone"
+        if model.demoMode { return "testtube.2" }
+        return switch model.coachingAPIState {
+        case .localOnly: "iphone"
+        case .configured: "questionmark.circle.fill"
+        case .checking: "arrow.triangle.2.circlepath"
+        case .ready: "checkmark.circle.fill"
+        case .unavailable: "exclamationmark.triangle.fill"
+        }
     }
 
     private var apiStatusColor: Color {
-        model.demoMode || isAPIConfigured ? CueTheme.green : CueTheme.secondaryInk
+        if model.demoMode { return CueTheme.violet }
+        return switch model.coachingAPIState {
+        case .localOnly: CueTheme.secondaryInk
+        case .configured, .checking: CueTheme.violet
+        case .ready: CueTheme.green
+        case .unavailable: CueTheme.red
+        }
     }
 
     private var apiStatusDetail: String {
         if model.demoMode {
             return "AI responses use the deterministic presentation scenario. No external coaching request is required."
         }
-        if isAPIConfigured {
-            return "The coaching endpoint is configured. Reachability is checked when you import a PowerPoint or approve an AI coaching request."
+        switch model.coachingAPIState {
+        case .localOnly:
+            return "Live haptics and session analytics still work locally. A scoped production authentication system is required before public AI access."
+        case .configured:
+            return "The closed-demo endpoint is configured but has not been contacted. Check it before relying on optional AI coaching."
+        case .checking:
+            return "Checking authenticated model access without sending presentation content or generating coaching."
+        case let .ready(build):
+            return "The coaching service is ready. Deployed build: \(build)."
+        case let .unavailable(message):
+            return message
         }
-        return "Live haptics and all session analytics still work locally. Add the API URL and demo token in the build configuration to enable AI coaching."
     }
 
     private var isBandReady: Bool {
@@ -596,8 +715,12 @@ private struct SettingsDocumentView: View {
                     body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, checkpoint outcomes, and generated coaching insights are stored locally. Imported PowerPoint files, extracted slide bodies and notes, and raw audio are not retained. You can delete all local Voxa Cue data from Settings."
                 ),
                 SettingsDocumentSection(
-                    title: "Optional AI coaching",
-                    body: "Voxa Cue does not send session information automatically. When you explicitly confirm Generate AI coaching, the final transcript, aggregate session metrics, cue delivery history, and checkpoint outcomes are sent to the configured Voxa Cue API. Raw audio is never included."
+                    title: "Optional remote features",
+                    body: "When a coaching service is configured, importing a PowerPoint can send its extracted slide text and speaker notes to create timed checkpoints. The original file is not uploaded. Session information is never sent automatically: after a rehearsal, the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes leave the phone only when you explicitly confirm Generate AI coaching. Raw audio is never included."
+                ),
+                SettingsDocumentSection(
+                    title: "AI provider retention",
+                    body: "The Voxa Cue API validates the request, removes the app session identifier, and forwards only the required text to OpenAI. It requests no Responses API application-state storage. That setting is not a zero-retention guarantee: under default provider controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project has approved Modified Abuse Monitoring or Zero Data Retention controls."
                 ),
                 SettingsDocumentSection(
                     title: "Cue Band connection",
@@ -635,7 +758,7 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "A vibration did not arrive",
-                    body: "Open Settings, confirm the band shows Connected, and try each haptic test. During presentations, Voxa Cue intentionally applies persistence and cooldown rules so a brief metric change does not create a distracting alert."
+                    body: "Open Settings, confirm the band shows Connected, then send a pattern test request and verify it on your wrist. During presentations, Voxa Cue intentionally applies persistence and cooldown rules so a brief metric change does not create a distracting alert."
                 ),
                 SettingsDocumentSection(
                     title: "Bring useful diagnostics",
