@@ -15,7 +15,7 @@
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-0B756F?style=for-the-badge&logo=swift&logoColor=white" />
     <img alt="iOS 26+" src="https://img.shields.io/badge/iOS-26%2B-071122?style=for-the-badge&logo=apple&logoColor=white" />
     <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-0B756F?style=for-the-badge&logo=typescript&logoColor=white" />
-    <img alt="Arduino Nano ESP32" src="https://img.shields.io/badge/Nano_ESP32-Wearable-A85E24?style=for-the-badge&logo=arduino&logoColor=white" />
+    <img alt="Arduino Nano 33 IoT" src="https://img.shields.io/badge/Nano_33_IoT-Wearable-A85E24?style=for-the-badge&logo=arduino&logoColor=white" />
   </p>
 
   <p>
@@ -59,17 +59,15 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 | Speaking pace and persistence | Session score and delivery summary |
 | High-confidence filler bursts | Pace, filler, timing, and talk-ratio analytics |
 | 75%, 90%, and 100% time milestones | Pitch and energy-range trends |
-| Progress against an imported PowerPoint | Evidence-backed priorities and drills |
 | Private haptic delivery acknowledgements | Longitudinal session history |
 
-### The seven-cue haptic language
+### The six-cue haptic language
 
 | Cue | Meaning |
 | --- | --- |
 | Slow down | Pace has remained above the personalized range |
 | Pick up the pace | Pace has remained below the personalized range |
 | Reset fillers | A high-confidence filler burst was detected |
-| Move to the next idea | Presentation progress is behind the timed deck plan |
 | 75% used | Three quarters of the target time has elapsed |
 | 90% used | The presentation is entering its closing window |
 | Target reached | The configured presentation time has elapsed |
@@ -84,7 +82,7 @@ flowchart LR
     SPEECH --> METRICS["Transcript, pace,<br/>fillers, pitch, energy"]
     METRICS --> ENGINE["Deterministic<br/>CueEngine"]
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
-    BLE --> NANO["Nano ESP32"]
+    BLE --> NANO["Nano 33 IoT"]
     NANO --> MOTOR["DRV2605L<br/>+ 3 V LRA"]
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
@@ -97,16 +95,15 @@ flowchart LR
     class API optional;
 ```
 
-The live path never waits for a network request. If Bluetooth disconnects, recording and analytics continue. If the optional API is unavailable, live haptics remain unaffected and PowerPoint planning falls back to a local algorithm.
+The live path never waits for a network request. If Bluetooth disconnects, recording and analytics continue. The optional API is used only for post-session coaching after explicit consent.
 
 ### Data boundaries
 
 | Boundary | What crosses it | What never crosses it |
 | --- | --- | --- |
 | Microphone → app memory | PCM buffers during an active session | Retained audio files |
-| iPhone → Cue Band | Cue ID, intensity, repeat count, sequence | Audio, transcript, deck text, identity |
-| iPhone → deck-plan API | User-initiated slide text, notes, title, target time | Original PowerPoint binary, audio |
-| iPhone → insight API | Confirmed transcript, aggregate metrics, cue and checkpoint summaries | Raw audio |
+| iPhone → Cue Band | Cue ID, intensity, repeat count, sequence | Audio, transcript, identity |
+| iPhone → insight API | Confirmed transcript, aggregate metrics, and cue summaries | Raw audio |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
 The API rejects audio-shaped payloads and requests structured outputs with provider application-state storage disabled. OpenAI abuse-monitoring retention remains an explicit production release decision.
@@ -116,10 +113,9 @@ The API rejects audio-shaped payloads and requests structured outputs with provi
 | Layer | Libraries and frameworks |
 | --- | --- |
 | iPhone app | SwiftUI, Observation, SwiftData, SpeechAnalyzer, AVAudioEngine, CoreBluetooth |
-| Shared iOS logic | Swift 6 package with pure cue, transcript, timing, and deck-matching modules |
-| Presentation import | ZIPFoundation, local Office XML extraction, NaturalLanguage embeddings |
+| Shared iOS logic | Swift 6 package with pure cue, transcript, timing, and analytics modules |
 | API | Hono, strict TypeScript, Zod, OpenAI Responses API with `gpt-5.6-luna`, Vitest, Vercel |
-| Wearable | Arduino Nano ESP32, NimBLE-Arduino, Adafruit DRV2605, PlatformIO |
+| Wearable | Arduino Nano 33 IoT with ArduinoBLE, DRV2605L, and PlatformIO; Nano ESP32 remains supported |
 | Contracts | JSON Schema plus a versioned six-byte command and seven-byte status BLE protocol |
 
 ## Brand system
@@ -144,7 +140,7 @@ voxa-cue/
 ├── contracts/                   JSON schemas and normative BLE v1 contract
 ├── design/brand/                Complete Concept 3 brand toolkit
 ├── docs/                        Architecture, privacy, support, and release gates
-├── firmware/voxa-wearable/      Nano ESP32 firmware and native tests
+├── firmware/voxa-wearable/      Nano 33 IoT / Nano ESP32 firmware and native tests
 ├── ios/
 │   ├── Packages/VoxaKit/        Reusable VoxaCore and VoxaRuntime modules
 │   ├── VoxaCue/                 SwiftUI application
@@ -164,20 +160,19 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-That single command type-checks, tests, and builds the API, runs package and simulator app tests, validates both Debug and credential-free Release iOS builds, lints the privacy manifest, and verifies native plus Nano ESP32 firmware.
+That single command type-checks, tests, and builds the API, runs package and simulator app tests, validates both Debug and credential-free Release iOS builds, lints the privacy manifest, and verifies native plus both Nano firmware targets.
 
 ### Launch the iPhone app
 
 ```sh
-cd ios
-xcodegen generate
-open VoxaCue.xcodeproj
+pnpm ios:generate
+open -a /Applications/Xcode-beta.app ios/VoxaCue.xcodeproj
 ```
 
 In Xcode:
 
 1. Select an iPhone running iOS 26+ or an iOS simulator.
-2. Set a development team when installing on a physical device.
+2. For a physical device, connect and unlock it, trust the Mac, enable Developer Mode, and select an Apple development team under **Signing & Capabilities**.
 3. Add `-demoScenario` under **Scheme → Run → Arguments** for deterministic, clearly labeled demo data.
 4. Press **Run**.
 
@@ -186,7 +181,7 @@ The demo requires no microphone, band, or API. Remove `-demoScenario` to exercis
 <details>
 <summary><strong>Configure the optional AI API</strong></summary>
 
-The app records, analyzes speech, plans decks locally, and drives haptics without the API. AI-enhanced deck planning and post-session coaching require a server-side OpenAI key.
+The app records, analyzes speech, and drives haptics without the API. Optional post-session coaching requires a server-side OpenAI key.
 
 ```sh
 cp api/.env.example api/.env.local
@@ -200,7 +195,7 @@ Set:
 - `VOXA_BUILD_ID` to the deployment commit SHA or release identifier
 - `VOXA_DEMO_API_TOKEN` to a random bearer token of at least 32 characters
 
-Deploy with `api/` as the Vercel project root. `GET /livez` is a public minimal liveness probe; `/health`, `/readyz`, and both AI routes require `Authorization: Bearer <token>`. This shared token is only for the closed prototype and is not production user authentication.
+Deploy with `api/` as the Vercel project root. `GET /livez` is a public minimal liveness probe; `/health`, `/readyz`, and AI routes require `Authorization: Bearer <token>`. This shared token is only for the closed prototype and is not production user authentication.
 
 For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to ignored `ios/Local.xcconfig`, then set the deployed HTTPS origin and matching bearer token. Provider credentials never belong in the app.
 
@@ -209,23 +204,23 @@ For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to
 <details>
 <summary><strong>Flash and pair the Cue Band</strong></summary>
 
-Wire the Nano ESP32, DRV2605L breakout, and 3 V LRA using the safety notes in [the firmware guide](firmware/voxa-wearable/README.md).
+Wire the Nano 33 IoT, DRV2605L breakout, and 3 V LRA using the safety notes in [the firmware guide](firmware/voxa-wearable/README.md). Update the board's NINA-W102 connectivity firmware to 3.0.0 or newer before the first BLE test.
 
 ```sh
 cd firmware/voxa-wearable
-uvx --with pip platformio run -e nano_esp32 --target upload
+uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
-The serial monitor should print `Voxa Cue firmware 1.0 ready`. In the app, select **Connect Cue Band** and wait for the peripheral to reach **Ready**.
+The serial monitor should print `Voxa Cue firmware 1.0 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command.
 
 </details>
 
 ## Demonstration flow
 
 1. Launch with `-demoScenario` for a software-only walkthrough, or connect the physical Cue Band.
-2. Preview the seven haptic patterns from Settings.
-3. Start a Free Speaking session or import a `.pptx`.
+2. Verify the six active haptic patterns in Device Lab.
+3. Start a session using the iPhone microphone.
 4. Set target time, pace range, enabled cues, and intensity.
 5. Present while Voxa Cue measures delivery and acknowledges any haptic commands.
 6. End the session to inspect analytics, transcript evidence, priorities, and drills.
@@ -236,10 +231,10 @@ The current implementation is exercised across all three layers:
 
 | Surface | Verified behavior |
 | --- | --- |
-| API | Strict TypeScript, production bundle, 24 Vitest contract and failure-path tests |
-| VoxaCore + VoxaRuntime | 41 Swift tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
-| iPhone application | 14 simulator behavior tests plus unsigned Debug and Release generic-device builds |
-| Firmware | 15 native Unity tests plus a successful Nano ESP32 release build |
+| API | Strict TypeScript plus contract and failure-path tests |
+| VoxaCore + VoxaRuntime | Swift behavior tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
+| iPhone application | Simulator behavior tests plus unsigned Debug and Release generic-device builds |
+| Firmware | 15 native Unity tests plus successful Nano 33 IoT and Nano ESP32 builds |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
 Physical BLE, motor calibration, microphone placement, and wear testing are intentionally tracked as hardware gates in the release checklist.
