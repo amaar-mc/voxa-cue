@@ -6,6 +6,14 @@ struct AppConfiguration {
     let demoAPIToken: String
     let demoMode: Bool
 
+    var demoAPIIsAvailable: Bool {
+        #if DEBUG
+        apiBaseURL != nil && demoAPIToken.count >= 32
+        #else
+        false
+        #endif
+    }
+
     init(bundle: Bundle, arguments: [String]) {
         let rawURL = bundle.object(forInfoDictionaryKey: "VoxaAPIBaseURL") as? String ?? ""
         let token = bundle.object(forInfoDictionaryKey: "VoxaDemoAPIToken") as? String ?? ""
@@ -24,7 +32,16 @@ struct AppConfiguration {
     }
 
     func makeAPIClient(session: URLSession) -> VoxaAPIClient? {
+        #if DEBUG
         guard let apiBaseURL, demoAPIToken.count >= 32 else { return nil }
-        return VoxaAPIClient(baseURL: apiBaseURL, bearerToken: demoAPIToken, session: session)
+        return VoxaAPIClient(
+            baseURL: apiBaseURL,
+            bearerToken: demoAPIToken,
+            session: session,
+            requestTimeoutSeconds: 28
+        )
+        #else
+        return nil
+        #endif
     }
 }
