@@ -40,7 +40,7 @@ struct SessionsView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(CueTheme.ink)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .background(CueTheme.surface)
                         .clipShape(Circle())
                         .overlay {
@@ -57,11 +57,8 @@ struct SessionsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("YOUR PRACTICE")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.3)
-                            .foregroundStyle(CueTheme.violet)
-                        Text("A useful pattern is forming")
+                        CueSectionLabel(text: "Your practice", color: CueTheme.violet)
+                        Text(practiceHeadline)
                             .font(.cueSection)
                             .foregroundStyle(CueTheme.ink)
                     }
@@ -75,10 +72,13 @@ struct SessionsView: View {
                     }
                     .frame(width: 48, height: 48)
                 }
-                HStack(spacing: 10) {
-                    overviewMetric(value: "\(model.sessions.count)", label: "SESSIONS")
-                    overviewMetric(value: totalPracticeTime, label: "PRACTICE")
-                    overviewMetric(value: onTimeRate, label: "ON TIME")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        overviewMetrics
+                    }
+                    VStack(alignment: .leading, spacing: 14) {
+                        overviewMetrics
+                    }
                 }
             }
         }
@@ -86,10 +86,7 @@ struct SessionsView: View {
 
     private var sessionList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("RECENT SESSIONS")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .tracking(1.3)
-                .foregroundStyle(CueTheme.secondaryInk)
+            CueSectionLabel(text: "Recent sessions", color: CueTheme.secondaryInk)
                 .padding(.horizontal, 3)
             ForEach(model.sessions, id: \.sessionID) { session in
                 sessionRow(session)
@@ -127,22 +124,13 @@ struct SessionsView: View {
                             .foregroundStyle(CueTheme.secondaryInk.opacity(0.65))
                             .padding(.top, 6)
                     }
-                    HStack(spacing: 10) {
-                        rowMetric(
-                            value: "\(Int(session.averageWPM.rounded()))",
-                            label: "WPM",
-                            tint: CueTheme.violet
-                        )
-                        rowMetric(
-                            value: String(format: "%.1f", session.fillersPerSpeakingMinute),
-                            label: "FILLERS/MIN",
-                            tint: session.fillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
-                        )
-                        rowMetric(
-                            value: session.durationSeconds.clockString,
-                            label: "DURATION",
-                            tint: timingColor(for: session)
-                        )
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            sessionRowMetrics(session)
+                        }
+                        VStack(alignment: .leading, spacing: 12) {
+                            sessionRowMetrics(session)
+                        }
                     }
                 }
             }
@@ -151,14 +139,42 @@ struct SessionsView: View {
         .accessibilityHint("Opens the session summary")
     }
 
+    @ViewBuilder
+    private var overviewMetrics: some View {
+        overviewMetric(value: "\(model.sessions.count)", label: "Sessions")
+        overviewMetric(value: totalPracticeTime, label: "Practice")
+        overviewMetric(
+            value: onTargetRate,
+            label: TimingOutcome.onTarget.presentation.aggregateLabel
+        )
+    }
+
+    @ViewBuilder
+    private func sessionRowMetrics(_ session: SessionSummary) -> some View {
+        rowMetric(
+            value: "\(Int(session.averageWPM.rounded()))",
+            label: "WPM",
+            tint: CueTheme.violet
+        )
+        rowMetric(
+            value: String(format: "%.1f", session.fillersPerSpeakingMinute),
+            label: "Fillers/min",
+            tint: session.fillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
+        )
+        rowMetric(
+            value: session.durationSeconds.clockString,
+            label: "Duration",
+            tint: timingColor(for: session)
+        )
+    }
+
     private func overviewMetric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
                 .font(.system(size: 23, weight: .light, design: .rounded).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .tracking(0.8)
+                .font(.system(.caption2, design: .rounded, weight: .semibold))
                 .foregroundStyle(CueTheme.secondaryInk)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -170,8 +186,7 @@ struct SessionsView: View {
                 .font(.system(size: 18, weight: .light, design: .rounded).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
-                .font(.system(size: 8, weight: .semibold, design: .rounded))
-                .tracking(0.55)
+                .font(.system(.caption2, design: .rounded, weight: .semibold))
                 .foregroundStyle(CueTheme.secondaryInk)
             Capsule()
                 .fill(tint.opacity(0.38))
@@ -215,17 +230,28 @@ struct SessionsView: View {
         return totalMinutes < 60 ? "\(totalMinutes)m" : String(format: "%.1fh", totalSeconds / 3_600)
     }
 
-    private var onTimeRate: String {
-        let onTimeCount = model.sessions.filter { $0.durationSeconds <= $0.targetDurationSeconds }.count
-        let ratio = Double(onTimeCount) / Double(model.sessions.count)
+    private var practiceHeadline: String {
+        switch model.sessions.count {
+        case 1:
+            "Your baseline is taking shape"
+        case 2:
+            "Your practice pattern is emerging"
+        default:
+            "A useful pattern is forming"
+        }
+    }
+
+    private var onTargetRate: String {
+        let onTargetCount = model.sessions.filter { $0.timingOutcome == .onTarget }.count
+        let ratio = Double(onTargetCount) / Double(model.sessions.count)
         return "\(Int((ratio * 100).rounded()))%"
     }
 
     private func timingColor(for session: SessionSummary) -> Color {
-        session.durationSeconds <= session.targetDurationSeconds ? CueTheme.green : CueTheme.amber
+        session.timingOutcome.presentation.tint
     }
 
     private func timingSymbol(for session: SessionSummary) -> String {
-        session.durationSeconds <= session.targetDurationSeconds ? "checkmark" : "timer"
+        session.timingOutcome.presentation.symbol
     }
 }
