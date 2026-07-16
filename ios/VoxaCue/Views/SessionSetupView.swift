@@ -18,7 +18,10 @@ struct SessionSetupView: View {
     @State private var deckTitle: String?
     @State private var deckSlides: [DeckSlide] = []
     @State private var deckPlan: DeckPlan?
+    @State private var deckPlanSource: DeckPlanSource?
+    @State private var deckTimingAdjustedLocally = false
     @State private var deckPreparationID: UUID?
+    @State private var deckPreparationTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -27,19 +30,27 @@ struct SessionSetupView: View {
                     ScreenTitle(
                         eyebrow: "New session",
                         title: "Set your coaching target",
-                        subtitle: "Cue uses these goals locally while you present. Every setting can be changed before the countdown."
+                        subtitle: "Choose what Cue should watch. Your live coaching settings stay on this iPhone."
                     )
                     basicsCard
                     paceCard
                     cueCard
                     preflightCard
-                    VoxaButton(
-                        title: "Begin presentation",
-                        symbol: "arrow.up.right",
-                        style: .primary,
-                        disabled: startDisabled,
-                        action: begin
-                    )
+                    VStack(alignment: .leading, spacing: 9) {
+                        VoxaButton(
+                            title: beginButtonTitle,
+                            symbol: "arrow.up.right",
+                            style: .primary,
+                            disabled: startDisabled,
+                            action: begin
+                        )
+                        if let startDisabledReason {
+                            Label(startDisabledReason, systemImage: "info.circle")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.secondaryInk)
+                                .padding(.horizontal, 4)
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 22)
@@ -59,7 +70,10 @@ struct SessionSetupView: View {
                 onCompletion: handleImport
             )
             .onChange(of: targetMinutes) { _, _ in
-                replanDeckForTargetDuration()
+                retimePreparedDeck()
+            }
+            .onDisappear {
+                deckPreparationTask?.cancel()
             }
         }
     }
@@ -67,35 +81,41 @@ struct SessionSetupView: View {
     private var basicsCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("SESSION")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(CueTheme.violet)
+                CueSectionLabel(text: "Session", color: CueTheme.violet)
                 TextField("Session name", text: $name)
                     .font(.cueBody)
                     .padding(15)
-                    .background(CueTheme.canvas)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                Picker("Mode", selection: $mode) {
+                    .background(CueTheme.canvas.opacity(0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous)
+                            .stroke(CueTheme.border, lineWidth: 0.75)
+                    }
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+
+                Picker("Session mode", selection: $mode) {
                     ForEach(SessionMode.allCases, id: \.self) { option in
                         Text(option.label).tag(option)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Target duration")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        Text("Required for time cues")
-                            .font(.cueCaption)
-                            .foregroundStyle(CueTheme.secondaryInk)
+                Stepper(value: $targetMinutes, in: 1...30, step: 1) {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Target duration")
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(CueTheme.ink)
+                            Text("Drives time and deck-progress cues")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.secondaryInk)
+                        }
+                        Spacer(minLength: 8)
+                        Text("\(Int(targetMinutes)) min")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(CueTheme.violet)
                     }
-                    Spacer()
-                    Stepper("\(Int(targetMinutes)) min", value: $targetMinutes, in: 1...30, step: 1)
-                        .labelsHidden()
-                    Text("\(Int(targetMinutes)) min")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
                 }
 
                 if mode == .powerPoint {
@@ -105,102 +125,127 @@ struct SessionSetupView: View {
                     } label: {
                         HStack(spacing: 14) {
                             Image(systemName: deckPlan == nil ? "doc.badge.plus" : "checkmark.circle.fill")
-                                .font(.system(size: 22, weight: .light))
+                                .font(.system(size: 21, weight: .medium))
                                 .foregroundStyle(deckPlan == nil ? CueTheme.violet : CueTheme.green)
+                                .frame(width: 40, height: 40)
+                                .background((deckPlan == nil ? CueTheme.violetSoft : CueTheme.green.opacity(0.10)))
+                                .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(deckTitle ?? "Upload PowerPoint")
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                Text(deckTitle ?? "Choose a PowerPoint")
+                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     .foregroundStyle(CueTheme.ink)
-                                Text(deckPlan == nil ? "PPTX text and speaker notes become timed checkpoints" : "\(deckPlan?.checkpoints.count ?? 0) checkpoints ready")
+                                    .lineLimit(2)
+                                Text(deckStatusLabel)
                                     .font(.cueCaption)
                                     .foregroundStyle(CueTheme.secondaryInk)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer()
+                            Spacer(minLength: 8)
                             if isPreparingDeck {
                                 ProgressView().tint(CueTheme.violet)
                             } else {
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(CueTheme.secondaryInk)
                             }
                         }
+                        .frame(minHeight: 52)
                     }
                     .buttonStyle(SpringPressStyle())
-                    Text(
-                        model.demoMode
-                            ? "The PPTX binary and extracted text are not retained or sent in demo mode."
-                            : "The PPTX binary is not retained. If the coaching API is configured, extracted text is sent only to prepare the checkpoint plan."
-                    )
+                    Text(deckPrivacyCopy)
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
+    }
+
+    private var deckStatusLabel: String {
+        guard let deckPlan else {
+            return "PPTX text and notes become timed checkpoints"
+        }
+        let source = deckPlanSource?.label ?? "Prepared"
+        let timing = deckTimingAdjustedLocally ? " · timing adjusted locally" : ""
+        return "\(deckPlan.checkpoints.count) checkpoints · \(source)\(timing)"
+    }
+
+    private var deckPrivacyCopy: String {
+        if model.demoMode {
+            return "The file stays local and is not retained. Demo mode prepares checkpoints on-device."
+        }
+        return "The file is never retained. Extracted text is sent only if the coaching API is configured; local planning remains available."
     }
 
     private var paceCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Text("PACE RANGE")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(CueTheme.violet)
-                    Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    CueSectionLabel(text: "Pace range", color: CueTheme.violet)
+                    Spacer(minLength: 8)
                     Text("\(Int(minimumWPM))–\(Int(maximumWPM)) WPM")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(paceRangeIsValid ? CueTheme.ink : CueTheme.red)
                 }
-                VStack(spacing: 14) {
+                VStack(spacing: 15) {
                     labeledSlider(label: "Minimum", value: $minimumWPM, range: 90...150)
                     labeledSlider(label: "Maximum", value: $maximumWPM, range: 140...210)
                 }
-                Text("A 20-second rolling window prevents one rushed sentence from causing a false cue.")
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.secondaryInk)
+                Text(
+                    paceRangeIsValid
+                        ? "Cue evaluates a rolling window so one rushed sentence does not trigger a false alert."
+                        : "Maximum pace must be higher than minimum pace."
+                )
+                .font(.cueCaption)
+                .foregroundStyle(paceRangeIsValid ? CueTheme.secondaryInk : CueTheme.red)
             }
         }
     }
 
     private func labeledSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.cueCaption)
-                .foregroundStyle(CueTheme.secondaryInk)
-                .frame(width: 58, alignment: .leading)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(label)
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                Spacer()
+                Text("\(Int(value.wrappedValue)) WPM")
+                    .font(.cueCaption.monospacedDigit())
+                    .foregroundStyle(CueTheme.ink)
+            }
             Slider(value: value, in: range, step: 5)
                 .tint(CueTheme.violet)
-            Text("\(Int(value.wrappedValue))")
-                .font(.cueCaption.monospacedDigit())
-                .frame(width: 28, alignment: .trailing)
+                .accessibilityLabel("\(label) speaking pace")
+                .accessibilityValue("\(Int(value.wrappedValue)) words per minute")
         }
     }
 
     private var cueCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("HAPTIC LANGUAGE")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(CueTheme.violet)
-                    Spacer()
-                    Picker("Intensity", selection: $intensity) {
-                        ForEach(CueIntensity.allCases, id: \.self) { value in
-                            Text(value.label).tag(value)
-                        }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+                        Spacer(minLength: 8)
+                        intensityPicker
                     }
-                    .labelsHidden()
+                    VStack(alignment: .leading, spacing: 10) {
+                        CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+                        intensityPicker
+                    }
                 }
                 ForEach(CueKind.allCases, id: \.self) { cue in
                     Toggle(isOn: cueBinding(cue)) {
                         HStack(spacing: 12) {
                             Image(systemName: symbol(for: cue))
-                                .font(.system(size: 16, weight: .light))
+                                .font(.system(size: 16, weight: .medium))
                                 .foregroundStyle(CueTheme.violet)
-                                .frame(width: 24)
+                                .frame(width: 32, height: 32)
+                                .background(CueTheme.violetSoft)
+                                .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(cue.label)
-                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                     .foregroundStyle(CueTheme.ink)
                                 Text(patternDescription(for: cue))
                                     .font(.cueCaption)
@@ -210,44 +255,82 @@ struct SessionSetupView: View {
                     }
                     .tint(CueTheme.violet)
                 }
+                if enabledCues.isEmpty {
+                    Label("No wrist cues selected. The session will still record analytics.", systemImage: "chart.xyaxis.line")
+                        .font(.cueCaption)
+                        .foregroundStyle(CueTheme.secondaryInk)
+                }
             }
+        }
+    }
+
+    private var intensityPicker: some View {
+        HStack(spacing: 8) {
+            Text("Intensity")
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+            Picker("Haptic intensity", selection: $intensity) {
+                ForEach(CueIntensity.allCases, id: \.self) { value in
+                    Text(value.label).tag(value)
+                }
+            }
+            .pickerStyle(.menu)
         }
     }
 
     private var preflightCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("PREFLIGHT")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(CueTheme.violet)
+                CueSectionLabel(text: "Preflight", color: CueTheme.violet)
                 preflightRow(
                     label: model.demoMode ? "Audio source" : "Phone microphone",
-                    detail: model.demoMode ? "Deterministic simulation" : "Checked at countdown",
-                    ready: true
+                    detail: model.demoMode ? "Deterministic simulation" : "Permission checked when you begin",
+                    state: model.demoMode ? .ready : .pending
                 )
                 preflightRow(
                     label: "Cue Band",
-                    detail: model.connectionState.label,
-                    ready: isCueReady
+                    detail: bandPreflightDetail,
+                    state: bandPreflightState
                 )
+                if !isCueReady {
+                    Button {
+                        model.connectCueBand()
+                    } label: {
+                        Label("Connect Cue Band", systemImage: "wave.3.right")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(CueTheme.violet)
+                    .disabled(bandConnectionIsBusy)
+                }
                 preflightRow(
                     label: "Presentation plan",
-                    detail: mode == .freeSpeaking ? "Free speaking" : (deckPlan == nil ? "Upload required" : "Ready"),
-                    ready: mode == .freeSpeaking || deckPlan != nil
+                    detail: mode == .freeSpeaking ? "Free speaking" : (deckPlan == nil ? "PowerPoint required" : "Ready"),
+                    state: mode == .freeSpeaking || deckPlan != nil ? .ready : .blocked
                 )
             }
         }
     }
 
-    private func preflightRow(label: String, detail: String, ready: Bool) -> some View {
-        HStack {
-            Image(systemName: ready ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .foregroundStyle(ready ? CueTheme.green : CueTheme.amber)
-            Text(label).font(.system(size: 14, weight: .semibold, design: .rounded))
-            Spacer()
-            Text(detail).font(.cueCaption).foregroundStyle(CueTheme.secondaryInk)
+    private func preflightRow(label: String, detail: String, state: PreflightState) -> some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: state.symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(state.color)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(CueTheme.ink)
+                Text(detail)
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var isCueReady: Bool {
@@ -255,12 +338,56 @@ struct SessionSetupView: View {
         return false
     }
 
+    private var bandConnectionIsBusy: Bool {
+        switch model.connectionState {
+        case .searching, .connecting, .discovering, .reconnecting: true
+        default: false
+        }
+    }
+
+    private var bandPreflightState: PreflightState {
+        if isCueReady { return enabledCues.isEmpty ? .optional : .ready }
+        if bandConnectionIsBusy { return .pending }
+        return .optional
+    }
+
+    private var bandPreflightDetail: String {
+        if isCueReady, enabledCues.isEmpty { return "Connected · all wrist cues are off" }
+        if isCueReady { return "Connected for live haptics" }
+        if bandConnectionIsBusy { return model.connectionState.label }
+        return "Optional · analytics continue without it"
+    }
+
+    private var paceRangeIsValid: Bool {
+        minimumWPM < maximumWPM
+    }
+
+    private var willSendHaptics: Bool {
+        isCueReady && !enabledCues.isEmpty
+    }
+
+    private var beginButtonTitle: String {
+        willSendHaptics ? "Begin with haptics" : "Begin analytics only"
+    }
+
     private var startDisabled: Bool {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || minimumWPM >= maximumWPM
-            || enabledCues.isEmpty
-            || isPreparingDeck
-            || (mode == .powerPoint && deckPlan == nil)
+        startDisabledReason != nil
+    }
+
+    private var startDisabledReason: String? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Add a session name to continue."
+        }
+        if !paceRangeIsValid {
+            return "Set a valid pace range to continue."
+        }
+        if isPreparingDeck {
+            return "Your presentation plan is still being prepared."
+        }
+        if mode == .powerPoint && deckPlan == nil {
+            return "Choose a PowerPoint to use presentation-progress cues."
+        }
+        return nil
     }
 
     private func cueBinding(_ cue: CueKind) -> Binding<Bool> {
@@ -284,72 +411,79 @@ struct SessionSetupView: View {
 
     private func patternDescription(for cue: CueKind) -> String {
         switch cue {
-        case .tooFast: "Two short pulses"
-        case .tooSlow: "One long pulse"
-        case .fillerBurst: "Three short pulses"
-        case .deckBehind: "Long, short, long"
-        case .time75: "One pronounced pulse"
-        case .time90: "Two pronounced pulses"
-        case .time100: "Three pronounced pulses"
+        case .tooFast: "Two short pulses · ease your pace"
+        case .tooSlow: "One long pulse · add energy"
+        case .fillerBurst: "Three short pulses · reset with a pause"
+        case .deckBehind: "Long, short, long · move forward"
+        case .time75: "One pronounced pulse · 75% elapsed"
+        case .time90: "Two pronounced pulses · 90% elapsed"
+        case .time100: "Three pronounced pulses · target reached"
         }
     }
 
     private func handleImport(_ result: Result<[URL], any Error>) {
         guard case let .success(urls) = result, let url = urls.first else {
-            model.lastError = "The PowerPoint file could not be opened."
+            model.lastError = "The PowerPoint file could not be opened. Choose a .pptx file and try again."
             return
         }
+        deckPreparationTask?.cancel()
         let preparationID = UUID()
         deckPreparationID = preparationID
         isPreparingDeck = true
         deckTitle = url.deletingPathExtension().lastPathComponent
         deckSlides = []
         deckPlan = nil
-        Task {
+        deckPlanSource = nil
+        deckTimingAdjustedLocally = false
+        deckPreparationTask = Task {
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             do {
                 let slides = try await Task.detached {
                     try PowerPointParser().parse(url: url)
                 }.value
+                try Task.checkCancellation()
                 guard deckPreparationID == preparationID else { return }
                 let title = deckTitle ?? "Presentation"
                 deckSlides = slides
-                let plan = await model.createDeckPlan(
+                let requestedTargetDurationSeconds = Int(targetMinutes * 60)
+                let prepared = await model.createDeckPlan(
                     title: title,
-                    targetDurationSeconds: Int(targetMinutes * 60),
+                    targetDurationSeconds: requestedTargetDurationSeconds,
                     slides: slides
                 )
+                try Task.checkCancellation()
                 guard deckPreparationID == preparationID else { return }
-                deckPlan = plan
+                let latestTargetDurationSeconds = Int(targetMinutes * 60)
+                let reconciled = reconciledPreparedDeck(
+                    prepared,
+                    requestedTargetDurationSeconds: requestedTargetDurationSeconds,
+                    latestTargetDurationSeconds: latestTargetDurationSeconds
+                )
+                deckPlan = reconciled.plan
+                deckPlanSource = reconciled.source
+                deckTimingAdjustedLocally = requestedTargetDurationSeconds != latestTargetDurationSeconds
+            } catch is CancellationError {
+                return
             } catch {
                 guard deckPreparationID == preparationID else { return }
                 deckSlides = []
                 deckPlan = nil
-                model.lastError = "Cue could not extract slide text from this PowerPoint."
+                deckPlanSource = nil
+                model.lastError = "Cue could not extract slide text from that file. Confirm it is a valid .pptx and try again."
             }
             guard deckPreparationID == preparationID else { return }
             isPreparingDeck = false
         }
     }
 
-    private func replanDeckForTargetDuration() {
-        guard let title = deckTitle, !deckSlides.isEmpty else { return }
-        let preparationID = UUID()
-        let slides = deckSlides
-        let targetDurationSeconds = Int(targetMinutes * 60)
-        deckPreparationID = preparationID
-        isPreparingDeck = true
-        Task {
-            let plan = await model.createDeckPlan(
-                title: title,
-                targetDurationSeconds: targetDurationSeconds,
-                slides: slides
-            )
-            guard deckPreparationID == preparationID else { return }
-            deckPlan = plan
-            isPreparingDeck = false
-        }
+    private func retimePreparedDeck() {
+        guard let deckPlan else { return }
+        self.deckPlan = LocalDeckPlanner.retime(
+            plan: deckPlan,
+            targetDurationSeconds: Int(targetMinutes * 60)
+        )
+        deckTimingAdjustedLocally = true
     }
 
     private func begin() {
@@ -372,5 +506,45 @@ struct SessionSetupView: View {
             deckPlan: mode == .powerPoint ? deckPlan : nil
         )
         model.beginSession(configuration: configuration)
+    }
+}
+
+func reconciledPreparedDeck(
+    _ prepared: PreparedDeckPlan,
+    requestedTargetDurationSeconds: Int,
+    latestTargetDurationSeconds: Int
+) -> PreparedDeckPlan {
+    guard requestedTargetDurationSeconds != latestTargetDurationSeconds else { return prepared }
+    return PreparedDeckPlan(
+        plan: LocalDeckPlanner.retime(
+            plan: prepared.plan,
+            targetDurationSeconds: latestTargetDurationSeconds
+        ),
+        source: prepared.source
+    )
+}
+
+private enum PreflightState {
+    case ready
+    case pending
+    case optional
+    case blocked
+
+    var symbol: String {
+        switch self {
+        case .ready: "checkmark.circle.fill"
+        case .pending: "clock.fill"
+        case .optional: "minus.circle.fill"
+        case .blocked: "exclamationmark.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .ready: CueTheme.green
+        case .pending: CueTheme.violet
+        case .optional: CueTheme.secondaryInk
+        case .blocked: CueTheme.red
+        }
     }
 }
