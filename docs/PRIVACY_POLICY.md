@@ -6,7 +6,7 @@ Voxa Cue is a closed prototype created by a student team for the University of P
 
 ## Information processed on the iPhone
 
-During a session, Voxa Cue uses the iPhone's built-in microphone to process speech. Apple's on-device speech framework produces a live transcript and voice-activity timing. Local signal processing estimates sound energy and pitch. The app derives pace, filler-word count, talk ratio, elapsed-time progress, deck progress, and haptic cue decisions.
+During a session, Voxa Cue uses the iPhone's built-in microphone to process speech. Apple's on-device speech framework produces a live transcript and voice-activity timing. Local signal processing estimates sound energy and pitch. The app derives pace, filler-word count, talk ratio, elapsed-time progress, and haptic cue decisions.
 
 Raw microphone audio is transiently processed in memory. Voxa Cue does not record it to a file, retain it after the session, or upload it.
 
@@ -23,10 +23,7 @@ The app also stores the onboarding-completion preference in UserDefaults. A pres
 
 Live audio and live haptic decisions never use the Voxa Cue API.
 
-Two user-initiated features can send text through the API:
-
-1. When a presenter selects Presentation mode and imports a PowerPoint file, the app extracts slide text and speaker notes locally. If the API is configured, that extracted text is sent to generate timed checkpoints; if it is unavailable, a local planner is used. The original `.pptx` binary is not retained or uploaded.
-2. After a session, AI coaching is disabled until the presenter taps Generate AI coaching and confirms Send coaching context. Only then does the app send the finalized transcript, aggregate session metrics, checkpoint results, and cue-event summaries. Raw audio is never included.
+One user-initiated feature can send text through the API. After a session, AI coaching is disabled until the presenter taps Generate AI coaching and confirms Send coaching context. Only then does the app send the finalized transcript, aggregate session metrics, and cue-event summaries. Raw audio is never included.
 
 The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, strips the app's session identifier before provider processing, and does not include a database. It sends the remaining text request to OpenAI using the Responses API with application-state storage disabled (`store: false`). The Voxa Cue API does not intentionally persist request bodies or generated responses.
 
