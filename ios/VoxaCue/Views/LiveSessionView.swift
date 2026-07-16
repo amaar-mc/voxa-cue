@@ -96,7 +96,6 @@ struct LiveSessionView: View {
                     timeRing
                     paceStatus
                     if let latestCue = session.cueLogs.last { lastCueCard(latestCue) }
-                    if session.configuration.deckPlan != nil { checkpointCard }
                     detailsControl
                     if showDetails {
                         metricGrid
@@ -234,34 +233,6 @@ struct LiveSessionView: View {
             )
         }
         .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-    }
-
-    private var checkpointCard: some View {
-        PremiumCard(padding: 18) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    CueSectionLabel(text: "Content progress", color: CueTheme.signal)
-                    Spacer()
-                    Text("\(Int(session.checkpointProgress * 100))%")
-                        .font(.cueCaption.monospacedDigit())
-                        .foregroundStyle(CueTheme.secondaryInk)
-                }
-                Text(session.currentCheckpointLabel ?? "Listening for your first checkpoint")
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
-                    .foregroundStyle(CueTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                GeometryReader { geometry in
-                    Capsule()
-                        .fill(CueTheme.border)
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(CueTheme.actionFill)
-                                .frame(width: geometry.size.width * session.checkpointProgress)
-                        }
-                }
-                .frame(height: 7)
-            }
-        }
     }
 
     private var detailsControl: some View {

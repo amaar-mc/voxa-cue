@@ -49,7 +49,7 @@ struct SessionSummaryView: View {
                 Text(
                     model.demoMode
                         ? "This uses a deterministic coaching fixture. No session data leaves the phone."
-                        : "This sends the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes to the Voxa Cue API. Raw audio never leaves the phone."
+                        : "This sends the final transcript, aggregate metrics, and cue delivery history to the Voxa Cue API. Raw audio never leaves the phone."
                 )
             }
         }
@@ -264,7 +264,7 @@ struct SessionSummaryView: View {
                         model.demoMode
                             ? "Demo mode returns a labeled deterministic coaching fixture without a network request."
                             : coachingCanBeRequested
-                                ? "Only the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes are sent after you confirm."
+                                ? "Only the final transcript, aggregate metrics, and cue delivery history are sent after you confirm."
                                 : "Live coaching and this session summary stay available locally. AI practice plans require a configured coaching service."
                     )
                         .font(.cueCaption)
