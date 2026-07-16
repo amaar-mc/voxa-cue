@@ -11,9 +11,12 @@
     "ios:test": "DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --package-path ios/Packages/VoxaKit",
     "ios:app-test": "pnpm ios:generate && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project ios/VoxaCue.xcodeproj -scheme VoxaCue -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' CODE_SIGNING_ALLOWED=NO",
     "ios:build": "pnpm ios:generate && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -project ios/VoxaCue.xcodeproj -scheme VoxaCue -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build",
+    "ios:device-install": "sh scripts/install-ios-device.sh",
     "ios:release-verify": "sh scripts/verify-ios-release.sh",
     "firmware:test": "uvx --with pip platformio test -e native -d firmware/voxa-wearable",
-    "firmware:build": "uvx --with pip platformio run -e nano_esp32 -d firmware/voxa-wearable",
+    "firmware:build:nano33": "uvx --with pip platformio run -e nano_33_iot -d firmware/voxa-wearable",
+    "firmware:build:esp32": "uvx --with pip platformio run -e nano_esp32 -d firmware/voxa-wearable",
+    "firmware:build": "pnpm firmware:build:nano33 && pnpm firmware:build:esp32",
     "verify": "pnpm api:typecheck && pnpm api:test && pnpm api:build && pnpm ios:test && pnpm ios:app-test && pnpm ios:build && pnpm ios:release-verify && pnpm firmware:test && pnpm firmware:build"
   }
 }
