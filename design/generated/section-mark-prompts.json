@@ -1,0 +1,92 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "workflow": "One generation per asset, flat #FF00FF chroma key, local alpha extraction, 768px final PNG",
+  "sharedPalette": {
+    "graphite": "#0B171B",
+    "warmIvory": "#F3F4F1",
+    "voiceTeal": "#0B756F",
+    "brightTeal": "#34B8AA",
+    "hapticCopper": "#A85E24"
+  },
+  "prompts": [
+    {
+      "assetName": "VoiceSignal",
+      "useCase": "logo-brand",
+      "assetType": "1024x1024 native iOS decorative section mark for Voxa Cue Today and onboarding",
+      "primaryRequest": "Create one polished, product-specific emblem that represents an iPhone listening to a presenter and converting speech into a private signal.",
+      "composition": "Centered isolated object, generous even padding, instantly legible at 96 points. A compact matte graphite circular core with a precise vertical voice waveform cut into it, surrounded by two asymmetric machined acoustic rings. Add one tiny haptic-copper registration dot as a tactile detail. No enclosing badge, no square tile, no perspective scene.",
+      "style": "Premium industrial design illustration, Apple hardware restraint, crisp geometric construction, subtly dimensional enamel and anodized metal, not a flat stock icon and not photorealistic.",
+      "lighting": "Soft controlled studio edge lighting only on the object; no cast shadow and no glow.",
+      "background": "Perfectly flat solid #FF00FF chroma-key background, uniform edge to edge with no texture, gradient, noise, reflection, floor, or lighting variation.",
+      "constraints": [
+        "Opaque subject with crisp antialiased edges",
+        "Keep all object colors far from magenta",
+        "No text, letters, numerals, watermark, slogan, UI screenshot, purple, blue-purple gradient, glassmorphism, neon glow, generic AI orb, stock microphone icon, drop shadow, or extra objects"
+      ]
+    },
+    {
+      "assetName": "SessionHistory",
+      "useCase": "logo-brand",
+      "assetType": "1024x1024 native iOS decorative section mark for Voxa Cue session history",
+      "reference": "Use VoiceSignal only as the exact style, material, lighting, edge treatment, and palette reference. Create a different subject.",
+      "primaryRequest": "Create one polished emblem representing accumulated presentation rehearsals and measurable progress over time.",
+      "composition": "Centered isolated object with generous even padding, readable at 72 to 96 points. Three slim offset rehearsal plates stacked in a controlled shallow cascade. Each plate is warm ivory with a graphite edge and a precise teal waveform groove. A small copper circular locator on the newest plate suggests a confirmed wrist cue. Keep the silhouette compact and nearly square; no enclosing badge and no scene.",
+      "style": "Premium industrial-design illustration: machined hardware, crisp geometric construction, subtly dimensional enamel and anodized metal, restrained Apple-like product finish, not photorealistic and not a flat stock icon.",
+      "lighting": "Soft controlled studio edge lighting on the object only; no cast shadow and no glow.",
+      "background": "Perfectly flat solid #FF00FF chroma-key background, uniform edge to edge with no texture, gradient, noise, reflection, floor, or lighting variation.",
+      "constraints": [
+        "Opaque subject with crisp antialiased edges",
+        "Match VoiceSignal visual weight and detail density",
+        "No text, letters, numerals, charts with labels, watermark, slogan, UI screenshot, purple, blue-purple gradient, glassmorphism, neon glow, generic folder icon, generic document icon, drop shadow, or extra objects"
+      ]
+    },
+    {
+      "assetName": "DeliveryAnalytics",
+      "useCase": "logo-brand",
+      "assetType": "1024x1024 native iOS decorative section mark for Voxa Cue analytics",
+      "reference": "Use SessionHistory as the exact style, materials, lighting, edge treatment, and palette reference. Create a different subject.",
+      "primaryRequest": "Create one polished emblem representing public-speaking analytics that turn a session into clear, actionable improvement.",
+      "composition": "Centered isolated object with generous even padding, legible at 72 to 96 points. A compact warm-ivory machined instrument face with three ascending teal signal bars, a precise graphite baseline, and one small copper indicator puck marking the next practice focus. Use a restrained asymmetrical silhouette with one clipped corner or offset outer frame. No enclosing app-icon badge and no scene.",
+      "style": "Premium industrial-design illustration: machined hardware, tactile enamel inlays, anodized metal edges, crisp geometry, subtle depth, calm editorial restraint, not photorealistic and not a flat stock chart icon.",
+      "lighting": "Soft controlled studio edge lighting on the object only; no cast shadow and no glow.",
+      "background": "Perfectly flat solid #FF00FF chroma-key background, uniform edge to edge with no texture, gradient, noise, reflection, floor, or lighting variation.",
+      "constraints": [
+        "Opaque subject with crisp antialiased edges",
+        "Match the existing asset set's visual weight and detail density",
+        "No text, letters, numerals, axes labels, watermark, slogan, UI screenshot, purple, blue-purple gradient, glassmorphism, neon glow, generic dashboard tile, generic pie chart, generic AI sparkles, drop shadow, or extra objects"
+      ]
+    },
+    {
+      "assetName": "HapticBand",
+      "useCase": "logo-brand",
+      "assetType": "1024x1024 native iOS decorative section mark for Voxa Cue haptics and band connection",
+      "reference": "Use DeliveryAnalytics as the exact style, material, lighting, edge treatment, and palette reference. Create a different subject.",
+      "primaryRequest": "Create one polished emblem representing the Voxa Cue wristband delivering a private tactile coaching signal.",
+      "composition": "Centered isolated object with generous even padding, legible at 72 to 96 points. Show a compact matte-graphite wearable capsule viewed at a restrained three-quarter angle, with one inset teal status light and two precise copper tactile wave arcs emerging from the capsule's right edge. Include only short cropped strap shoulders so the capsule stays dominant. No wrist, no hand, no phone, no enclosing badge, and no scene.",
+      "style": "Premium industrial-design illustration: machined wearable hardware, fine anodized edge, soft-touch graphite body, crisp enamel details, restrained dimensionality, calm and precise, not photorealistic and not a flat smartwatch icon.",
+      "lighting": "Soft controlled studio edge lighting on the object only; no cast shadow, bloom, or glow.",
+      "background": "Perfectly flat solid #FF00FF chroma-key background, uniform edge to edge with no texture, gradient, noise, reflection, floor, or lighting variation.",
+      "constraints": [
+        "Opaque subject with crisp antialiased edges",
+        "Match the existing asset set's visual weight and detail density",
+        "No text, letters, logo, numerals, watermark, slogan, UI screenshot, purple, blue-purple gradient, glassmorphism, neon glow, Apple Watch resemblance, generic smartwatch face, drop shadow, hand, wrist, phone, or extra objects"
+      ]
+    },
+    {
+      "assetName": "OnDevicePrivacy",
+      "useCase": "logo-brand",
+      "assetType": "1024x1024 native iOS decorative section mark for Voxa Cue on-device privacy",
+      "reference": "Use HapticBand as the exact style, materials, lighting, edge treatment, and palette reference. Create a different subject.",
+      "primaryRequest": "Create one polished emblem representing private on-device speech processing with raw audio never retained.",
+      "composition": "Centered isolated object with generous even padding, legible at 72 to 96 points. A warm-ivory machined shield plate containing a recessed graphite waveform that resolves into a single teal check point. Add one very small copper hardware fastener near the lower edge. The shield should feel like physical product hardware rather than cybersecurity clip art. No phone outline, no lock shackle, no enclosing badge, and no scene.",
+      "style": "Premium industrial-design illustration: machined ceramic and anodized metal, tactile enamel inlays, crisp geometry, subtle depth, restrained Apple-like product finish, not photorealistic and not a flat stock security icon.",
+      "lighting": "Soft controlled studio edge lighting on the object only; no cast shadow, bloom, or glow.",
+      "background": "Perfectly flat solid #FF00FF chroma-key background, uniform edge to edge with no texture, gradient, noise, reflection, floor, or lighting variation.",
+      "constraints": [
+        "Opaque subject with crisp antialiased edges",
+        "Match the existing asset set's visual weight and detail density",
+        "No text, letters, logo, numerals, watermark, slogan, UI screenshot, purple, blue-purple gradient, glassmorphism, neon glow, generic padlock, generic cybersecurity shield, generic AI sparkles, drop shadow, phone, cloud, or extra objects"
+      ]
+    }
+  ]
+}
