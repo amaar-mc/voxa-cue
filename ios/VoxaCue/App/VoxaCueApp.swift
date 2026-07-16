@@ -38,7 +38,7 @@ struct VoxaCueApp: App {
             RootView()
                 .environment(model)
                 .modelContainer(dataStore.container)
-                .tint(CueTheme.violet)
+                .tint(CueTheme.signal)
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {

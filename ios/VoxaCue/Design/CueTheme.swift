@@ -5,35 +5,41 @@ enum CueTheme {
     static let canvas = Color("BrandBackground")
     static let surface = Color("BrandSurface")
     static let ink = Color.cueAdaptive(
-        light: UIColor(red: 7 / 255, green: 17 / 255, blue: 34 / 255, alpha: 1),
-        dark: UIColor(red: 244 / 255, green: 247 / 255, blue: 252 / 255, alpha: 1)
+        light: UIColor(red: 11 / 255, green: 23 / 255, blue: 27 / 255, alpha: 1),
+        dark: UIColor(red: 239 / 255, green: 247 / 255, blue: 244 / 255, alpha: 1)
     )
     static let secondaryInk = Color.cueAdaptive(
-        light: UIColor(red: 77 / 255, green: 91 / 255, blue: 115 / 255, alpha: 1),
-        dark: UIColor(red: 174 / 255, green: 186 / 255, blue: 205 / 255, alpha: 1)
+        light: UIColor(red: 83 / 255, green: 99 / 255, blue: 103 / 255, alpha: 1),
+        dark: UIColor(red: 169 / 255, green: 187 / 255, blue: 184 / 255, alpha: 1)
     )
     static let border = Color.cueAdaptive(
-        light: UIColor(red: 211 / 255, green: 219 / 255, blue: 235 / 255, alpha: 1),
-        dark: UIColor(red: 42 / 255, green: 59 / 255, blue: 86 / 255, alpha: 1)
+        light: UIColor(red: 216 / 255, green: 223 / 255, blue: 219 / 255, alpha: 1),
+        dark: UIColor(red: 47 / 255, green: 68 / 255, blue: 68 / 255, alpha: 1)
     )
-    static let indigo = Color(red: 103 / 255, green: 101 / 255, blue: 1)
-    static let periwinkle = Color(red: 139 / 255, green: 139 / 255, blue: 1)
-    static let violet = Color("AccentColor")
-    static let violetSoft = Color.cueAdaptive(
-        light: UIColor(red: 231 / 255, green: 230 / 255, blue: 1, alpha: 1),
-        dark: UIColor(red: 42 / 255, green: 43 / 255, blue: 91 / 255, alpha: 1)
+    static let signalBright = Color(red: 52 / 255, green: 184 / 255, blue: 170 / 255)
+    static let signal = Color.cueAdaptive(
+        light: UIColor(red: 11 / 255, green: 117 / 255, blue: 111 / 255, alpha: 1),
+        dark: UIColor(red: 83 / 255, green: 210 / 255, blue: 195 / 255, alpha: 1)
+    )
+    static let signalSoft = Color.cueAdaptive(
+        light: UIColor(red: 224 / 255, green: 239 / 255, blue: 235 / 255, alpha: 1),
+        dark: UIColor(red: 18 / 255, green: 58 / 255, blue: 57 / 255, alpha: 1)
+    )
+    static let haptic = Color.cueAdaptive(
+        light: UIColor(red: 145 / 255, green: 75 / 255, blue: 25 / 255, alpha: 1),
+        dark: UIColor(red: 241 / 255, green: 164 / 255, blue: 95 / 255, alpha: 1)
     )
     static let green = Color.cueAdaptive(
-        light: UIColor(red: 20 / 255, green: 132 / 255, blue: 87 / 255, alpha: 1),
+        light: UIColor(red: 13 / 255, green: 116 / 255, blue: 74 / 255, alpha: 1),
         dark: UIColor(red: 83 / 255, green: 218 / 255, blue: 160 / 255, alpha: 1)
     )
     static let greenBright = Color(red: 61 / 255, green: 199 / 255, blue: 136 / 255)
     static let navy = Color.cueAdaptive(
-        light: UIColor(red: 7 / 255, green: 17 / 255, blue: 34 / 255, alpha: 1),
-        dark: UIColor(red: 18 / 255, green: 31 / 255, blue: 52 / 255, alpha: 1)
+        light: UIColor(red: 11 / 255, green: 23 / 255, blue: 27 / 255, alpha: 1),
+        dark: UIColor(red: 8 / 255, green: 18 / 255, blue: 22 / 255, alpha: 1)
     )
     static let amber = Color.cueAdaptive(
-        light: UIColor(red: 174 / 255, green: 104 / 255, blue: 22 / 255, alpha: 1),
+        light: UIColor(red: 140 / 255, green: 81 / 255, blue: 12 / 255, alpha: 1),
         dark: UIColor(red: 245 / 255, green: 177 / 255, blue: 82 / 255, alpha: 1)
     )
     static let red = Color.cueAdaptive(
@@ -41,11 +47,7 @@ enum CueTheme {
         dark: UIColor(red: 255 / 255, green: 112 / 255, blue: 124 / 255, alpha: 1)
     )
 
-    static let signalGradient = LinearGradient(
-        colors: [indigo, violet],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    static let actionFill = Color(red: 8 / 255, green: 91 / 255, blue: 86 / 255)
 
     enum Radius {
         static let small: CGFloat = 12
@@ -77,8 +79,8 @@ extension Font {
     static let cueTitle = Font.system(.title, design: .rounded, weight: .semibold)
     static let cueSection = Font.system(.title3, design: .rounded, weight: .semibold)
     static let cueMetric = Font.system(.title, design: .rounded, weight: .light).monospacedDigit()
-    static let cueBody = Font.system(.body, design: .rounded, weight: .regular)
-    static let cueCaption = Font.system(.caption, design: .rounded, weight: .medium)
+    static let cueBody = Font.system(.body, design: .default, weight: .regular)
+    static let cueCaption = Font.system(.caption, design: .default, weight: .medium)
 }
 
 enum CueMotion {
@@ -88,6 +90,10 @@ enum CueMotion {
 
     static func settle(reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.88)
+    }
+
+    static func breathe(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .smooth(duration: 1.8).repeatForever(autoreverses: true)
     }
 }
 
@@ -117,20 +123,36 @@ struct PremiumCard<Content: View>: View {
             .background {
                 RoundedRectangle(cornerRadius: CueTheme.Radius.large, style: .continuous)
                     .fill(CueTheme.surface)
-                    .overlay {
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.10), CueTheme.periwinkle.opacity(0.025)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: CueTheme.Radius.large, style: .continuous))
-                    }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: CueTheme.Radius.large, style: .continuous)
-                    .stroke(CueTheme.border.opacity(0.72), lineWidth: 0.75)
+                    .stroke(CueTheme.border.opacity(0.68), lineWidth: 0.6)
             }
-            .shadow(color: CueTheme.navy.opacity(0.075), radius: 24, x: 0, y: 12)
+            .shadow(color: CueTheme.navy.opacity(0.045), radius: 9, x: 0, y: 3)
+    }
+}
+
+struct HeroCard<Content: View>: View {
+    let padding: CGFloat
+    @ViewBuilder let content: Content
+
+    init(padding: CGFloat, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background {
+                RoundedRectangle(cornerRadius: CueTheme.Radius.large, style: .continuous)
+                    .fill(CueTheme.surface)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: CueTheme.Radius.large, style: .continuous)
+                    .stroke(CueTheme.signal.opacity(0.16), lineWidth: 0.75)
+            }
+            .shadow(color: CueTheme.navy.opacity(0.09), radius: 20, x: 0, y: 9)
     }
 }
 
@@ -182,10 +204,10 @@ struct VoxaButton: View {
                     .stroke(Color.white.opacity(style == .primary ? 0.12 : 0), lineWidth: 0.75)
             }
             .shadow(
-                color: style == .primary ? CueTheme.indigo.opacity(0.20) : .clear,
-                radius: 14,
+                color: style == .primary ? CueTheme.navy.opacity(0.14) : .clear,
+                radius: 12,
                 x: 0,
-                y: 8
+                y: 6
             )
             .opacity(disabled ? 0.45 : 1)
             .contentShape(Capsule())
@@ -197,8 +219,8 @@ struct VoxaButton: View {
 
     private var background: AnyShapeStyle {
         switch style {
-        case .primary: AnyShapeStyle(CueTheme.signalGradient)
-        case .secondary: AnyShapeStyle(CueTheme.violetSoft)
+        case .primary: AnyShapeStyle(CueTheme.actionFill)
+        case .secondary: AnyShapeStyle(CueTheme.signalSoft)
         case .destructive: AnyShapeStyle(CueTheme.red)
         }
     }
@@ -206,7 +228,7 @@ struct VoxaButton: View {
     private var foreground: Color {
         switch style {
         case .primary, .destructive: .white
-        case .secondary: CueTheme.violet
+        case .secondary: CueTheme.signal
         }
     }
 }
@@ -233,9 +255,9 @@ struct VoxaAsyncButton: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 54)
-            .background(CueTheme.signalGradient)
+            .background(CueTheme.actionFill)
             .clipShape(Capsule())
-            .shadow(color: CueTheme.indigo.opacity(0.20), radius: 14, y: 8)
+            .shadow(color: CueTheme.navy.opacity(0.14), radius: 12, y: 6)
         }
         .buttonStyle(SpringPressStyle())
         .disabled(isLoading)
@@ -244,6 +266,8 @@ struct VoxaAsyncButton: View {
 }
 
 struct StatusPill: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let label: String
     let symbol: String
     let color: Color
@@ -260,15 +284,18 @@ struct StatusPill: View {
                 .font(.system(size: 10, weight: .semibold))
             Text(label)
                 .font(.cueCaption)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.85)
         }
         .foregroundStyle(color)
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
         .background(color.opacity(0.11))
-        .clipShape(Capsule())
-        .overlay { Capsule().stroke(color.opacity(0.16), lineWidth: 0.5) }
+        .clipShape(RoundedRectangle(cornerRadius: dynamicTypeSize.isAccessibilitySize ? 14 : CueTheme.Radius.pill))
+        .overlay {
+            RoundedRectangle(cornerRadius: dynamicTypeSize.isAccessibilitySize ? 14 : CueTheme.Radius.pill)
+                .stroke(color.opacity(0.16), lineWidth: 0.5)
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -358,14 +385,14 @@ struct CueWordmark: View {
             ZStack {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
-                        .stroke(CueTheme.periwinkle.opacity(0.95 - (Double(index) * 0.22)), lineWidth: 1.4)
+                        .stroke(CueTheme.signalBright.opacity(0.95 - (Double(index) * 0.22)), lineWidth: 1.4)
                         .frame(
                             width: (compact ? 10 : 13) + CGFloat(index * (compact ? 7 : 9)),
                             height: (compact ? 10 : 13) + CGFloat(index * (compact ? 7 : 9))
                         )
                 }
                 Circle()
-                    .fill(CueTheme.signalGradient)
+                    .fill(CueTheme.actionFill)
                     .frame(width: compact ? 7 : 9, height: compact ? 7 : 9)
             }
             .frame(width: compact ? 31 : 40, height: compact ? 31 : 40)
@@ -374,10 +401,9 @@ struct CueWordmark: View {
                 Text("Voxa")
                     .font(.system(size: compact ? 20 : 28, weight: .light, design: .rounded))
                     .foregroundStyle(CueTheme.ink)
-                Text("CUE")
+                Text("Cue")
                     .font(.system(size: compact ? 8 : 9, weight: .bold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(CueTheme.violet)
+                    .foregroundStyle(CueTheme.signal)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -395,20 +421,19 @@ struct CuePulseGlyph: View {
 
     var body: some View {
         ZStack {
-            ForEach(0..<3, id: \.self) { index in
+            ForEach(0..<2, id: \.self) { index in
                 Circle()
-                    .stroke(CueTheme.periwinkle.opacity(0.52 - (Double(index) * 0.12)), lineWidth: 1.25)
+                    .stroke(CueTheme.signalBright.opacity(0.50 - (Double(index) * 0.14)), lineWidth: 1.25)
                     .frame(
-                        width: size * (0.46 + (Double(index) * 0.20)),
-                        height: size * (0.46 + (Double(index) * 0.20))
+                        width: size * (0.54 + (Double(index) * 0.23)),
+                        height: size * (0.54 + (Double(index) * 0.23))
                     )
-                    .scaleEffect(isPulsing && index == 2 ? 1.06 : 1)
-                    .opacity(isPulsing && index == 2 ? 0.55 : 1)
+                    .scaleEffect(isPulsing && index == 1 ? 1.04 : 1)
+                    .opacity(isPulsing && index == 1 ? 0.62 : 1)
             }
             Circle()
-                .fill(CueTheme.signalGradient)
+                .fill(CueTheme.actionFill)
                 .frame(width: size * 0.38, height: size * 0.38)
-                .shadow(color: CueTheme.indigo.opacity(0.28), radius: 14)
             Image(systemName: symbol)
                 .font(.system(size: size * 0.16, weight: .medium))
                 .foregroundStyle(.white)
@@ -416,11 +441,40 @@ struct CuePulseGlyph: View {
         .frame(width: size, height: size)
         .onAppear {
             guard animated, !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+            withAnimation(CueMotion.breathe(reduceMotion: reduceMotion)) {
                 isPulsing = true
             }
         }
+        .onChange(of: reduceMotion) { _, shouldReduceMotion in
+            if shouldReduceMotion {
+                isPulsing = false
+            } else if animated {
+                withAnimation(CueMotion.breathe(reduceMotion: false)) {
+                    isPulsing = true
+                }
+            }
+        }
         .accessibilityHidden(true)
+    }
+}
+
+struct SectionMark: View {
+    let assetName: String
+    let size: CGFloat
+
+    init(assetName: String, size: CGFloat) {
+        self.assetName = assetName
+        self.size = size
+    }
+
+    var body: some View {
+        Image(assetName)
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
@@ -429,9 +483,8 @@ struct CueSectionLabel: View {
     let color: Color
 
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(.caption2, design: .rounded, weight: .bold))
-            .tracking(1.15)
+        Text(text)
+            .font(.system(.caption, design: .default, weight: .semibold))
             .foregroundStyle(color)
     }
 }
@@ -449,7 +502,7 @@ struct ScreenTitle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CueSectionLabel(text: eyebrow, color: CueTheme.violet)
+            CueSectionLabel(text: eyebrow, color: CueTheme.signal)
             Text(title)
                 .font(.cueTitle)
                 .foregroundStyle(CueTheme.ink)
