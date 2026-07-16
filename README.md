@@ -12,10 +12,10 @@
   <p>Voxa Cue is an AI speech coach measured on your iPhone and felt on your wrist.</p>
 
   <p>
-    <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-775CF6?style=for-the-badge&logo=swift&logoColor=white" />
+    <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-0B756F?style=for-the-badge&logo=swift&logoColor=white" />
     <img alt="iOS 26+" src="https://img.shields.io/badge/iOS-26%2B-071122?style=for-the-badge&logo=apple&logoColor=white" />
-    <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-6765FF?style=for-the-badge&logo=typescript&logoColor=white" />
-    <img alt="Arduino Nano ESP32" src="https://img.shields.io/badge/Nano_ESP32-Wearable-8B8BFF?style=for-the-badge&logo=arduino&logoColor=071122" />
+    <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-0B756F?style=for-the-badge&logo=typescript&logoColor=white" />
+    <img alt="Arduino Nano ESP32" src="https://img.shields.io/badge/Nano_ESP32-Wearable-A85E24?style=for-the-badge&logo=arduino&logoColor=white" />
   </p>
 
   <p>
@@ -89,9 +89,9 @@ flowchart LR
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
 
-    classDef phone fill:#ECEFF7,stroke:#6765FF,color:#071122,stroke-width:2px;
-    classDef band fill:#8B8BFF,stroke:#6765FF,color:#071122,stroke-width:2px;
-    classDef optional fill:#775CF6,stroke:#6765FF,color:#ffffff,stroke-width:2px;
+    classDef phone fill:#F3F4F1,stroke:#0B756F,color:#0B171B,stroke-width:2px;
+    classDef band fill:#F3E7DC,stroke:#A85E24,color:#0B171B,stroke-width:2px;
+    classDef optional fill:#0B756F,stroke:#07524E,color:#ffffff,stroke-width:2px;
     class MIC,SPEECH,METRICS,ENGINE,BLE,STORE phone;
     class NANO,MOTOR band;
     class API optional;
@@ -118,23 +118,23 @@ The API rejects audio-shaped payloads and requests structured outputs with provi
 | iPhone app | SwiftUI, Observation, SwiftData, SpeechAnalyzer, AVAudioEngine, CoreBluetooth |
 | Shared iOS logic | Swift 6 package with pure cue, transcript, timing, and deck-matching modules |
 | Presentation import | ZIPFoundation, local Office XML extraction, NaturalLanguage embeddings |
-| API | Hono, strict TypeScript, Zod, OpenAI Responses API, Vitest, Vercel |
+| API | Hono, strict TypeScript, Zod, OpenAI Responses API with `gpt-5.6-luna`, Vitest, Vercel |
 | Wearable | Arduino Nano ESP32, NimBLE-Arduino, Adafruit DRV2605, PlatformIO |
 | Contracts | JSON Schema plus a versioned six-byte command and seven-byte status BLE protocol |
 
 ## Brand system
 
-The README follows the supplied Concept 3 system: **haptic precision**, rhythmic geometry, Comfortaa-led display typography, and a high-contrast indigo palette.
+The product system pairs the band’s industrial graphite with warm ivory surfaces, voice-signal teal, and haptic copper. Color communicates function instead of decorating generic “AI” surfaces.
 
 | Token | Value | Role |
 | --- | --- | --- |
-| Haptic Indigo | `#6765FF` | Primary action and core mark |
-| Signal Periwinkle | `#8B8BFF` | Secondary signal and soft emphasis |
-| Pulse Violet | `#775CF6` | Energy, gradients, and active states |
-| Midnight Navy | `#071122` | Wordmark and primary text |
-| Interface Mist | `#ECEFF7` | Quiet surfaces and contrast |
+| Voice Signal | `#0B756F` | Listening, analysis, and primary action |
+| Haptic Copper | `#A85E24` | Physical wrist cues and tactile emphasis |
+| Graphite | `#0B171B` | Hardware anchor, wordmark, and primary text |
+| Warm Ivory | `#F3F4F1` | Quiet canvas |
+| Signal Surface | `#E0EFEB` | Selected and secondary states |
 
-The complete source toolkit—including light/dark marks, icons, pattern, palette, typography board, and overview—is versioned in [`design/brand`](design/brand). The language system is **“Speak · Connect · Control”**, **“Guided by rhythm. Powered by precision.”**, and **“Discreet guidance. Confident delivery.”**
+The original source toolkit remains versioned in [`design/brand`](design/brand); the app’s current semantic palette is implemented in `CueTheme.swift`. The language system is **“Speak · Connect · Control”**, **“Guided by rhythm. Powered by precision.”**, and **“Discreet guidance. Confident delivery.”**
 
 ## Repository
 
@@ -237,7 +237,7 @@ The current implementation is exercised across all three layers:
 | Surface | Verified behavior |
 | --- | --- |
 | API | Strict TypeScript, production bundle, 24 Vitest contract and failure-path tests |
-| VoxaCore + VoxaRuntime | 40 Swift tests for metrics, timing, cue logic, BLE bytes, persistence, and API payloads |
+| VoxaCore + VoxaRuntime | 41 Swift tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
 | iPhone application | 14 simulator behavior tests plus unsigned Debug and Release generic-device builds |
 | Firmware | 15 native Unity tests plus a successful Nano ESP32 release build |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
@@ -248,6 +248,8 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 
 | Document | Purpose |
 | --- | --- |
+| [Setup guide](docs/SETUP_GUIDE.md) | Exact tools, wiring, secrets, deployment, costs, and physical checks |
+| [Backend audit](docs/BACKEND_AUDIT.md) | Closed-prototype verdict and public-release gaps |
 | [Product architecture](docs/PRODUCT_ARCHITECTURE.md) | Runtime data flow, trust boundaries, and failure behavior |
 | [BLE protocol v1](contracts/ble-v1.md) | Normative UUIDs, packet bytes, statuses, and replay rules |
 | [Firmware guide](firmware/voxa-wearable/README.md) | Wiring, flashing, calibration, and safety |
