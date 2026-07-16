@@ -1,29 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="background" x1="128" y1="64" x2="896" y2="960" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0D1930"/>
-      <stop offset="1" stop-color="#050B16"/>
-    </linearGradient>
-    <linearGradient id="signal" x1="326" y1="270" x2="704" y2="764" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8B8BFF"/>
-      <stop offset="0.52" stop-color="#6765FF"/>
-      <stop offset="1" stop-color="#775CF6"/>
-    </linearGradient>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="18" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-  <rect width="1024" height="1024" fill="url(#background)"/>
-  <circle cx="512" cy="512" r="390" fill="#6765FF" opacity="0.035"/>
-  <g fill="none" stroke="url(#signal)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 237C645 237 751 349 751 510C751 681 650 787 512 787C374 787 273 681 273 510C273 349 379 237 512 237Z" stroke-width="22" opacity="0.92"/>
-    <path d="M512 286C620 286 706 377 706 509C706 647 624 738 512 738C400 738 318 647 318 509C318 377 404 286 512 286Z" stroke-width="22" opacity="0.96"/>
-    <path d="M512 335C594 335 661 405 661 508C661 614 598 689 512 689C426 689 363 614 363 508C363 405 430 335 512 335Z" stroke-width="22"/>
+  <rect width="1024" height="1024" fill="#0B171B"/>
+  <circle cx="512" cy="512" r="366" fill="#102723"/>
+  <g fill="none" stroke="#34B8AA" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 237C645 237 751 349 751 510C751 681 650 787 512 787C374 787 273 681 273 510C273 349 379 237 512 237Z" stroke-width="22" opacity="0.32"/>
+    <path d="M512 286C620 286 706 377 706 509C706 647 624 738 512 738C400 738 318 647 318 509C318 377 404 286 512 286Z" stroke-width="22" opacity="0.52"/>
+    <path d="M512 335C594 335 661 405 661 508C661 614 598 689 512 689C426 689 363 614 363 508C363 405 430 335 512 335Z" stroke-width="22" opacity="0.76"/>
     <path d="M512 384C569 384 616 433 616 507C616 581 571 640 512 640C453 640 408 581 408 507C408 433 455 384 512 384Z" stroke-width="22"/>
   </g>
-  <ellipse cx="512" cy="512" rx="250" ry="290" fill="none" stroke="#8B8BFF" stroke-width="4" opacity="0.12" filter="url(#glow)"/>
+  <circle cx="512" cy="512" r="48" fill="#F1A45F"/>
 </svg>
