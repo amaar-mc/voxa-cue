@@ -1,27 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="120" y1="80" x2="900" y2="950" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1B2431"/>
-      <stop offset="1" stop-color="#0C1119"/>
+    <linearGradient id="background" x1="128" y1="64" x2="896" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0D1930"/>
+      <stop offset="1" stop-color="#050B16"/>
     </linearGradient>
-    <linearGradient id="cue" x1="265" y1="245" x2="775" y2="790" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67D788"/>
-      <stop offset="1" stop-color="#2E9D58"/>
+    <linearGradient id="signal" x1="326" y1="270" x2="704" y2="764" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B8BFF"/>
+      <stop offset="0.52" stop-color="#6765FF"/>
+      <stop offset="1" stop-color="#775CF6"/>
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="30" stdDeviation="30" flood-color="#000000" flood-opacity="0.34"/>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
-  <rect width="1024" height="1024" fill="url(#bg)"/>
-  <circle cx="512" cy="512" r="398" fill="#FFFFFF" opacity="0.025"/>
-  <path d="M702 310C651 265 585 241 516 241C366 241 245 362 245 512C245 662 366 783 516 783C584 783 648 760 698 718"
-        fill="none" stroke="#060A0F" stroke-width="154" stroke-linecap="round" filter="url(#shadow)"/>
-  <path d="M702 310C651 265 585 241 516 241C366 241 245 362 245 512C245 662 366 783 516 783C584 783 648 760 698 718"
-        fill="none" stroke="url(#cue)" stroke-width="112" stroke-linecap="round"/>
-  <path d="M735 420C766 449 782 480 782 512C782 544 766 575 735 604"
-        fill="none" stroke="#DED2F4" stroke-width="25" stroke-linecap="round"/>
-  <path d="M791 382C838 425 862 468 862 512C862 556 838 599 791 642"
-        fill="none" stroke="#DED2F4" stroke-width="18" stroke-linecap="round" opacity="0.68"/>
-  <circle cx="703" cy="310" r="16" fill="#F1ECF8"/>
-  <circle cx="698" cy="718" r="16" fill="#F1ECF8"/>
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <circle cx="512" cy="512" r="390" fill="#6765FF" opacity="0.035"/>
+  <g fill="none" stroke="url(#signal)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 237C645 237 751 349 751 510C751 681 650 787 512 787C374 787 273 681 273 510C273 349 379 237 512 237Z" stroke-width="22" opacity="0.92"/>
+    <path d="M512 286C620 286 706 377 706 509C706 647 624 738 512 738C400 738 318 647 318 509C318 377 404 286 512 286Z" stroke-width="22" opacity="0.96"/>
+    <path d="M512 335C594 335 661 405 661 508C661 614 598 689 512 689C426 689 363 614 363 508C363 405 430 335 512 335Z" stroke-width="22"/>
+    <path d="M512 384C569 384 616 433 616 507C616 581 571 640 512 640C453 640 408 581 408 507C408 433 455 384 512 384Z" stroke-width="22"/>
+  </g>
+  <ellipse cx="512" cy="512" rx="250" ry="290" fill="none" stroke="#8B8BFF" stroke-width="4" opacity="0.12" filter="url(#glow)"/>
 </svg>
