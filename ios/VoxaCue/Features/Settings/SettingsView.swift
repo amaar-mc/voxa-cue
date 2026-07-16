@@ -14,7 +14,7 @@ struct SettingsView: View {
                 ScreenTitle(
                     eyebrow: "Your Cue",
                     title: "Settings",
-                    subtitle: "Connect your band, preview cue patterns, and choose how your data is handled."
+                    subtitle: "Band, haptics, privacy, and local data."
                 )
                 bandCard
                 hapticTestCard
@@ -68,7 +68,7 @@ struct SettingsView: View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
                 hapticHeader
-                Text("Each coaching pattern has a distinct rhythm, so you can recognize it without looking at a screen.")
+                Text("Tap a pattern to learn its rhythm.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(2)
@@ -83,15 +83,6 @@ struct SettingsView: View {
                         )
                     }
                 }
-                Label(
-                    isBandReady
-                        ? "Each tap sends a test request. Confirm delivery by feeling the Cue Band; any band error appears as an alert."
-                        : "Connect a Cue Band to send pattern test requests.",
-                    systemImage: isBandReady ? "hand.tap" : "link"
-                )
-                .font(.cueCaption)
-                .foregroundStyle(CueTheme.secondaryInk)
-                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -151,33 +142,24 @@ struct SettingsView: View {
 
     private func hapticTint(for cue: CueKind) -> Color {
         switch cue {
-        case .tooFast, .tooSlow: CueTheme.violet
-        case .fillerBurst, .deckBehind: CueTheme.amber
+        case .tooFast, .tooSlow: CueTheme.signal
+        case .fillerBurst, .deckBehind: CueTheme.haptic
         case .time75, .time90, .time100: CueTheme.green
         }
     }
 
     private var processingCard: some View {
         PremiumCard(padding: 20) {
-            VStack(alignment: .leading, spacing: 16) {
-                sectionLabel(title: "PRIVACY BY DEFAULT", symbol: "lock.shield", tint: CueTheme.green)
-                privacyRow(
-                    title: "Live analysis stays on iPhone",
-                    detail: "Speech recognition, pace, fillers, timing, pitch, and energy are calculated during the session on this phone.",
-                    symbol: "iphone"
-                )
-                Divider().overlay(CueTheme.border)
-                privacyRow(
-                    title: "Raw audio is discarded",
-                    detail: "Voxa Cue does not save or upload the microphone recording. Local history contains finalized text and measurements only.",
-                    symbol: "waveform.slash"
-                )
-                Divider().overlay(CueTheme.border)
-                privacyRow(
-                    title: "AI coaching is opt-in",
-                    detail: "The final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes leave the phone only after you confirm Generate AI coaching.",
-                    symbol: "hand.raised"
-                )
+            HStack(alignment: .top, spacing: 15) {
+                SectionMark(assetName: "OnDevicePrivacy", size: 58)
+                VStack(alignment: .leading, spacing: 8) {
+                    CueSectionLabel(text: "Privacy", color: CueTheme.green)
+                    Text("Live analysis stays on this iPhone and raw audio is discarded. AI coaching is sent only after you confirm.")
+                        .font(.cueBody)
+                        .foregroundStyle(CueTheme.secondaryInk)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
@@ -187,19 +169,13 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 15) {
                 apiHeader
                 Text(apiStatusDetail)
-                    .font(.cueBody)
+                    .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
-                    .lineSpacing(3)
-                if let host = appConfiguration.apiBaseURL?.host, isAPIConfigured {
-                    Label(host, systemImage: "server.rack")
-                        .font(.cueCaption)
-                        .foregroundStyle(CueTheme.ink)
-                        .textSelection(.enabled)
-                }
+                    .lineSpacing(2)
                 if isAPIConfigured, !model.demoMode {
                     VoxaAsyncButton(
-                        title: "Check coaching service",
-                        loadingTitle: "Checking service…",
+                        title: "Check AI coaching",
+                        loadingTitle: "Checking…",
                         symbol: "arrow.clockwise",
                         isLoading: model.coachingAPIState == .checking,
                         action: { Task { await model.checkCoachingAPI() } }
@@ -212,7 +188,7 @@ struct SettingsView: View {
     private var dataCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 15) {
-                sectionLabel(title: "LOCAL DATA", symbol: "internaldrive", tint: CueTheme.violet)
+                sectionLabel(title: "Local data", symbol: "internaldrive", tint: CueTheme.signal)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dataCountLabel)
                         .font(.cueBody.weight(.semibold))
@@ -264,7 +240,7 @@ struct SettingsView: View {
             HStack(spacing: 14) {
                 Image(systemName: document.symbol)
                     .font(.system(size: 16, weight: .light))
-                    .foregroundStyle(CueTheme.violet)
+                    .foregroundStyle(CueTheme.signal)
                     .frame(width: 28, height: 28)
                 Text(document.title)
                     .font(.cueBody)
@@ -306,26 +282,6 @@ struct SettingsView: View {
         .foregroundStyle(tint)
     }
 
-    private func privacyRow(title: String, detail: String, symbol: String) -> some View {
-        HStack(alignment: .top, spacing: 13) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .light))
-                .foregroundStyle(CueTheme.green)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.cueBody.weight(.semibold))
-                    .foregroundStyle(CueTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(detail)
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.secondaryInk)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
     @ViewBuilder
     private var bandHeader: some View {
         if dynamicTypeSize.isAccessibilitySize {
@@ -344,20 +300,13 @@ struct SettingsView: View {
     }
 
     private var connectionGlyph: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(connectionColor.opacity(0.11))
-            Image(systemName: connectionSymbol)
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(connectionColor)
-        }
-        .frame(width: 52, height: 52)
+        SectionMark(assetName: "HapticBand", size: 58)
         .accessibilityHidden(true)
     }
 
     private var connectionText: some View {
         VStack(alignment: .leading, spacing: 4) {
-            CueSectionLabel(text: "Cue Band", color: CueTheme.violet)
+            CueSectionLabel(text: "Cue Band", color: CueTheme.signal)
             Text(model.connectionState.label)
                 .font(.cueSection)
                 .foregroundStyle(CueTheme.ink)
@@ -381,7 +330,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var hapticHeader: some View {
         let title = VStack(alignment: .leading, spacing: 5) {
-            CueSectionLabel(text: "Haptic language", color: CueTheme.violet)
+            CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
             Text("Preview coaching patterns")
                 .font(.cueSection)
                 .foregroundStyle(CueTheme.ink)
@@ -409,7 +358,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var apiHeader: some View {
-        let label = sectionLabel(title: "COACHING API", symbol: "sparkles", tint: CueTheme.violet)
+        let label = sectionLabel(title: "AI coaching", symbol: "sparkles", tint: CueTheme.signal)
         let status = StatusPill(
             label: apiStatusLabel,
             symbol: apiStatusSymbol,
@@ -509,10 +458,10 @@ struct SettingsView: View {
     }
 
     private var apiStatusColor: Color {
-        if model.demoMode { return CueTheme.violet }
+        if model.demoMode { return CueTheme.signal }
         return switch model.coachingAPIState {
         case .localOnly: CueTheme.secondaryInk
-        case .configured, .checking: CueTheme.violet
+        case .configured, .checking: CueTheme.signal
         case .ready: CueTheme.green
         case .unavailable: CueTheme.red
         }
@@ -520,17 +469,17 @@ struct SettingsView: View {
 
     private var apiStatusDetail: String {
         if model.demoMode {
-            return "AI responses use the deterministic presentation scenario. No external coaching request is required."
+            return "Uses labeled fixtures; no network request."
         }
         switch model.coachingAPIState {
         case .localOnly:
-            return "Live haptics and session analytics still work locally. A scoped production authentication system is required before public AI access."
+            return "Live coaching stays local. Optional AI insights are off."
         case .configured:
-            return "The closed-demo endpoint is configured but has not been contacted. Check it before relying on optional AI coaching."
+            return "Optional AI insights are configured but not checked."
         case .checking:
-            return "Checking authenticated model access without sending presentation content or generating coaching."
+            return "Checking access. No presentation data is sent."
         case let .ready(build):
-            return "The coaching service is ready. Deployed build: \(build)."
+            return "Optional AI insights are available. Build \(build)."
         case let .unavailable(message):
             return message
         }
