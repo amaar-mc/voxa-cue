@@ -1,28 +1,27 @@
 <div align="center">
-  <img
-    src="ios/VoxaCue/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png"
-    width="132"
-    height="132"
-    alt="Voxa Cue app icon"
-  />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/brand/02_primary_logo_white_text.png" />
+    <source media="(prefers-color-scheme: light)" srcset="design/brand/01_primary_logo_dark_text.png" />
+    <img src="design/brand/01_primary_logo_dark_text.png" width="560" alt="Voxa" />
+  </picture>
 
-  <h1>Voxa Cue</h1>
-
-  <p><strong>Your voice. Perfected.</strong></p>
+  <p><strong>SPEAK · CONNECT · CONTROL</strong></p>
   <p>
-    Private, eyes-free presentation coaching—measured on your iPhone and felt on your wrist.
+    Discreet guidance. Confident delivery.
   </p>
+  <p>Voxa Cue is an AI speech coach measured on your iPhone and felt on your wrist.</p>
 
   <p>
-    <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-F05138?style=for-the-badge&logo=swift&logoColor=white" />
-    <img alt="iOS 26+" src="https://img.shields.io/badge/iOS-26%2B-111111?style=for-the-badge&logo=apple&logoColor=white" />
-    <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-    <img alt="Arduino Nano ESP32" src="https://img.shields.io/badge/Nano_ESP32-Wearable-008184?style=for-the-badge&logo=arduino&logoColor=white" />
+    <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-775CF6?style=for-the-badge&logo=swift&logoColor=white" />
+    <img alt="iOS 26+" src="https://img.shields.io/badge/iOS-26%2B-071122?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-6765FF?style=for-the-badge&logo=typescript&logoColor=white" />
+    <img alt="Arduino Nano ESP32" src="https://img.shields.io/badge/Nano_ESP32-Wearable-8B8BFF?style=for-the-badge&logo=arduino&logoColor=071122" />
   </p>
 
   <p>
     <a href="#the-product">Product</a> ·
     <a href="#architecture">Architecture</a> ·
+    <a href="#brand-system">Brand</a> ·
     <a href="#quick-start">Quick start</a> ·
     <a href="#verification">Verification</a> ·
     <a href="#documentation">Docs</a>
@@ -44,6 +43,16 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 4. The phone sends a semantic command over Bluetooth Low Energy.
 5. The Cue Band delivers a distinct, discreet vibration.
 6. The app saves the session and turns it into an actionable practice plan.
+
+<table>
+  <tr>
+    <td align="center" width="20%"><img src="design/brand/13_feature_icon_confidence.png" width="72" alt="Confidence waveform" /><br /><strong>Confidence</strong></td>
+    <td align="center" width="20%"><img src="design/brand/14_feature_icon_timing.png" width="72" alt="Timing ring" /><br /><strong>Timing</strong></td>
+    <td align="center" width="20%"><img src="design/brand/15_feature_icon_analytics.png" width="72" alt="Analytics bars" /><br /><strong>Analytics</strong></td>
+    <td align="center" width="20%"><img src="design/brand/16_feature_icon_haptics.png" width="72" alt="Haptic rings" /><br /><strong>Haptics</strong></td>
+    <td align="center" width="20%"><img src="design/brand/17_feature_icon_pace.png" width="72" alt="Pace wave" /><br /><strong>Pace</strong></td>
+  </tr>
+</table>
 
 | Live coaching | Post-session improvement |
 | --- | --- |
@@ -80,9 +89,9 @@ flowchart LR
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
 
-    classDef phone fill:#f4efff,stroke:#6c4dd3,color:#201b2c,stroke-width:2px;
-    classDef band fill:#ecfaf2,stroke:#24a866,color:#14271c,stroke-width:2px;
-    classDef optional fill:#fff7e7,stroke:#d99522,color:#302211,stroke-width:2px;
+    classDef phone fill:#ECEFF7,stroke:#6765FF,color:#071122,stroke-width:2px;
+    classDef band fill:#8B8BFF,stroke:#6765FF,color:#071122,stroke-width:2px;
+    classDef optional fill:#775CF6,stroke:#6765FF,color:#ffffff,stroke-width:2px;
     class MIC,SPEECH,METRICS,ENGINE,BLE,STORE phone;
     class NANO,MOTOR band;
     class API optional;
@@ -113,13 +122,27 @@ The API rejects audio-shaped payloads and requests structured outputs with provi
 | Wearable | Arduino Nano ESP32, NimBLE-Arduino, Adafruit DRV2605, PlatformIO |
 | Contracts | JSON Schema plus a versioned six-byte command and seven-byte status BLE protocol |
 
+## Brand system
+
+The README follows the supplied Concept 3 system: **haptic precision**, rhythmic geometry, Comfortaa-led display typography, and a high-contrast indigo palette.
+
+| Token | Value | Role |
+| --- | --- | --- |
+| Haptic Indigo | `#6765FF` | Primary action and core mark |
+| Signal Periwinkle | `#8B8BFF` | Secondary signal and soft emphasis |
+| Pulse Violet | `#775CF6` | Energy, gradients, and active states |
+| Midnight Navy | `#071122` | Wordmark and primary text |
+| Interface Mist | `#ECEFF7` | Quiet surfaces and contrast |
+
+The complete source toolkit—including light/dark marks, icons, pattern, palette, typography board, and overview—is versioned in [`design/brand`](design/brand). The language system is **“Speak · Connect · Control”**, **“Guided by rhythm. Powered by precision.”**, and **“Discreet guidance. Confident delivery.”**
+
 ## Repository
 
 ```text
 voxa-cue/
 ├── api/                         Hono API and OpenAI integration
 ├── contracts/                   JSON schemas and normative BLE v1 contract
-├── design/                      Editable brand artwork
+├── design/brand/                Complete Concept 3 brand toolkit
 ├── docs/                        Architecture, privacy, support, and release gates
 ├── firmware/voxa-wearable/      Nano ESP32 firmware and native tests
 ├── ios/
@@ -235,6 +258,10 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 ---
 
 <div align="center">
+  <img src="design/brand/07_icon_gradient.png" width="52" alt="Voxa haptic ring" />
+  <br />
+  <strong>SPEAK · CONNECT · CONTROL</strong>
+  <br />
   <strong>Built for the University of Pennsylvania Management & Technology Summer Institute.</strong>
   <br />
   Voxa Cue is a working MVP prototype, not a medical, safety, or accessibility device.
