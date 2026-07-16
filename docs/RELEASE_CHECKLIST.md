@@ -5,13 +5,14 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 ## Closed M&TSI demo gate
 
 - [ ] `pnpm install` completes from the repository root.
-- [ ] `pnpm verify` passes API checks, Swift package tests, the generated generic-device iOS build, firmware tests, and the Nano ESP32 build.
+- [ ] `pnpm verify` passes API checks, Swift package and simulator app tests, Debug and credential-free Release generic-device iOS builds, privacy-manifest lint, firmware tests, and the Nano ESP32 build.
 - [ ] The VoxaCue iOS test target compiles with `xcodebuild build-for-testing` and its tests execute on the exact demonstration iPhone.
 - [ ] A signed build installs and launches on the exact demonstration iPhone running iOS 26+.
 - [ ] Microphone, Speech Recognition, and Bluetooth permission paths are exercised from a clean install.
 - [ ] A 60-second live session produces finalized transcript text, pace, filler, timing, talk-ratio, pitch-range, and energy-range results without retaining an audio file.
 - [ ] Free Speaking works with the API disabled.
 - [ ] A representative `.pptx` produces ordered timed checkpoints; local fallback is verified with the API unavailable.
+- [ ] Authenticated `/readyz` confirms that the deployed OpenAI key can access the configured model without sending presentation content.
 - [ ] The API receives no raw-audio fields and rejects an attempted audio payload.
 - [ ] AI coaching remains locked behind a confirmation dialog naming the transcript, aggregate metrics, cue-delivery history, and checkpoint outcomes.
 - [ ] `uvx --with pip platformio test -e native` passes all firmware tests.
@@ -30,7 +31,7 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Required release input — Apple Developer team ID, distribution certificate, provisioning profile, and final App Store Connect app record.
 - [ ] Required release input — stable production API origin, hosting owner, alerting owner, and incident-response contact.
 - [ ] Required release input — production authentication design. The embedded shared demo bearer token is acceptable only for the closed prototype and must not be treated as a user authentication or durable public secret.
-- [ ] Required release input — OpenAI production project, approved model, usage limits, budget alerts, and provider data-retention decision.
+- [ ] Required release input — OpenAI production project, approved structured-output model, usage limits, budget alerts, and a documented decision between default abuse-monitoring retention, Modified Abuse Monitoring, or Zero Data Retention.
 - [ ] Required release input — final App Store name, subtitle, description, keywords, category, age rating, copyright, review contact, screenshots, and optional preview video.
 - [ ] Required release input — named hardware manufacturer, final bill of materials, battery and charger design, enclosure, labeling, warranty, return path, and applicable electrical/product compliance evidence.
 - [ ] Required release input — supported locales. Current transcription and API contracts are fixed to `en-US`.
