@@ -91,7 +91,19 @@ rejected with the protocol's `driver fault` error.
 
 ## BLE smoke test
 
-Use a BLE inspector such as LightBlue while the iPhone app is unavailable:
+The repository includes a desktop Chrome tester that explains each connection
+stage, subscribes to status packets, and sends a selectable haptic command:
+
+```sh
+pnpm ble:debug
+```
+
+Keep that terminal open, close the Voxa Cue iPhone app, and click **Find Voxa
+Cue** in the Chrome page. The page runs only on localhost; Safari and iPhone
+browsers do not support this Web Bluetooth workflow. It does not replace
+flashing: the Nano must already be running this firmware and advertising.
+
+Alternatively, use a BLE inspector such as LightBlue:
 
 1. Connect to `Voxa Cue`.
 2. Open service `6F2A0001-7C93-4A58-A9D4-3C52BBD1F110`.
