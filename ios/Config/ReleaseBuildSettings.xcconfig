@@ -1,0 +1,5 @@
+// Release builds intentionally contain no shared demo bearer token.
+// Public AI coaching stays disabled until user- or device-scoped production auth replaces it.
+URL_SLASH = /
+VOXA_API_BASE_URL = https:$(URL_SLASH)$(URL_SLASH)example.invalid
+VOXA_DEMO_API_TOKEN =

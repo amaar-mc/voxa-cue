@@ -22,7 +22,7 @@ targets:
     platform: iOS
     configFiles:
       Debug: Config/BuildSettings.xcconfig
-      Release: Config/BuildSettings.xcconfig
+      Release: Config/ReleaseBuildSettings.xcconfig
     sources:
       - path: VoxaCue
     resources:
