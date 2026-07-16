@@ -7,11 +7,16 @@ import VoxaRuntime
 @MainActor
 @Observable
 final class LiveSessionController: Identifiable {
+    enum PauseReason: Equatable {
+        case user
+        case appInactive
+    }
+
     enum Phase: Equatable {
         case preparing
         case countdown(Int)
         case recording
-        case paused
+        case paused(PauseReason)
         case finalizing
         case failed(String)
     }
@@ -22,6 +27,8 @@ final class LiveSessionController: Identifiable {
         let decision: CueDecision
         let elapsedSeconds: TimeInterval
         var deliveryStatus: CueDeliveryStatus
+        let sentAtMonotonicSeconds: TimeInterval
+        var acceptedAtMonotonicSeconds: TimeInterval?
     }
 
     let id: UUID
@@ -32,24 +39,34 @@ final class LiveSessionController: Identifiable {
     private let demoMode: Bool
     private let allocateCueSequence: @MainActor () -> UInt16
     private let sendCue: @MainActor (CueCommand) throws -> Void
+    private let monotonicNow: @MainActor () -> TimeInterval
+    private let cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration
     private let onFinish: @MainActor (SessionSummary) -> Void
 
     var phase: Phase = .preparing
     var metrics: LiveMetrics = .empty()
     var liveTranscript = ""
     var volatileTranscript = ""
-    var lastCue: CueDecision?
     var cueLogs: [CueLog] = []
     var currentCheckpointLabel: String?
     var checkpointProgress: Double = 0
     var microphoneLevel: Double = 0
     var latestBandFailure: String?
     var hasStarted: Bool { startedAt != nil }
+    var isPaused: Bool {
+        if case .paused = phase { return true }
+        return false
+    }
+    var pauseReason: PauseReason? {
+        if case let .paused(reason) = phase { return reason }
+        return nil
+    }
 
     private var startedAt: Date?
     private var presentationClock: ActivePresentationClock?
     private var timerTask: Task<Void, Never>?
     private var failureTask: Task<Void, Never>?
+    private var cueDeadlineTask: Task<Void, Never>?
     private var transcriptAccumulator = TranscriptAccumulator(segments: [])
     private var timedWords: [TimedWord] = []
     private var recentFillerOffsets: [TimeInterval] = []
@@ -74,6 +91,8 @@ final class LiveSessionController: Identifiable {
         demoMode: Bool,
         allocateCueSequence: @escaping @MainActor () -> UInt16,
         sendCue: @escaping @MainActor (CueCommand) throws -> Void,
+        monotonicNow: @escaping @MainActor () -> TimeInterval,
+        cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration,
         onFinish: @escaping @MainActor (SessionSummary) -> Void
     ) {
         self.id = configuration.id
@@ -84,15 +103,19 @@ final class LiveSessionController: Identifiable {
         self.demoMode = demoMode
         self.allocateCueSequence = allocateCueSequence
         self.sendCue = sendCue
+        self.monotonicNow = monotonicNow
+        self.cueDeliveryDeadlines = cueDeliveryDeadlines
         self.onFinish = onFinish
         self.currentCheckpointLabel = configuration.deckPlan?.checkpoints.first?.label
     }
 
     func start() async {
+        guard !Task.isCancelled else { return }
         phase = .preparing
         UIApplication.shared.isIdleTimerDisabled = true
         if !demoMode {
             let granted = await LiveSpeechPipeline.requestPermissions()
+            guard !Task.isCancelled else { return }
             guard granted else {
                 phase = .failed("Microphone and speech access are required for live coaching.")
                 UIApplication.shared.isIdleTimerDisabled = false
@@ -100,7 +123,9 @@ final class LiveSessionController: Identifiable {
             }
             do {
                 try await speechPipeline.prepare(localeIdentifier: "en-US")
+                guard !Task.isCancelled else { return }
             } catch {
+                guard !Task.isCancelled else { return }
                 phase = .failed("The on-device English speech model could not be prepared.")
                 UIApplication.shared.isIdleTimerDisabled = false
                 return
@@ -108,6 +133,7 @@ final class LiveSessionController: Identifiable {
         }
 
         for count in stride(from: 3, through: 1, by: -1) {
+            guard !Task.isCancelled else { return }
             phase = .countdown(count)
             do {
                 try await Task.sleep(for: .seconds(1))
@@ -118,13 +144,20 @@ final class LiveSessionController: Identifiable {
         }
 
         if demoMode {
+            guard !Task.isCancelled else { return }
             liveTranscript = "Voxa Cue gives presenters private guidance at the moment they need it, then turns each session into a focused practice plan."
         } else {
             do {
                 try await speechPipeline.start { [weak self] event in
                     self?.handleSpeechEvent(event)
                 }
+                if Task.isCancelled {
+                    await speechPipeline.stop()
+                    UIApplication.shared.isIdleTimerDisabled = false
+                    return
+                }
             } catch {
+                guard !Task.isCancelled else { return }
                 phase = .failed("The phone microphone could not start: \(error.localizedDescription)")
                 UIApplication.shared.isIdleTimerDisabled = false
                 return
@@ -144,19 +177,39 @@ final class LiveSessionController: Identifiable {
     func togglePause() {
         switch phase {
         case .recording:
-            let now = Date().timeIntervalSinceReferenceDate
-            presentationClock = presentationClock?.pausing(atReferenceSeconds: now)
-            if !demoMode { speechPipeline.pauseCapture() }
-            phase = .paused
-            volatileTranscript = ""
+            pause(reason: .user)
         case .paused:
             let now = Date().timeIntervalSinceReferenceDate
             presentationClock = presentationClock?.resuming(atReferenceSeconds: now)
             if !demoMode { speechPipeline.resumeCapture() }
+            UIApplication.shared.isIdleTimerDisabled = true
             phase = .recording
         default:
             break
         }
+    }
+
+    func pauseForLifecycle() {
+        if case .recording = phase {
+            pause(reason: .appInactive)
+        }
+        failOutstandingCueDeliveries(message: "Cue confirmation stopped when Voxa Cue left the foreground.")
+        cancelCueDeadlineWork()
+    }
+
+    func cancelPreparationForLifecycle() {
+        guard !hasStarted else {
+            pauseForLifecycle()
+            return
+        }
+        switch phase {
+        case .preparing, .countdown:
+            phase = .failed("Session setup stopped because Voxa Cue left the foreground. Return to Today and start again when you are ready.")
+            UIApplication.shared.isIdleTimerDisabled = false
+        case .recording, .paused, .finalizing, .failed:
+            break
+        }
+        cancelCueDeadlineWork()
     }
 
     func finish() async {
@@ -164,6 +217,8 @@ final class LiveSessionController: Identifiable {
         let stopReference = Date().timeIntervalSinceReferenceDate
         presentationClock = presentationClock?.pausing(atReferenceSeconds: stopReference)
         phase = .finalizing
+        failOutstandingCueDeliveries(message: "Cue completion was not confirmed before the session ended.")
+        cancelCueDeadlineWork()
         failureTask?.cancel()
         failureTask = nil
         timerTask?.cancel()
@@ -198,9 +253,13 @@ final class LiveSessionController: Identifiable {
 
     func handleBandStatus(_ status: CueBandStatus) {
         guard let index = cueLogs.firstIndex(where: { $0.sequence == status.sequence }) else { return }
+        guard cueLogs[index].deliveryStatus == .pending || cueLogs[index].deliveryStatus == .accepted else { return }
         switch status.state {
         case .accepted:
-            cueLogs[index].deliveryStatus = .accepted
+            if cueLogs[index].deliveryStatus == .pending {
+                cueLogs[index].deliveryStatus = .accepted
+                cueLogs[index].acceptedAtMonotonicSeconds = monotonicNow()
+            }
             latestBandFailure = nil
         case .completed:
             cueLogs[index].deliveryStatus = .completed
@@ -218,6 +277,87 @@ final class LiveSessionController: Identifiable {
                 latestBandFailure = "Haptic driver fault"
             }
         }
+        scheduleCueDeadlineCheck()
+    }
+
+    func expireCueDeliveryDeadlines(atMonotonicSeconds now: TimeInterval) {
+        var failureMessage: String?
+        for index in cueLogs.indices {
+            let log = cueLogs[index]
+            let evaluation = evaluateCueDeliveryDeadline(
+                status: log.deliveryStatus,
+                sentAtMonotonicSeconds: log.sentAtMonotonicSeconds,
+                acceptedAtMonotonicSeconds: log.acceptedAtMonotonicSeconds,
+                nowMonotonicSeconds: now,
+                configuration: cueDeliveryDeadlines
+            )
+            switch evaluation {
+            case .failedAwaitingAcceptance:
+                cueLogs[index].deliveryStatus = .failed
+                failureMessage = "Cue Band did not acknowledge the cue in time."
+            case .failedAwaitingCompletion:
+                cueLogs[index].deliveryStatus = .failed
+                failureMessage = "Cue Band did not confirm vibration completion in time."
+            case .unchanged:
+                break
+            }
+        }
+        if let failureMessage { latestBandFailure = failureMessage }
+    }
+
+    private func pause(reason: PauseReason) {
+        guard case .recording = phase else { return }
+        let now = Date().timeIntervalSinceReferenceDate
+        presentationClock = presentationClock?.pausing(atReferenceSeconds: now)
+        if !demoMode { speechPipeline.pauseCapture() }
+        if reason == .appInactive { UIApplication.shared.isIdleTimerDisabled = false }
+        phase = .paused(reason)
+        volatileTranscript = ""
+    }
+
+    private func failOutstandingCueDeliveries(message: String) {
+        var failedAnyCue = false
+        for index in cueLogs.indices
+            where cueLogs[index].deliveryStatus == .pending || cueLogs[index].deliveryStatus == .accepted {
+            cueLogs[index].deliveryStatus = .failed
+            failedAnyCue = true
+        }
+        if failedAnyCue { latestBandFailure = message }
+    }
+
+    private func scheduleCueDeadlineCheck() {
+        cueDeadlineTask?.cancel()
+        cueDeadlineTask = nil
+        let now = monotonicNow()
+        let nextDeadline = cueLogs.compactMap { log -> TimeInterval? in
+            switch log.deliveryStatus {
+            case .pending:
+                log.sentAtMonotonicSeconds + cueDeliveryDeadlines.acceptanceTimeoutSeconds
+            case .accepted:
+                (log.acceptedAtMonotonicSeconds ?? log.sentAtMonotonicSeconds)
+                    + cueDeliveryDeadlines.completionTimeoutSeconds
+            case .completed, .failed, .notConnected, .suppressed:
+                nil
+            }
+        }.min()
+        guard let nextDeadline else { return }
+        let delay = max(0, nextDeadline - now)
+        cueDeadlineTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            cueDeadlineTask = nil
+            expireCueDeliveryDeadlines(atMonotonicSeconds: monotonicNow())
+            scheduleCueDeadlineCheck()
+        }
+    }
+
+    private func cancelCueDeadlineWork() {
+        cueDeadlineTask?.cancel()
+        cueDeadlineTask = nil
     }
 
     private func runTimer() async {
@@ -250,7 +390,7 @@ final class LiveSessionController: Identifiable {
             guard phase == .recording else { return }
             volatileTranscript = text
         case let .finalizedTranscript(text, startSeconds, endSeconds):
-            guard phase == .recording || phase == .paused || phase == .finalizing else { return }
+            guard phase == .recording || isPaused || phase == .finalizing else { return }
             let segment = FinalTranscriptSegment(
                 id: UUID(),
                 startSeconds: startSeconds,
@@ -263,19 +403,21 @@ final class LiveSessionController: Identifiable {
             rebuildTranscriptMetrics()
             updateDeckAlignment()
         case let .voiceActivity(isSpeech, durationSeconds):
-            guard phase == .recording || phase == .paused || phase == .finalizing else { return }
+            guard phase == .recording || isPaused || phase == .finalizing else { return }
             if isSpeech { voicedSeconds += durationSeconds }
         case let .vocalSample(energyDBFS, pitchHertz):
-            guard phase == .recording || phase == .paused || phase == .finalizing else { return }
+            guard phase == .recording || isPaused || phase == .finalizing else { return }
             energyValues.append(energyDBFS)
             if let pitchHertz { pitchValues.append(pitchHertz) }
             microphoneLevel = min(1, max(0, (energyDBFS + 60) / 50))
         case let .failure(message):
-            guard phase == .recording || phase == .paused else { return }
+            guard phase == .recording || isPaused else { return }
             let stopReference = Date().timeIntervalSinceReferenceDate
             presentationClock = presentationClock?.pausing(atReferenceSeconds: stopReference)
             timerTask?.cancel()
             timerTask = nil
+            failOutstandingCueDeliveries(message: "Cue confirmation stopped with live analysis.")
+            cancelCueDeadlineWork()
             phase = .finalizing
             failureTask = Task { [weak self] in
                 guard let self else { return }
@@ -409,12 +551,11 @@ final class LiveSessionController: Identifiable {
             recentFillerOffsets: recentFillerOffsets,
             deckProgress: deckProgress,
             profile: configuration.profile,
-            isPaused: phase == .paused
+            isPaused: isPaused
         )
         let result = evaluateCue(input: input, state: cueEngineState, configuration: .version1())
         cueEngineState = result.state
         guard let decision = result.decision else { return }
-        lastCue = decision
         let sequence = allocateCueSequence()
         let intensity = configuration.profile.intensityByCue[decision.kind] ?? .medium
         let command = CueCommand(sequence: sequence, kind: decision.kind, intensity: intensity, repeatCount: 1)
@@ -430,9 +571,12 @@ final class LiveSessionController: Identifiable {
                 sequence: sequence,
                 decision: decision,
                 elapsedSeconds: metrics.elapsedSeconds,
-                deliveryStatus: deliveryStatus
+                deliveryStatus: deliveryStatus,
+                sentAtMonotonicSeconds: monotonicNow(),
+                acceptedAtMonotonicSeconds: nil
             )
         )
+        scheduleCueDeadlineCheck()
     }
 
     private func makeSummary() -> SessionSummary {
