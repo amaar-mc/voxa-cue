@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="900" y2="950" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B2431"/>
+      <stop offset="1" stop-color="#0C1119"/>
+    </linearGradient>
+    <linearGradient id="cue" x1="265" y1="245" x2="775" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67D788"/>
+      <stop offset="1" stop-color="#2E9D58"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="30" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="398" fill="#FFFFFF" opacity="0.025"/>
+  <path d="M702 310C651 265 585 241 516 241C366 241 245 362 245 512C245 662 366 783 516 783C584 783 648 760 698 718"
+        fill="none" stroke="#060A0F" stroke-width="154" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M702 310C651 265 585 241 516 241C366 241 245 362 245 512C245 662 366 783 516 783C584 783 648 760 698 718"
+        fill="none" stroke="url(#cue)" stroke-width="112" stroke-linecap="round"/>
+  <path d="M735 420C766 449 782 480 782 512C782 544 766 575 735 604"
+        fill="none" stroke="#DED2F4" stroke-width="25" stroke-linecap="round"/>
+  <path d="M791 382C838 425 862 468 862 512C862 556 838 599 791 642"
+        fill="none" stroke="#DED2F4" stroke-width="18" stroke-linecap="round" opacity="0.68"/>
+  <circle cx="703" cy="310" r="16" fill="#F1ECF8"/>
+  <circle cx="698" cy="718" r="16" fill="#F1ECF8"/>
+</svg>
