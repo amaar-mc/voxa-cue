@@ -3,13 +3,16 @@ import VoxaCore
 
 struct TodayView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var hasAppeared = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 if model.demoMode {
-                    StatusPill(label: "Deterministic demo data", symbol: "testtube.2", color: CueTheme.amber)
+                    StatusPill(label: "Labeled demo scenario", symbol: "testtube.2", color: CueTheme.amber)
                 }
                 hero
                 if let latest = model.sessions.first {
@@ -21,55 +24,83 @@ struct TodayView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 14)
-            .padding(.bottom, 32)
+            .padding(.bottom, 36)
         }
-        .background(CueTheme.canvas)
+        .background {
+            ZStack(alignment: .topTrailing) {
+                CueTheme.canvas
+                Circle()
+                    .fill(CueTheme.periwinkle.opacity(0.15))
+                    .frame(width: 310, height: 310)
+                    .blur(radius: 50)
+                    .offset(x: 130, y: -160)
+            }
+            .ignoresSafeArea()
+        }
         .toolbar(.hidden, for: .navigationBar)
+        .opacity(hasAppeared ? 1 : (reduceMotion ? 1 : 0))
+        .offset(y: hasAppeared || reduceMotion ? 0 : 8)
+        .onAppear {
+            withAnimation(CueMotion.settle(reduceMotion: reduceMotion)) {
+                hasAppeared = true
+            }
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            CueWordmark(compact: false)
-            Spacer()
-            StatusPill(
-                label: model.connectionState.label,
-                symbol: connectionSymbol,
-                color: connectionColor
-            )
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 14) {
+                CueWordmark(compact: false)
+                Spacer(minLength: 8)
+                connectionPill
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                CueWordmark(compact: false)
+                connectionPill
+            }
         }
     }
 
+    private var connectionPill: some View {
+        StatusPill(
+            label: model.connectionState.label,
+            symbol: connectionSymbol,
+            color: connectionColor
+        )
+    }
+
     private var hero: some View {
-        PremiumCard(padding: 24) {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("READY WHEN YOU ARE")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.4)
-                            .foregroundStyle(CueTheme.green)
-                        Text("Stay present.\nCue handles the rest.")
-                            .font(.system(size: 30, weight: .light, design: .rounded))
-                            .foregroundStyle(CueTheme.ink)
+        PremiumCard(padding: dynamicTypeSize.isAccessibilitySize ? 20 : 24) {
+            VStack(alignment: .leading, spacing: 22) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 18) {
+                        heroCopy
+                        Spacer(minLength: 10)
+                        CuePulseGlyph(symbol: "waveform", size: 88, animated: true)
                     }
-                    Spacer()
-                    ZStack {
-                        Circle()
-                            .stroke(CueTheme.border, lineWidth: 8)
-                        Circle()
-                            .trim(from: 0, to: 0.72)
-                            .stroke(CueTheme.greenBright, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Image(systemName: "waveform")
-                            .font(.system(size: 24, weight: .light))
-                            .foregroundStyle(CueTheme.violet)
+                    VStack(alignment: .leading, spacing: 18) {
+                        CuePulseGlyph(symbol: "waveform", size: 78, animated: true)
+                        heroCopy
                     }
-                    .frame(width: 78, height: 78)
                 }
-                Text("Set your target, place the phone nearby, and start presenting. Live coaching stays local and private.")
+
+                Text("Set a target, place your phone nearby, and present naturally. Pace, filler words, and timing stay on-device during the session.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        readinessItem(symbol: "mic.fill", title: "Phone mic", detail: "On-device")
+                        readinessItem(symbol: bandReadinessSymbol, title: "Cue Band", detail: bandReadinessDetail)
+                    }
+                    VStack(spacing: 10) {
+                        readinessItem(symbol: "mic.fill", title: "Phone mic", detail: "On-device")
+                        readinessItem(symbol: bandReadinessSymbol, title: "Cue Band", detail: bandReadinessDetail)
+                    }
+                }
+
                 VoxaButton(
                     title: "Start a session",
                     symbol: "arrow.up.right",
@@ -81,64 +112,113 @@ struct TodayView: View {
         }
     }
 
+    private var heroCopy: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CueSectionLabel(text: "Ready when you are", color: CueTheme.green)
+            Text("Speak with rhythm.\nStay in the room.")
+                .font(.cueTitle)
+                .foregroundStyle(CueTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func readinessItem(symbol: String, title: String, detail: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(CueTheme.violet)
+                .frame(width: 32, height: 32)
+                .background(CueTheme.violetSoft)
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .foregroundStyle(CueTheme.ink)
+                Text(detail)
+                    .font(.system(.caption2, design: .rounded, weight: .medium))
+                    .foregroundStyle(CueTheme.secondaryInk)
+            }
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity)
+        .background(CueTheme.canvas.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
     private func latestSession(_ session: SessionSummary) -> some View {
         Button {
             model.selectedSummary = session
         } label: {
             PremiumCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
+                    HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text("LATEST SESSION")
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .tracking(1.3)
-                                .foregroundStyle(CueTheme.violet)
+                            CueSectionLabel(text: "Latest session", color: CueTheme.violet)
                             Text(session.name)
                                 .font(.cueSection)
                                 .foregroundStyle(CueTheme.ink)
+                                .lineLimit(2)
                         }
-                        Spacer()
+                        Spacer(minLength: 8)
                         Image(systemName: "arrow.up.right")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(CueTheme.secondaryInk)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(CueTheme.violet)
+                            .frame(width: 38, height: 38)
+                            .background(CueTheme.violetSoft)
+                            .clipShape(Circle())
                     }
-                    HStack(spacing: 12) {
-                        compactMetric(value: "\(Int(session.averageWPM))", label: "WPM")
-                        compactMetric(value: "\(session.fillerCount)", label: "FILLERS")
-                        compactMetric(value: session.durationSeconds.clockString, label: "TIME")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) {
+                            compactMetric(value: "\(Int(session.averageWPM))", label: "WPM")
+                            compactMetric(value: "\(session.fillerCount)", label: "Fillers")
+                            compactMetric(value: session.durationSeconds.clockString, label: "Time")
+                        }
+                        VStack(spacing: 10) {
+                            compactMetric(value: "\(Int(session.averageWPM))", label: "WPM")
+                            compactMetric(value: "\(session.fillerCount)", label: "Fillers")
+                            compactMetric(value: session.durationSeconds.clockString, label: "Time")
+                        }
                     }
                 }
             }
         }
         .buttonStyle(SpringPressStyle())
+        .accessibilityHint("Opens the latest session summary")
     }
 
     private func compactMetric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
-                .font(.system(size: 23, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(.title3, design: .rounded, weight: .light).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
-            Text(label)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .tracking(0.9)
-                .foregroundStyle(CueTheme.secondaryInk)
+            CueSectionLabel(text: label, color: CueTheme.secondaryInk)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 
     private var emptyHistory: some View {
         PremiumCard(padding: 22) {
-            HStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 24, weight: .ultraLight))
-                    .foregroundStyle(CueTheme.violet)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Your first baseline starts here")
+                    .font(.system(size: 22, weight: .light))
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(CueTheme.signalGradient)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Build your speaking baseline")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
-                    Text("Complete one session to unlock real trends and coaching.")
+                    Text("Complete one session to unlock real trends and evidence-based coaching.")
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -146,30 +226,43 @@ struct TodayView: View {
 
     private var privacyCard: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lock.shield")
-                .font(.system(size: 18, weight: .light))
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(CueTheme.green)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Raw audio is never saved")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .foregroundStyle(CueTheme.ink)
-                Text("Session history keeps transcript, metrics, cue and checkpoint outcomes, and generated coaching—not audio.")
+                Text("History stores your transcript, metrics, cue outcomes, checkpoints, and any coaching you request—never the recording.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 4)
     }
 
+    private var bandReadinessSymbol: String {
+        if case .ready = model.connectionState { return "checkmark" }
+        return "wave.3.right"
+    }
+
+    private var bandReadinessDetail: String {
+        if case .ready = model.connectionState { return "Connected" }
+        return "Optional"
+    }
+
     private var connectionColor: Color {
         if case .ready = model.connectionState { return CueTheme.green }
         if case .reconnecting = model.connectionState { return CueTheme.amber }
+        if case .failed = model.connectionState { return CueTheme.red }
         return CueTheme.secondaryInk
     }
 
     private var connectionSymbol: String {
         if case .ready = model.connectionState { return "checkmark.circle.fill" }
         if case .reconnecting = model.connectionState { return "arrow.triangle.2.circlepath" }
+        if case .failed = model.connectionState { return "exclamationmark.triangle.fill" }
         return "applewatch.slash"
     }
 }
