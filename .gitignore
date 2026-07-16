@@ -6,6 +6,7 @@ DerivedData/
 xcuserdata/
 ios/VoxaCue.xcodeproj/
 ios/Local.xcconfig
+ios/LocalSigning.xcconfig
 ios/Secrets.xcconfig
 node_modules/
 api/.vercel/
@@ -15,4 +16,3 @@ firmware/voxa-wearable/.pio/
 .env
 .env.local
 *.log
-

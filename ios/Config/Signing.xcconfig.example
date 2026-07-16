@@ -1,0 +1,3 @@
+// Copy this file to ios/LocalSigning.xcconfig for physical-device builds.
+// Find the 10-character team ID in your Apple Developer account or Xcode account settings.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
