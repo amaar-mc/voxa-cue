@@ -17,7 +17,6 @@ struct SettingsView: View {
                     subtitle: "Band, haptics, privacy, and local data."
                 )
                 bandCard
-                hapticTestCard
                 processingCard
                 apiCard
                 dataCard
@@ -60,91 +59,18 @@ struct SettingsView: View {
                     disabled: false,
                     action: connectionButtonAction
                 )
-            }
-        }
-    }
-
-    private var hapticTestCard: some View {
-        PremiumCard(padding: 20) {
-            VStack(alignment: .leading, spacing: 16) {
-                hapticHeader
-                Text("Tap a pattern to learn its rhythm.")
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.secondaryInk)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                CueMetricGrid(spacing: 10) {
-                    ForEach(CueKind.allCases, id: \.self) { cue in
-                        hapticButton(
-                            title: hapticTitle(for: cue),
-                            symbol: hapticSymbol(for: cue),
-                            kind: cue,
-                            tint: hapticTint(for: cue)
-                        )
-                    }
+                NavigationLink {
+                    DeviceLabView()
+                } label: {
+                    Label("Open Device Lab", systemImage: "wrench.and.screwdriver")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(CueTheme.signal)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens raw Bluetooth connection and haptic command controls")
             }
-        }
-    }
-
-    private func hapticButton(title: String, symbol: String, kind: CueKind, tint: Color) -> some View {
-        Button {
-            model.testCue(kind: kind, intensity: .medium)
-        } label: {
-            VStack(spacing: 9) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .light))
-                    .foregroundStyle(tint)
-                Text(title)
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.ink)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 92 : 74)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(tint.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(tint.opacity(0.18), lineWidth: 0.7)
-            }
-            .opacity(isBandReady ? 1 : 0.46)
-        }
-        .buttonStyle(SpringPressStyle())
-        .disabled(!isBandReady)
-        .accessibilityLabel("Send \(title.lowercased()) haptic test request")
-        .accessibilityValue(isBandReady ? "Cue Band connected" : "Unavailable until Cue Band connects")
-        .accessibilityHint("Confirm delivery by feeling the wristband. Band errors appear as an alert.")
-    }
-
-    private func hapticTitle(for cue: CueKind) -> String {
-        switch cue {
-        case .tooFast: "Slow down"
-        case .tooSlow: "Speed up"
-        case .fillerBurst: "Fillers"
-        case .deckBehind: "Advance"
-        case .time75: "75% time"
-        case .time90: "90% time"
-        case .time100: "Time up"
-        }
-    }
-
-    private func hapticSymbol(for cue: CueKind) -> String {
-        switch cue {
-        case .tooFast: "hare"
-        case .tooSlow: "tortoise"
-        case .fillerBurst: "quote.bubble"
-        case .deckBehind: "rectangle.stack.badge.play"
-        case .time75, .time90, .time100: "timer"
-        }
-    }
-
-    private func hapticTint(for cue: CueKind) -> Color {
-        switch cue {
-        case .tooFast, .tooSlow: CueTheme.signal
-        case .fillerBurst, .deckBehind: CueTheme.haptic
-        case .time75, .time90, .time100: CueTheme.green
         }
     }
 
@@ -328,35 +254,6 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var hapticHeader: some View {
-        let title = VStack(alignment: .leading, spacing: 5) {
-            CueSectionLabel(text: "Haptic language", color: CueTheme.signal)
-            Text("Preview coaching patterns")
-                .font(.cueSection)
-                .foregroundStyle(CueTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        let status = StatusPill(
-            label: isBandReady ? "Band connected" : "Connect first",
-            symbol: isBandReady ? "checkmark" : "link",
-            color: isBandReady ? CueTheme.green : CueTheme.secondaryInk
-        )
-
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 10) {
-                title
-                status
-            }
-        } else {
-            HStack(alignment: .top) {
-                title
-                Spacer(minLength: 8)
-                status
-            }
-        }
-    }
-
-    @ViewBuilder
     private var apiHeader: some View {
         let label = sectionLabel(title: "AI coaching", symbol: "sparkles", tint: CueTheme.signal)
         let status = StatusPill(
@@ -400,7 +297,7 @@ struct SettingsView: View {
         if model.usesTemporaryRecoveryStorage {
             return "Persistent history is unavailable in this recovery launch. Clearing here affects temporary sessions only; deleting the app removes the unavailable store."
         }
-        return "Transcripts, metrics, cue history, checkpoint outcomes, and generated insights"
+        return "Transcripts, metrics, cue history, and generated insights"
     }
 
     private var deletionDialogTitle: String {
@@ -428,7 +325,7 @@ struct SettingsView: View {
         if model.usesTemporaryRecoveryStorage {
             return "This clears only sessions created during this recovery launch. It cannot modify the unavailable persistent store; delete Voxa Cue from the iPhone to remove that store."
         }
-        return "This permanently removes transcripts, metrics, cue history, checkpoint outcomes, and AI coaching stored by Voxa Cue on this phone."
+        return "This permanently removes transcripts, metrics, cue history, and AI coaching stored by Voxa Cue on this phone."
     }
 
     private var isAPIConfigured: Bool {
@@ -661,11 +558,11 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "Saved on this phone",
-                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, checkpoint outcomes, and generated coaching insights are stored locally. Imported PowerPoint files, extracted slide bodies and notes, and raw audio are not retained. You can delete all local Voxa Cue data from Settings."
+                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, and generated coaching insights are stored locally. Raw audio is not retained. You can delete all local Voxa Cue data from Settings."
                 ),
                 SettingsDocumentSection(
                     title: "Optional remote features",
-                    body: "When a coaching service is configured, importing a PowerPoint can send its extracted slide text and speaker notes to create timed checkpoints. The original file is not uploaded. Session information is never sent automatically: after a rehearsal, the final transcript, aggregate metrics, cue delivery history, and checkpoint outcomes leave the phone only when you explicitly confirm Generate AI coaching. Raw audio is never included."
+                    body: "Session information is never sent automatically. When a coaching service is configured, the final transcript, aggregate metrics, and cue delivery history leave the phone only after you explicitly confirm Generate AI coaching. Raw audio is never included."
                 ),
                 SettingsDocumentSection(
                     title: "AI provider retention",
@@ -688,7 +585,7 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "Your content",
-                    body: "Only import presentations and record speech that you have permission to use. You remain responsible for the words, slide content, and other information you choose to process or submit for optional AI coaching."
+                    body: "Only record speech that you have permission to use. You remain responsible for the words and other information you choose to process or submit for optional AI coaching."
                 ),
                 SettingsDocumentSection(
                     title: "Prototype availability",
@@ -707,11 +604,11 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "A vibration did not arrive",
-                    body: "Open Settings, confirm the band shows Connected, then send a pattern test request and verify it on your wrist. During presentations, Voxa Cue intentionally applies persistence and cooldown rules so a brief metric change does not create a distracting alert."
+                    body: "Open Device Lab, confirm the band shows Connected, then send a test command and verify it on your wrist. During presentations, Voxa Cue applies persistence and cooldown rules so a brief metric change does not create a distracting alert."
                 ),
                 SettingsDocumentSection(
                     title: "Bring useful diagnostics",
-                    body: "When reporting a prototype problem, include the iPhone model, iOS version, Cue Band firmware shown above, the step that failed, and whether the same action works in a new session. Do not include confidential transcript or slide content."
+                    body: "When reporting a prototype problem, include the iPhone model, iOS version, Cue Band firmware, the Device Lab packet trace, and the step that failed. Do not include confidential transcript content."
                 )
             ]
         }
