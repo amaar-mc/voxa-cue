@@ -1,0 +1,31 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+#include "voxa_protocol.hpp"
+
+namespace voxa {
+
+constexpr std::size_t kMaximumPatternSegments = 5U;
+
+struct PatternSegment {
+  bool motorEnabled;
+  std::uint16_t durationMilliseconds;
+};
+
+struct PatternProgram {
+  PatternSegment segments[kMaximumPatternSegments];
+  std::size_t segmentCount;
+  std::uint16_t repeatGapMilliseconds;
+};
+
+bool buildPatternProgram(PatternId patternId, PatternProgram* output);
+
+std::uint8_t amplitudeForIntensity(Intensity intensity);
+
+std::uint32_t durationForProgram(const PatternProgram& program,
+                                 std::uint8_t repeatCount);
+
+}  // namespace voxa
+
