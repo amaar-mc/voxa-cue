@@ -194,6 +194,7 @@ export const environmentSchema = z
   .object({
     OPENAI_API_KEY: trimmedString(1, 500),
     OPENAI_MODEL: trimmedString(1, 100),
+    VOXA_BUILD_ID: trimmedString(1, 100),
     VOXA_DEMO_API_TOKEN: trimmedString(32, 500),
   })
   .strict();
