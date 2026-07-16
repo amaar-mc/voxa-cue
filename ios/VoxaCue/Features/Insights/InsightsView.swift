@@ -57,10 +57,7 @@ struct InsightsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("PACE CONSISTENCY")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.25)
-                            .foregroundStyle(CueTheme.violet)
+                        CueSectionLabel(text: "Pace consistency", color: CueTheme.violet)
                         Text("\(Int((averagePaceRange * 100).rounded()))%")
                             .font(.cueMetric)
                             .foregroundStyle(CueTheme.ink)
@@ -82,13 +79,13 @@ struct InsightsView: View {
                 )
                 .frame(height: 92)
                 .accessibilityLabel("Pace consistency trend")
-                .accessibilityValue(paceTrendLabel)
+                .accessibilityValue(paceTrendAccessibilityValue)
             }
         }
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        CueMetricGrid(spacing: 12) {
             MetricTile(
                 label: "Average pace",
                 value: "\(Int(averageWPM.rounded()))",
@@ -102,10 +99,10 @@ struct InsightsView: View {
                 tint: averageFillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
             )
             MetricTile(
-                label: "On time",
-                value: "\(Int((onTimeRatio * 100).rounded()))%",
+                label: TimingOutcome.onTarget.presentation.aggregateLabel,
+                value: "\(Int((onTargetRatio * 100).rounded()))%",
                 detail: "of sessions",
-                tint: CueTheme.green
+                tint: TimingOutcome.onTarget.presentation.tint
             )
             MetricTile(
                 label: "Talk ratio",
@@ -121,17 +118,20 @@ struct InsightsView: View {
         if let selection = latestInsight {
             PremiumCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Label("NEXT PRACTICE FOCUS", systemImage: "sparkles")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .tracking(1.15)
-                            .foregroundStyle(CueTheme.violet)
-                        Spacer()
-                        StatusPill(
-                            label: model.demoMode ? "Demo fixture" : "AI coaching",
-                            symbol: model.demoMode ? "testtube.2" : "checkmark",
-                            color: model.demoMode ? CueTheme.amber : CueTheme.green
-                        )
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            Label("Next practice focus", systemImage: "sparkles")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.violet)
+                            Spacer()
+                            coachingSourcePill
+                        }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Next practice focus", systemImage: "sparkles")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.violet)
+                            coachingSourcePill
+                        }
                     }
                     Text(selection.insight.priorities.first?.title ?? "Keep building your baseline")
                         .font(.cueSection)
@@ -153,14 +153,13 @@ struct InsightsView: View {
         } else {
             PremiumCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("NEXT PRACTICE FOCUS", systemImage: "sparkles")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.15)
+                    Label("Next practice focus", systemImage: "sparkles")
+                        .font(.cueCaption)
                         .foregroundStyle(CueTheme.violet)
                     Text("Turn a session into a focused drill")
                         .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
-                    Text("Open a completed session and choose Generate AI coaching. Nothing is sent until you confirm.")
+                    Text(coachingAvailabilityCopy)
                         .font(.cueBody)
                         .foregroundStyle(CueTheme.secondaryInk)
                         .lineSpacing(3)
@@ -179,12 +178,27 @@ struct InsightsView: View {
         }
     }
 
+    private var coachingSourcePill: some View {
+        StatusPill(
+            label: model.demoMode ? "Demo fixture" : "AI generated",
+            symbol: model.demoMode ? "testtube.2" : "checkmark",
+            color: model.demoMode ? CueTheme.amber : CueTheme.green
+        )
+    }
+
+    private var coachingAvailabilityCopy: String {
+        if model.demoMode {
+            return "Open a completed session and generate a labeled coaching fixture. No session data leaves the phone."
+        }
+        if !model.demoMode, case .localOnly = model.coachingAPIState {
+            return "Your session analytics stay available locally. A configured coaching service is required to generate an AI practice plan."
+        }
+        return "Open a completed session and choose Generate AI coaching. Nothing is sent until you confirm."
+    }
+
     private var recentSessions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("SESSION SNAPSHOTS")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .tracking(1.25)
-                .foregroundStyle(CueTheme.secondaryInk)
+            CueSectionLabel(text: "Session snapshots", color: CueTheme.secondaryInk)
                 .padding(.horizontal, 3)
             ForEach(Array(filteredSessions.prefix(3)), id: \.sessionID) { session in
                 Button {
@@ -200,14 +214,14 @@ struct InsightsView: View {
                                 .foregroundStyle(CueTheme.secondaryInk)
                         }
                         Spacer()
-                        snapshotValue(
-                            value: "\(Int((session.timeInPaceRange * 100).rounded()))%",
-                            label: "IN PACE"
-                        )
-                        snapshotValue(
-                            value: String(format: "%.1f", session.fillersPerSpeakingMinute),
-                            label: "FILLERS/MIN"
-                        )
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 14) {
+                                sessionSnapshotMetrics(session)
+                            }
+                            VStack(alignment: .trailing, spacing: 7) {
+                                sessionSnapshotMetrics(session)
+                            }
+                        }
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(CueTheme.secondaryInk.opacity(0.6))
@@ -225,14 +239,25 @@ struct InsightsView: View {
         }
     }
 
+    @ViewBuilder
+    private func sessionSnapshotMetrics(_ session: SessionSummary) -> some View {
+        snapshotValue(
+            value: "\(Int((session.timeInPaceRange * 100).rounded()))%",
+            label: "In pace"
+        )
+        snapshotValue(
+            value: String(format: "%.1f", session.fillersPerSpeakingMinute),
+            label: "Fillers/min"
+        )
+    }
+
     private func snapshotValue(value: String, label: String) -> some View {
         VStack(alignment: .trailing, spacing: 3) {
             Text(value)
                 .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
             Text(label)
-                .font(.system(size: 7, weight: .semibold, design: .rounded))
-                .tracking(0.45)
+                .font(.system(.caption2, design: .rounded, weight: .semibold))
                 .foregroundStyle(CueTheme.secondaryInk)
         }
     }
@@ -319,10 +344,10 @@ struct InsightsView: View {
         average(orderedSessions.map(\.talkRatio))
     }
 
-    private var onTimeRatio: Double {
+    private var onTargetRatio: Double {
         guard !orderedSessions.isEmpty else { return 0 }
-        let onTime = orderedSessions.filter { $0.durationSeconds <= $0.targetDurationSeconds }.count
-        return Double(onTime) / Double(orderedSessions.count)
+        let onTarget = orderedSessions.filter { $0.timingOutcome == .onTarget }.count
+        return Double(onTarget) / Double(orderedSessions.count)
     }
 
     private var paceTrend: Double {
@@ -349,6 +374,15 @@ struct InsightsView: View {
         if paceTrend > 0 { return CueTheme.green }
         if paceTrend < 0 { return CueTheme.amber }
         return CueTheme.secondaryInk
+    }
+
+    private var paceTrendAccessibilityValue: String {
+        guard let first = orderedSessions.first, let last = orderedSessions.last else {
+            return "No sessions"
+        }
+        let firstValue = Int((first.timeInPaceRange * 100).rounded())
+        let lastValue = Int((last.timeInPaceRange * 100).rounded())
+        return "\(orderedSessions.count) sessions, from \(firstValue) percent to \(lastValue) percent. \(paceTrendLabel)."
     }
 
     private var latestInsight: (session: SessionSummary, insight: CoachingInsight)? {
@@ -389,6 +423,14 @@ private struct SessionSparkline: View {
         GeometryReader { proxy in
             let points = normalizedPoints(in: proxy.size)
             ZStack {
+                ForEach([0.25, 0.50, 0.75], id: \.self) { ratio in
+                    Path { path in
+                        let y = proxy.size.height - (proxy.size.height * ratio)
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                    }
+                    .stroke(CueTheme.border.opacity(ratio == 0.75 ? 0.72 : 0.36), style: StrokeStyle(lineWidth: 0.7, dash: ratio == 0.75 ? [4, 4] : []))
+                }
                 Path { path in
                     guard let first = points.first else { return }
                     path.move(to: CGPoint(x: first.x, y: proxy.size.height))
@@ -431,13 +473,10 @@ private struct SessionSparkline: View {
         guard !values.isEmpty else { return [] }
         let horizontalInset = 5.0
         let verticalInset = 8.0
-        let minimum = values.min() ?? 0
-        let maximum = values.max() ?? 1
-        let spread = max(0.08, maximum - minimum)
         return values.enumerated().map { index, value in
             let denominator = max(1, values.count - 1)
             let x = horizontalInset + (Double(index) / Double(denominator)) * max(0, size.width - horizontalInset * 2)
-            let normalized = (value - minimum) / spread
+            let normalized = min(max(value, 0), 1)
             let y = size.height - verticalInset - normalized * max(0, size.height - verticalInset * 2)
             return CGPoint(x: x, y: y)
         }
