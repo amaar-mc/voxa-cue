@@ -5,6 +5,14 @@ import Testing
 private let profile = CoachingProfile.rehearsalV1()
 private let configuration = CueEngineConfiguration.version1()
 
+@Test("The MVP profile excludes the deferred deck cue")
+func mvpProfileContainsOnlyPhoneFirstCues() {
+    #expect(CueKind.liveMVP == [.tooFast, .tooSlow, .fillerBurst, .time75, .time90, .time100])
+    #expect(profile.enabledCues == Set(CueKind.liveMVP))
+    #expect(profile.intensityByCue.keys.allSatisfy { CueKind.liveMVP.contains($0) })
+    #expect(!profile.enabledCues.contains(.deckBehind))
+}
+
 @Test("Time milestone outranks filler and pace candidates")
 func timeMilestoneHasPriority() {
     let initial = CueEngineState(

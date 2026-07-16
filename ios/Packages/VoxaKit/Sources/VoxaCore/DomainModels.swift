@@ -9,6 +9,15 @@ public enum CueKind: UInt8, Codable, CaseIterable, Hashable, Sendable {
     case time90 = 6
     case time100 = 7
 
+    public static let liveMVP: [CueKind] = [
+        .tooFast,
+        .tooSlow,
+        .fillerBurst,
+        .time75,
+        .time90,
+        .time100,
+    ]
+
     public var label: String {
         switch self {
         case .tooFast: "Slow down"
@@ -102,8 +111,8 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
         CoachingProfile(
             minimumWPM: 130,
             maximumWPM: 160,
-            enabledCues: Set(CueKind.allCases),
-            intensityByCue: Dictionary(uniqueKeysWithValues: CueKind.allCases.map { ($0, .medium) }),
+            enabledCues: Set(CueKind.liveMVP),
+            intensityByCue: Dictionary(uniqueKeysWithValues: CueKind.liveMVP.map { ($0, .medium) }),
             highConfidenceFillers: ["um", "uh", "er", "erm", "you know"],
             optionalFillers: ["like", "actually", "basically", "literally", "i mean", "sort of", "kind of"]
         )
