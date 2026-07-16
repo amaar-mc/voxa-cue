@@ -60,6 +60,21 @@ public enum CueBandCommandError: UInt8, Codable, Sendable {
     case driverFault = 3
 }
 
+public enum CueBandPacketDirection: Equatable, Sendable {
+    case writeRequested
+    case received
+}
+
+public struct CueBandPacket: Equatable, Sendable {
+    public let direction: CueBandPacketDirection
+    public let data: Data
+
+    public init(direction: CueBandPacketDirection, data: Data) {
+        self.direction = direction
+        self.data = data
+    }
+}
+
 public struct CueBandStatus: Equatable, Sendable {
     public let sequence: UInt16
     public let state: CueBandCommandState
@@ -97,7 +112,7 @@ public enum CueBandConnectionState: Equatable, Sendable {
         case .idle: "Not connected"
         case .bluetoothUnavailable: "Bluetooth is off"
         case .searching: "Searching for Cue"
-        case .connecting: "Pairing"
+        case .connecting: "Connecting"
         case .discovering: "Finishing connection"
         case .ready: "Connected"
         case .reconnecting: "Reconnecting"
