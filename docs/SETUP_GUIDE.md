@@ -9,7 +9,7 @@ Required:
 - macOS with Xcode 27 beta at `/Applications/Xcode-beta.app`
 - an iPhone running iOS 26 or later for real speech and BLE testing
 - Node.js 22 or later, pnpm 10.32.1, XcodeGen, and `uvx`
-- Arduino Nano ESP32, DRV2605L breakout, 3 V LRA motor, and a data-capable USB-C cable
+- Arduino Nano 33 IoT, DRV2605L breakout, 3 V LRA motor, and a data-capable Micro-USB cable
 
 ```sh
 brew install node pnpm xcodegen
@@ -27,7 +27,7 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-`pnpm verify` checks the strict TypeScript API, Swift packages and app, privacy manifest, and native plus Nano ESP32 firmware.
+`pnpm verify` checks the strict TypeScript API, Swift packages and app, privacy manifest, and native plus Nano 33 IoT and Nano ESP32 firmware.
 
 ## 3. Run the app without the wearable
 
@@ -36,21 +36,32 @@ pnpm ios:generate
 open ios/VoxaCue.xcodeproj
 ```
 
+To keep the signing team across future XcodeGen runs, copy `ios/Config/Signing.xcconfig.example` to the ignored `ios/LocalSigning.xcconfig` and replace `YOUR_TEAM_ID` with the selected Apple development team ID.
+
 In Xcode:
 
 1. Select the `VoxaCue` scheme and a physical iPhone.
-2. Open the Voxa Cue target, choose **Signing & Capabilities**, and select your Apple development team.
-3. Open **Product → Scheme → Edit Scheme → Run → Arguments** and make sure `-demoScenario` is absent for real recording. Add it only for a labeled software demo.
-4. Press Run and allow microphone, speech-recognition, and Bluetooth permissions.
-5. Start a session, place the phone nearby, and speak normally.
+2. Connect and unlock the iPhone, trust the Mac, and enable Developer Mode if prompted.
+3. Open the Voxa Cue target, choose **Signing & Capabilities**, and select your Apple development team with automatic signing.
+4. Open **Product → Scheme → Edit Scheme → Run → Arguments** and make sure `-demoScenario` is absent for real recording. Add it only for a labeled software demo.
+5. Press Run. Xcode signs, installs, and launches the app through the cable.
+6. Allow microphone, speech-recognition, and Bluetooth permissions, then start a session and place the phone nearby.
 
 The iPhone built-in microphone is enforced. Connecting a headset or changing the input route stops live analysis instead of silently analyzing the wrong microphone. Raw audio is discarded and never persisted.
+
+For a repeatable command-line cable install after the phone appears in `xcrun devicectl list devices`, run:
+
+```sh
+pnpm ios:device-install -- PHYSICAL_DEVICE_ID DEVELOPMENT_TEAM_ID
+```
+
+That command generates the Xcode project, signs a Debug build, installs it, and launches `com.amaarmc.voxacue`. It cannot run until the iPhone is connected, trusted, and associated with the selected Apple development team.
 
 ## 4. Wire and flash the Cue Band
 
 Disconnect power before wiring:
 
-| Nano ESP32 | DRV2605L | Connection |
+| Nano 33 IoT | DRV2605L | Connection |
 | --- | --- | --- |
 | `3V3` | `VIN` | Bench power |
 | `GND` | `GND` | Common ground |
@@ -63,8 +74,8 @@ Never connect the motor directly to a GPIO, 3V3, or GND. Then flash:
 ```sh
 cd firmware/voxa-wearable
 uvx --with pip platformio test -e native
-uvx --with pip platformio run -e nano_esp32
-uvx --with pip platformio run -e nano_esp32 --target upload
+uvx --with pip platformio run -e nano_33_iot
+uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
@@ -72,17 +83,14 @@ If upload-port discovery fails:
 
 ```sh
 uvx --with pip platformio device list
-uvx --with pip platformio run -e nano_esp32 --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
+uvx --with pip platformio run -e nano_33_iot --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
 ```
 
-The monitor must print `Voxa Cue firmware 1.0 ready`. Pair inside Voxa Cue with **Settings → Connect Cue Band**; do not pair it from iOS Bluetooth Settings. Preview all seven haptics in Settings before presenting.
+Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.0 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send each of the six active test commands before presenting.
 
 ## 5. Optional AI coaching API
 
-This service is not in the live haptic loop. It is used only for:
-
-- a structured checkpoint plan from extracted PowerPoint text before a session; and
-- a post-session practice plan after the user explicitly confirms transcript upload.
+This service is not in the live haptic loop. It is used only for a post-session practice plan after the user explicitly confirms transcript upload.
 
 Live transcription, filler detection, pace, timing, pitch, energy, cue selection, BLE, and session storage continue to work without it.
 
