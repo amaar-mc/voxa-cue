@@ -1,0 +1,5 @@
+// Copy this file to ios/Local.xcconfig for the closed M&TSI demo.
+// Never commit the copied file or a real token.
+URL_SLASH = /
+VOXA_API_BASE_URL = https:$(URL_SLASH)$(URL_SLASH)DEPLOYED_VERCEL_HOST
+VOXA_DEMO_API_TOKEN = AT_LEAST_32_RANDOM_CHARACTERS

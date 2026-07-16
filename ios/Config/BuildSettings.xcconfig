@@ -1,0 +1,5 @@
+URL_SLASH = /
+VOXA_API_BASE_URL = https:$(URL_SLASH)$(URL_SLASH)example.invalid
+VOXA_DEMO_API_TOKEN =
+
+#include? "../Local.xcconfig"
