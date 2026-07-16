@@ -1,0 +1,91 @@
+name: VoxaCue
+options:
+  bundleIdPrefix: com.amaarmc
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  xcodeVersion: "27.0"
+packages:
+  VoxaKit:
+    path: Packages/VoxaKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEVELOPMENT_TEAM: ""
+    VOXA_API_BASE_URL: "https://example.invalid"
+    VOXA_DEMO_API_TOKEN: ""
+targets:
+  VoxaCue:
+    type: application
+    platform: iOS
+    configFiles:
+      Debug: Config/BuildSettings.xcconfig
+      Release: Config/BuildSettings.xcconfig
+    sources:
+      - path: VoxaCue
+    resources:
+      - path: VoxaCue/Resources/Assets.xcassets
+      - path: VoxaCue/Resources/PrivacyInfo.xcprivacy
+    info:
+      path: VoxaCue/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Voxa Cue
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+        NSBluetoothAlwaysUsageDescription: Voxa Cue connects to your Cue Band to deliver private coaching vibrations.
+        NSMicrophoneUsageDescription: Voxa Cue listens during sessions to measure pace, filler words, timing, and vocal delivery.
+        NSSpeechRecognitionUsageDescription: Voxa Cue turns your speech into a private live transcript for coaching metrics.
+        VoxaAPIBaseURL: $(VOXA_API_BASE_URL)
+        VoxaDemoAPIToken: $(VOXA_DEMO_API_TOKEN)
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen:
+          UIColorName: BrandBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amaarmc.voxacue
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: VoxaKit
+        product: VoxaCore
+      - package: VoxaKit
+        product: VoxaRuntime
+  VoxaCueTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoxaCueTests
+    dependencies:
+      - target: VoxaCue
+      - package: VoxaKit
+        product: VoxaCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  VoxaCue:
+    build:
+      targets:
+        VoxaCue: all
+        VoxaCueTests: [test]
+    test:
+      targets:
+        - VoxaCueTests
+    run:
+      config: Debug
+    archive:
+      config: Release
