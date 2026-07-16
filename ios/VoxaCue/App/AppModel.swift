@@ -55,6 +55,10 @@ final class AppModel {
     var selectedTab: Tab = .today
     var sessions: [SessionSummary] = []
     var connectionState: CueBandConnectionState = .idle
+    var discoveredBand: CueBandIdentity?
+    var lastBandStatus: CueBandStatus?
+    var lastWriteRequestPacket: Data?
+    var lastReceivedBandPacket: Data?
     var setupPresented = false
     var activeSession: LiveSessionController?
     var completedSummary: SessionSummary?
@@ -88,32 +92,43 @@ final class AppModel {
     }
 
     func connectCueBand() {
+        clearDeviceLabTelemetry()
+        discoveredBand = nil
         cueBandClient.connect(
             stateHandler: { [weak self] state in
                 self?.connectionState = state
             },
             statusHandler: { [weak self] status in
                 self?.handleBandStatus(status)
+            },
+            packetHandler: { [weak self] packet in
+                self?.handleBandPacket(packet)
+            },
+            discoveryHandler: { [weak self] identity in
+                self?.discoveredBand = identity
             }
         )
     }
 
     func disconnectCueBand() {
         cueBandClient.disconnect()
+        discoveredBand = nil
+        clearDeviceLabTelemetry()
     }
 
-    func testCue(kind: CueKind, intensity: CueIntensity) {
+    func sendDebugCue(kind: CueKind, intensity: CueIntensity, repeatCount: UInt8) {
+        clearDeviceLabTelemetry()
         do {
             try cueBandClient.send(
                 command: CueCommand(
                     sequence: allocateCueSequence(),
                     kind: kind,
                     intensity: intensity,
-                    repeatCount: 1
+                    repeatCount: repeatCount
                 )
             )
         } catch {
-            lastError = "Connect your Cue Band before testing a vibration."
+            lastError = "The debug command was not sent. Connect the Cue Band and use a repeat count from 1 to 3."
         }
     }
 
@@ -319,6 +334,7 @@ final class AppModel {
     }
 
     private func handleBandStatus(_ status: CueBandStatus) {
+        lastBandStatus = status
         synchronizeCueSequence(after: status)
         if let activeSession {
             activeSession.handleBandStatus(status)
@@ -335,6 +351,21 @@ final class AppModel {
         case .driverFault:
             lastError = "The Cue Band haptic driver reported a hardware fault."
         }
+    }
+
+    private func handleBandPacket(_ packet: CueBandPacket) {
+        switch packet.direction {
+        case .writeRequested:
+            lastWriteRequestPacket = packet.data
+        case .received:
+            lastReceivedBandPacket = packet.data
+        }
+    }
+
+    private func clearDeviceLabTelemetry() {
+        lastBandStatus = nil
+        lastWriteRequestPacket = nil
+        lastReceivedBandPacket = nil
     }
 
     private func synchronizeCueSequence(after status: CueBandStatus) {

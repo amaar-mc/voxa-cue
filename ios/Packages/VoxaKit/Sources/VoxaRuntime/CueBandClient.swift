@@ -2,10 +2,24 @@
 import Foundation
 import VoxaCore
 
+public struct CueBandIdentity: Equatable, Sendable {
+    public let identifier: UUID
+    public let name: String
+    public let rssi: Int
+
+    public init(identifier: UUID, name: String, rssi: Int) {
+        self.identifier = identifier
+        self.name = name
+        self.rssi = rssi
+    }
+}
+
 @MainActor
 public final class CueBandClient: NSObject {
     public typealias StateHandler = @MainActor @Sendable (CueBandConnectionState) -> Void
     public typealias StatusHandler = @MainActor @Sendable (CueBandStatus) -> Void
+    public typealias PacketHandler = @MainActor @Sendable (CueBandPacket) -> Void
+    public typealias DiscoveryHandler = @MainActor @Sendable (CueBandIdentity) -> Void
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -15,14 +29,23 @@ public final class CueBandClient: NSObject {
     private var failedPeripheralID: UUID?
     private var stateHandler: StateHandler?
     private var statusHandler: StatusHandler?
+    private var packetHandler: PacketHandler?
+    private var discoveryHandler: DiscoveryHandler?
 
     public override init() {
         super.init()
     }
 
-    public func connect(stateHandler: @escaping StateHandler, statusHandler: @escaping StatusHandler) {
+    public func connect(
+        stateHandler: @escaping StateHandler,
+        statusHandler: @escaping StatusHandler,
+        packetHandler: @escaping PacketHandler,
+        discoveryHandler: @escaping DiscoveryHandler
+    ) {
         self.stateHandler = stateHandler
         self.statusHandler = statusHandler
+        self.packetHandler = packetHandler
+        self.discoveryHandler = discoveryHandler
         shouldReconnect = true
         if central == nil {
             central = CBCentralManager(delegate: self, queue: .main)
@@ -46,7 +69,9 @@ public final class CueBandClient: NSObject {
               let commandCharacteristic else {
             throw CueBLEError.notConnected
         }
-        peripheral.writeValue(try CueBLE.encode(command: command), for: commandCharacteristic, type: .withResponse)
+        let data = try CueBLE.encode(command: command)
+        packetHandler?(CueBandPacket(direction: .writeRequested, data: data))
+        peripheral.writeValue(data, for: commandCharacteristic, type: .withResponse)
     }
 
     private func beginScan() {
@@ -100,6 +125,14 @@ extension CueBandClient: @MainActor CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         central.stopScan()
+        let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        discoveryHandler?(
+            CueBandIdentity(
+                identifier: peripheral.identifier,
+                name: peripheral.name ?? advertisedName ?? "Unnamed peripheral",
+                rssi: RSSI.intValue
+            )
+        )
         self.peripheral = peripheral
         peripheral.delegate = self
         stateHandler?(.connecting)
@@ -206,6 +239,7 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
             failConnection("Cue returned an empty status packet")
             return
         }
+        packetHandler?(CueBandPacket(direction: .received, data: value))
         let status: CueBandStatus
         do {
             status = try CueBLE.decode(status: value)
