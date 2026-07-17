@@ -18,7 +18,7 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] `uvx --with pip platformio run -e nano_33_iot` succeeds.
 - [ ] `uvx --with pip platformio run -e nano_esp32` succeeds.
 - [ ] The exact demo Nano, driver, motor, wiring, enclosure, and power source pass the 15-minute wear test in the firmware README.
-- [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, all nine physical haptic patterns, firmware 1.1 calm-wave/deadline support, and firmware 1.2 session-light progress, pause, overtime, disconnect, and timeout behavior.
+- [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, all nine physical haptic patterns, firmware 1.1 calm-wave/deadline support, firmware 1.2 session-light progress, pause, overtime, disconnect, and timeout behavior, and firmware 1.3 one-shot D9 buzzer timing without heartbeat retrigger.
 - [ ] Airplane-mode testing confirms that live coaching and BLE haptics continue without the API.
 - [ ] No real API key or bearer token is present in Git history, source, generated project files, logs, screenshots, or demo materials.
 - [ ] `-demoScenario` screens and metrics are verbally identified as deterministic demo data whenever used.

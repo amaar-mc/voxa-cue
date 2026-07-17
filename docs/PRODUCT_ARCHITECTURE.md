@@ -116,7 +116,11 @@ sends a bounded 0–100% timing heartbeat. Firmware maps that value continuously
 from green to yellow, orange, and red; overtime flashes red. Pausing freezes the
 color. End, failure, BLE disconnect, or a stale heartbeat turns the LED off.
 Firmware 1.1 bands omit the characteristic and remain fully compatible with
-haptic delivery.
+haptic delivery. Firmware 1.3 adds mode 4: when the per-session option is on,
+the app sends it at 30 seconds overtime and D9 drives an active-buzzer signal
+HIGH for exactly two seconds. The firmware latches that event so heartbeat
+writes cannot retrigger it, while older firmware receives ordinary overtime
+mode 3 instead.
 
 The Nano drives a 3 V LRA through a DRV2605L in real-time playback mode. `millis()` advances a fixed-size pulse state machine; the main loop never blocks for a full pattern and allocates no Arduino `String` in the command or playback path.
 
