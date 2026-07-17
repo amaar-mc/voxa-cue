@@ -50,7 +50,7 @@ public struct CueEngineConfiguration: Equatable, Sendable {
             fastPersistenceSeconds: 4,
             slowPersistenceSeconds: 5,
             fillerWindowSeconds: 20,
-            fillerBurstCount: 2,
+            fillerBurstCount: 3,
             perRuleCooldownSeconds: 30,
             deckCooldownSeconds: 45,
             globalCooldownSeconds: 12,
@@ -203,12 +203,14 @@ public func evaluateCue(
     lastByKind[decision.kind] = elapsed
     var milestones = conditionedState.deliveredMilestones
     switch decision.kind {
-    case .time75:
+    case .time50:
         milestones.insert(decision.kind)
+    case .time75:
+        milestones.formUnion([.time50, .time75])
     case .time90:
-        milestones.formUnion([.time75, .time90])
+        milestones.formUnion([.time50, .time75, .time90])
     case .time100:
-        milestones.formUnion([.time75, .time90, .time100])
+        milestones.formUnion([.time50, .time75, .time90, .time100])
     case .tooFast, .tooSlow, .fillerBurst, .deckBehind:
         break
     }
@@ -229,7 +231,7 @@ public func evaluateCue(
 }
 
 private func isTimeMilestone(_ kind: CueKind) -> Bool {
-    kind == .time75 || kind == .time90 || kind == .time100
+    kind == .time50 || kind == .time75 || kind == .time90 || kind == .time100
 }
 
 private func orderedCandidates(
@@ -240,7 +242,12 @@ private func orderedCandidates(
     let elapsed = input.metrics.elapsedSeconds
     var decisions: [CueDecision] = []
 
-    let milestones: [(CueKind, Double)] = [(.time100, 1.0), (.time90, 0.90), (.time75, 0.75)]
+    let milestones: [(CueKind, Double)] = [
+        (.time100, 1.0),
+        (.time90, 0.90),
+        (.time75, 0.75),
+        (.time50, 0.50),
+    ]
     for (kind, fraction) in milestones where !state.deliveredMilestones.contains(kind) {
         if elapsed >= input.targetDurationSeconds * fraction {
             decisions.append(CueDecision(kind: kind, reason: "Reached \(Int(fraction * 100))% of target time"))
