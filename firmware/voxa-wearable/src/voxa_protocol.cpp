@@ -5,7 +5,7 @@ namespace {
 
 bool isPatternIdValid(std::uint8_t value) {
   return value >= static_cast<std::uint8_t>(PatternId::kTooFast) &&
-         value <= static_cast<std::uint8_t>(PatternId::kTime100Percent);
+         value <= static_cast<std::uint8_t>(PatternId::kDeadlineHold);
 }
 
 bool isIntensityValid(std::uint8_t value) {

@@ -7,7 +7,7 @@ namespace voxa {
 
 constexpr std::uint8_t kProtocolVersion = 1U;
 constexpr std::uint8_t kFirmwareMajor = 1U;
-constexpr std::uint8_t kFirmwareMinor = 0U;
+constexpr std::uint8_t kFirmwareMinor = 1U;
 constexpr std::size_t kCommandPacketSize = 6U;
 constexpr std::size_t kStatusPacketSize = 7U;
 
@@ -26,6 +26,8 @@ enum class PatternId : std::uint8_t {
   kTime75Percent = 5U,
   kTime90Percent = 6U,
   kTime100Percent = 7U,
+  kCalmWave = 8U,
+  kDeadlineHold = 9U,
 };
 
 enum class Intensity : std::uint8_t {
