@@ -8,14 +8,16 @@
 namespace {
 
 void assertSegment(const voxa::PatternProgram& program, std::size_t index,
-                   bool motorEnabled, std::uint16_t durationMilliseconds) {
-  TEST_ASSERT_EQUAL(motorEnabled, program.segments[index].motorEnabled);
+                   std::uint8_t amplitudePercent,
+                   std::uint16_t durationMilliseconds) {
+  TEST_ASSERT_EQUAL_UINT8(amplitudePercent,
+                          program.segments[index].amplitudePercent);
   TEST_ASSERT_EQUAL_UINT16(durationMilliseconds,
                            program.segments[index].durationMilliseconds);
 }
 
 void allContractPatternsBuild() {
-  for (std::uint8_t rawPattern = 1U; rawPattern <= 7U; ++rawPattern) {
+  for (std::uint8_t rawPattern = 1U; rawPattern <= 9U; ++rawPattern) {
     voxa::PatternProgram program{};
     TEST_ASSERT_TRUE(voxa::buildPatternProgram(
         static_cast<voxa::PatternId>(rawPattern), &program));
@@ -35,9 +37,9 @@ void tooFastIsTwoShortPulses() {
 
   TEST_ASSERT_EQUAL_UINT32(3U,
                            static_cast<std::uint32_t>(program.segmentCount));
-  assertSegment(program, 0U, true, 90U);
-  assertSegment(program, 1U, false, 80U);
-  assertSegment(program, 2U, true, 90U);
+  assertSegment(program, 0U, 100U, 90U);
+  assertSegment(program, 1U, 0U, 80U);
+  assertSegment(program, 2U, 100U, 90U);
 }
 
 void fillerBurstIsThreeShortPulses() {
@@ -48,11 +50,11 @@ void fillerBurstIsThreeShortPulses() {
 
   TEST_ASSERT_EQUAL_UINT32(5U,
                            static_cast<std::uint32_t>(program.segmentCount));
-  assertSegment(program, 0U, true, 70U);
-  assertSegment(program, 1U, false, 70U);
-  assertSegment(program, 2U, true, 70U);
-  assertSegment(program, 3U, false, 70U);
-  assertSegment(program, 4U, true, 70U);
+  assertSegment(program, 0U, 100U, 70U);
+  assertSegment(program, 1U, 0U, 70U);
+  assertSegment(program, 2U, 100U, 70U);
+  assertSegment(program, 3U, 0U, 70U);
+  assertSegment(program, 4U, 100U, 70U);
 }
 
 void deckBehindIsLongShortLong() {
@@ -61,11 +63,36 @@ void deckBehindIsLongShortLong() {
   TEST_ASSERT_TRUE(
       voxa::buildPatternProgram(voxa::PatternId::kDeckBehind, &program));
 
-  assertSegment(program, 0U, true, 300U);
-  assertSegment(program, 1U, false, 100U);
-  assertSegment(program, 2U, true, 80U);
-  assertSegment(program, 3U, false, 100U);
-  assertSegment(program, 4U, true, 300U);
+  assertSegment(program, 0U, 100U, 300U);
+  assertSegment(program, 1U, 0U, 100U);
+  assertSegment(program, 2U, 100U, 80U);
+  assertSegment(program, 3U, 0U, 100U);
+  assertSegment(program, 4U, 100U, 300U);
+}
+
+void calmWaveRampsUpAndDownSymmetrically() {
+  voxa::PatternProgram program{};
+
+  TEST_ASSERT_TRUE(
+      voxa::buildPatternProgram(voxa::PatternId::kCalmWave, &program));
+  TEST_ASSERT_EQUAL_UINT32(9U,
+                           static_cast<std::uint32_t>(program.segmentCount));
+  const std::uint8_t expected[] = {40U, 55U, 70U, 85U, 100U,
+                                   85U, 70U, 55U, 40U};
+  for (std::size_t index = 0U; index < program.segmentCount; ++index) {
+    assertSegment(program, index, expected[index], 90U);
+  }
+}
+
+void deadlineHoldIsOneLongPulse() {
+  voxa::PatternProgram program{};
+
+  TEST_ASSERT_TRUE(
+      voxa::buildPatternProgram(voxa::PatternId::kDeadlineHold, &program));
+  TEST_ASSERT_EQUAL_UINT32(1U,
+                           static_cast<std::uint32_t>(program.segmentCount));
+  assertSegment(program, 0U, 100U, 1200U);
+  TEST_ASSERT_EQUAL_UINT32(1200U, voxa::durationForProgram(program, 1U));
 }
 
 void intensityMapsToIncreasingConservativeAmplitudes() {
@@ -80,6 +107,17 @@ void intensityMapsToIncreasingConservativeAmplitudes() {
   TEST_ASSERT_GREATER_THAN_UINT8(soft, medium);
   TEST_ASSERT_GREATER_THAN_UINT8(medium, strong);
   TEST_ASSERT_LESS_OR_EQUAL_UINT8(127U, strong);
+}
+
+void segmentScalePreservesOffAndMaximumBounds() {
+  TEST_ASSERT_EQUAL_UINT8(
+      0U, voxa::scaledAmplitudeForIntensity(voxa::Intensity::kStrong, 0U));
+  TEST_ASSERT_EQUAL_UINT8(
+      voxa::amplitudeForIntensity(voxa::Intensity::kStrong),
+      voxa::scaledAmplitudeForIntensity(voxa::Intensity::kStrong, 100U));
+  TEST_ASSERT_EQUAL_UINT8(
+      voxa::amplitudeForIntensity(voxa::Intensity::kStrong),
+      voxa::scaledAmplitudeForIntensity(voxa::Intensity::kStrong, 200U));
 }
 
 void repeatDurationIncludesOnlyInterRepeatGaps() {
@@ -115,7 +153,10 @@ int main() {
   RUN_TEST(tooFastIsTwoShortPulses);
   RUN_TEST(fillerBurstIsThreeShortPulses);
   RUN_TEST(deckBehindIsLongShortLong);
+  RUN_TEST(calmWaveRampsUpAndDownSymmetrically);
+  RUN_TEST(deadlineHoldIsOneLongPulse);
   RUN_TEST(intensityMapsToIncreasingConservativeAmplitudes);
+  RUN_TEST(segmentScalePreservesOffAndMaximumBounds);
   RUN_TEST(repeatDurationIncludesOnlyInterRepeatGaps);
   RUN_TEST(unknownPatternAndNullOutputFail);
   return UNITY_END();
