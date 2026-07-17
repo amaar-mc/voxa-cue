@@ -1,9 +1,10 @@
 # Voxa Cue wearable firmware
 
-Firmware v1.0 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
+Firmware v1.2 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
 BLE v1 peripheral. Both accept versioned, semantic haptic commands from the
 Voxa Cue iPhone app and drive a 3 V LRA through a DRV2605L in real-time
-playback mode. The main loop never blocks for the length of a vibration.
+playback mode. They also drive a session-progress RGB LED. The main loop never
+blocks for the length of a vibration.
 
 The wire contract is defined in [`../../contracts/ble-v1.md`](../../contracts/ble-v1.md).
 The implementation rejects malformed packets, unsupported protocol versions,
@@ -16,6 +17,7 @@ the motor driver is unavailable. Every valid command reports `accepted`, then
 - Arduino Nano 33 IoT or Arduino Nano ESP32
 - DRV2605L breakout at I2C address `0x5A`
 - 3 V LRA coin vibration motor
+- Common-cathode RGB LED with one 220–330 Ω resistor per color leg
 - Data-capable USB cable matching the board (Micro-USB for Nano 33 IoT;
   USB-C for Nano ESP32)
 
@@ -28,6 +30,23 @@ Wire with all power disconnected:
 | `SDA` / `A4` | `SDA` | I2C data |
 | `SCL` / `A5` | `SCL` | I2C clock |
 | — | `OUT+` / `OUT-` | LRA motor leads; polarity is not significant |
+
+Wire the session light separately:
+
+| Nano | RGB LED | Purpose |
+| --- | --- | --- |
+| `D6` | Red through 220–330 Ω | Red channel |
+| `D7` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
+| `D8` | Green through 220–330 Ω | Green channel |
+| `GND` | Common cathode | Shared LED return |
+
+The Nano 33 IoT is a 3.3 V device with a low GPIO current limit. Never omit
+the three current-limiting resistors and never connect an LED common pin to 5 V.
+The requested `D7` and `D8` pins do not expose stock hardware PWM on Nano 33
+IoT, so firmware uses nonblocking 32-step software PWM. For a common-anode LED,
+connect the common leg to `3V3` and add `-DVOXA_RGB_COMMON_ANODE` to the selected
+PlatformIO environment's `build_flags`; do not use that flag with a
+common-cathode LED.
 
 Do not connect the motor directly to a Nano GPIO or directly across 3V3/GND.
 It must connect only to the DRV2605L output. Confirm that the particular
@@ -85,7 +104,7 @@ If the Nano 33 IoT does not enter its bootloader for upload, double-press its
 reset button, wait for the pulsing bootloader LED, list ports again, and upload
 to the newly appeared `/dev/cu.usbmodem...` port.
 
-On startup the serial monitor prints either `Voxa Cue firmware 1.1 ready` or a
+On startup the serial monitor prints either `Voxa Cue firmware 1.2 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
 rejected with the protocol's `driver fault` error.
 
@@ -115,6 +134,8 @@ advertises as `Voxa D2` to distinguish it from production firmware. The Chrome
 BLE tester and iPhone Device Lab can then send their normal commands. A
 `completed` status means the Nano executed the PWM timing; confirm the physical
 vibration yourself because this diagnostic path has no motor-feedback signal.
+This build includes the same v1.2 RGB session-light characteristic as the
+production driver build.
 
 Restore the production DRV2605L firmware after the test:
 
@@ -149,15 +170,20 @@ The write requests protocol 1, sequence 1, the two-short pattern, medium
 intensity, once. Expected notifications are:
 
 ```text
-01 01 00 00 00 01 00  # accepted
-01 01 00 01 00 01 00  # completed
+01 01 00 00 00 01 02  # accepted
+01 01 00 01 00 01 02  # completed
 ```
 
 Writing the same sequence again must not replay the motor and returns:
 
 ```text
-01 01 00 02 02 01 00  # rejected / invalid command
+01 01 00 02 02 01 02  # rejected / invalid command
 ```
+
+To test the RGB timing channel, write `01 01 32` with response to
+`6F2A0004-7C93-4A58-A9D4-3C52BBD1F110`. This requests active mode at 50% and
+should show yellow. Write `01 03 64` for flashing red overtime, then `01 00 00`
+to turn the LED off.
 
 ## Pattern and intensity calibration
 
@@ -197,6 +223,7 @@ design procedure. Do not copy register values from a different motor.
 - Nano 33 IoT uses ArduinoBLE; Nano ESP32 uses NimBLE-Arduino. Both transports
   implement the same BLE v1 contract.
 - The firmware receives physical pattern IDs; cue meaning and speech analysis stay on iPhone.
+- The firmware receives only session mode and a bounded timing percentage for the RGB light.
 - Status has protocol and firmware versions but no fabricated battery value.
 - The mailbox and playback state use fixed-size storage. No Arduino `String`
   allocations occur in the command or haptic loop.
