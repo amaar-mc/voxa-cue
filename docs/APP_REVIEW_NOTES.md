@@ -31,9 +31,9 @@ Without a band, haptic delivery cannot complete, but the session remains functio
 
 - Microphone: captures the presenter's voice during an active session.
 - Speech Recognition: produces an on-device, time-indexed transcript for metrics.
-- Bluetooth: discovers the optional Cue Band, writes haptic commands, and receives acknowledgements.
+- Bluetooth: discovers the optional Cue Band, writes haptic commands and bounded session-light timing state, and receives haptic acknowledgements.
 
-Raw audio is processed transiently and is never saved or uploaded. The wearable receives only a six-byte physical haptic-pattern command; it never receives audio or transcript text.
+Raw audio is processed transiently and is never saved or uploaded. The wearable receives only a six-byte physical haptic-pattern command and an optional three-byte session-light timing state; it never receives audio, presentation content, or transcript text.
 
 ## Network and AI behavior
 

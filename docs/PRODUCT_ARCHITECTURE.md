@@ -29,11 +29,11 @@ TranscriptAccumulator + rolling metrics
 CueEngine v1 (pace, fillers, elapsed time)
        |
        v
-CoreBluetooth central -- six-byte command --> Nano 33 IoT peripheral
-       ^                                      |
-       |                                      v
-seven-byte status <-- accepted/completed -- DRV2605L RTP state machine
-                                              |
+CoreBluetooth central -- haptic + timing --> Nano 33 IoT peripheral
+       ^                                      |                 |
+       |                                      v                 v
+seven-byte status <-- accepted/completed -- DRV2605L RTP      RGB progress
+                                              |                 light
                                               v
                                             3 V LRA
 ```
@@ -98,7 +98,7 @@ one local operation.
 
 ## BLE and wearable
 
-The app is the BLE central; the Nano 33 IoT or supported Nano ESP32 advertises as `Voxa Cue`. The v1 GATT service has one write-with-response command characteristic and one read/notify status characteristic. UUIDs and byte layouts are normative in `contracts/ble-v1.md`.
+The app is the BLE central; the Nano 33 IoT or supported Nano ESP32 advertises as `Voxa Cue`. The v1 GATT service has a write-with-response haptic command characteristic, a read/notify status characteristic, and an optional write-with-response session-light characteristic introduced in firmware 1.2. UUIDs and byte layouts are normative in `contracts/ble-v1.md`.
 
 A command is exactly six little-endian bytes: protocol version, monotonic 16-bit
 sequence, physical pattern ID, intensity, and repeat count. Firmware 1.1 adds
@@ -109,6 +109,14 @@ validates version, range, driver readiness, busy state, and sequence freshness.
 It sends a seven-byte accepted status before playback and a completed status
 after playback. Duplicate completed sequences are rejected so reconnects cannot
 replay a vibration.
+
+The optional session-light command is exactly three bytes: protocol version,
+mode, and elapsed-time percentage. During an active presentation the iPhone
+sends a bounded 0–100% timing heartbeat. Firmware maps that value continuously
+from green to yellow, orange, and red; overtime flashes red. Pausing freezes the
+color. End, failure, BLE disconnect, or a stale heartbeat turns the LED off.
+Firmware 1.1 bands omit the characteristic and remain fully compatible with
+haptic delivery.
 
 The Nano drives a 3 V LRA through a DRV2605L in real-time playback mode. `millis()` advances a fixed-size pulse state machine; the main loop never blocks for a full pattern and allocates no Arduino `String` in the command or playback path.
 
@@ -145,7 +153,7 @@ and restoration remain release gates.
 | Boundary | Data crossing it | Data that never crosses it |
 | --- | --- | --- |
 | Microphone to app memory | PCM buffers during an active session | Retained audio files |
-| App to Cue Band | Cue ID, intensity, repeat count, sequence | Audio, transcript, identity |
+| App to Cue Band | Cue ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
 | App to insight API | Confirmed finalized transcript, metrics, and cue summaries | Raw audio |
 | API to OpenAI | Text needed for the requested structured result | App bearer token, BLE data, raw audio |
 
