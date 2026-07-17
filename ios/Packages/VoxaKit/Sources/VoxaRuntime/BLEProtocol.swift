@@ -7,6 +7,8 @@ public enum CueBLE {
     public static let serviceUUID = CBUUID(string: "6F2A0001-7C93-4A58-A9D4-3C52BBD1F110")
     public static let commandUUID = CBUUID(string: "6F2A0002-7C93-4A58-A9D4-3C52BBD1F110")
     public static let statusUUID = CBUUID(string: "6F2A0003-7C93-4A58-A9D4-3C52BBD1F110")
+    public static let discoveryServiceUUIDs: [CBUUID] = [serviceUUID]
+    public static let knownPeripheralNames: [String] = ["Voxa Cue", "Voxa D2"]
 
     public static func encode(command: CueCommand) throws -> Data {
         guard (1...3).contains(command.repeatCount) else { throw CueBLEError.invalidRepeatCount }
@@ -94,6 +96,51 @@ public struct CueBandStatus: Equatable, Sendable {
         self.error = error
         self.firmwareMajor = firmwareMajor
         self.firmwareMinor = firmwareMinor
+    }
+}
+
+public enum CueBandAcknowledgementFailure: Equatable, Sendable {
+    case rejected(CueBandCommandError)
+    case statusError(CueBandCommandError)
+    case completionBeforeAcceptance
+}
+
+public enum CueBandAcknowledgementPhase: Equatable, Sendable {
+    case awaitingAcceptance
+    case awaitingCompletion
+    case completed
+    case failed(CueBandAcknowledgementFailure)
+}
+
+public func advanceCueBandAcknowledgement(
+    _ phase: CueBandAcknowledgementPhase,
+    with status: CueBandStatus
+) -> CueBandAcknowledgementPhase {
+    switch phase {
+    case .completed, .failed:
+        return phase
+    case .awaitingAcceptance, .awaitingCompletion:
+        break
+    }
+    if status.error != .none {
+        return .failed(.statusError(status.error))
+    }
+    if status.state == .rejected {
+        return .failed(.rejected(status.error))
+    }
+    switch (phase, status.state) {
+    case (.awaitingAcceptance, .accepted):
+        return .awaitingCompletion
+    case (.awaitingAcceptance, .completed):
+        return .failed(.completionBeforeAcceptance)
+    case (.awaitingCompletion, .accepted):
+        return .awaitingCompletion
+    case (.awaitingCompletion, .completed):
+        return .completed
+    case (.awaitingAcceptance, .rejected), (.awaitingCompletion, .rejected):
+        return .failed(.rejected(status.error))
+    case (.completed, _), (.failed, _):
+        return phase
     }
 }
 
