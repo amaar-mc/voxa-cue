@@ -93,7 +93,7 @@ public enum CueIntensity: UInt8, Codable, CaseIterable, Hashable, Sendable {
 }
 
 public struct FillerClusterConfiguration: Codable, Equatable, Hashable, Sendable {
-    public static let requiredCountRange = 2...6
+    public static let requiredCountRange = 1...6
     public static let windowSecondsRange = 5...30
     public static let windowStepSeconds = 5
 

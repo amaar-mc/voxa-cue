@@ -7,6 +7,7 @@ private let configuration = CueEngineConfiguration.version1()
 
 @Test("The default profile enables only essential cues with distinct signals")
 func mvpProfileContainsOnlyPhoneFirstCues() {
+    #expect(FillerClusterConfiguration.requiredCountRange == 1...6)
     #expect(CueKind.liveMVP == [.tooFast, .fillerBurst, .time50, .time100, .tooSlow, .time75, .time90])
     #expect(profile.enabledCues == Set(CueKind.essentialDefaults))
     #expect(profile.intensityByCue.keys.allSatisfy { CueKind.liveMVP.contains($0) })
@@ -22,6 +23,7 @@ func mvpProfileContainsOnlyPhoneFirstCues() {
 @Test("Filler count and lookback window control clusters without changing the cooldown")
 func fillerClusterConfigurationControlsThreshold() {
     let configurations = [
+        FillerClusterConfiguration(requiredFillerCount: 1, windowSeconds: 5),
         FillerClusterConfiguration(requiredFillerCount: 2, windowSeconds: 5),
         FillerClusterConfiguration(requiredFillerCount: 3, windowSeconds: 10),
         FillerClusterConfiguration(requiredFillerCount: 5, windowSeconds: 20),
