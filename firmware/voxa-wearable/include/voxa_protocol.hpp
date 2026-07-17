@@ -7,7 +7,7 @@ namespace voxa {
 
 constexpr std::uint8_t kProtocolVersion = 1U;
 constexpr std::uint8_t kFirmwareMajor = 1U;
-constexpr std::uint8_t kFirmwareMinor = 2U;
+constexpr std::uint8_t kFirmwareMinor = 3U;
 constexpr std::size_t kCommandPacketSize = 6U;
 constexpr std::size_t kStatusPacketSize = 7U;
 constexpr std::size_t kSessionLightPacketSize = 3U;
