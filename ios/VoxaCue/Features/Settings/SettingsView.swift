@@ -602,7 +602,7 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "Cue Band connection",
-                    body: "The app uses Bluetooth Low Energy to discover the wristband, send compact haptic commands, and receive command status and firmware version. Speech, transcripts, and presentation content are not sent to the wristband."
+                    body: "The app uses Bluetooth Low Energy to discover the wristband, send compact haptic commands and a bounded session timing percentage for the progress light, and receive command status and firmware version. Speech, transcripts, and presentation content are not sent to the wristband."
                 )
             ]
         case .terms:

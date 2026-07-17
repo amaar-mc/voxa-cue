@@ -31,7 +31,7 @@ The API authenticates requests with an app bearer token, validates payloads, rej
 
 ## Bluetooth and permissions
 
-Bluetooth is used only to discover the Cue Band, send versioned haptic pattern commands, and receive delivery acknowledgements. The wearable receives no audio or transcript text.
+Bluetooth is used only to discover the Cue Band, send versioned haptic pattern commands, send a bounded session mode and elapsed-time percentage for the RGB progress light, and receive delivery acknowledgements. The wearable receives no audio, transcript text, presentation content, or identity.
 
 Microphone and Speech Recognition permissions are required for live coaching. Bluetooth permission is required only for wearable haptics. Denying microphone or speech access prevents a live recording session; the rest of the app and saved local history remain available.
 
