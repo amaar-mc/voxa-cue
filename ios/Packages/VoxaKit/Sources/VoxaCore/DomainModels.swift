@@ -238,16 +238,6 @@ public struct FinalTranscriptSegment: Codable, Equatable, Identifiable, Sendable
     }
 }
 
-public struct TimedWord: Codable, Equatable, Sendable {
-    public let text: String
-    public let endSeconds: TimeInterval
-
-    public init(text: String, endSeconds: TimeInterval) {
-        self.text = text
-        self.endSeconds = endSeconds
-    }
-}
-
 public struct SpeechActivityInterval: Codable, Equatable, Sendable {
     public let isSpeech: Bool
     public let startSeconds: TimeInterval
