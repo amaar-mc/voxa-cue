@@ -17,6 +17,10 @@ public final class SessionRecord {
     public var fillerCount: Int
     public var fillersPerSpeakingMinute: Double
     public var talkRatio: Double
+    public var paceStandardDeviationWPM: Double?
+    public var pauseCount: Int?
+    public var averagePauseSeconds: Double?
+    public var longestPauseSeconds: Double?
     public var pitchRangeSemitones: Double?
     public var energyRangeDB: Double?
     public var cueCount: Int
@@ -36,6 +40,10 @@ public final class SessionRecord {
         self.fillerCount = summary.fillerCount
         self.fillersPerSpeakingMinute = summary.fillersPerSpeakingMinute
         self.talkRatio = summary.talkRatio
+        self.paceStandardDeviationWPM = summary.paceStandardDeviationWPM
+        self.pauseCount = summary.pauseCount
+        self.averagePauseSeconds = summary.averagePauseSeconds
+        self.longestPauseSeconds = summary.longestPauseSeconds
         self.pitchRangeSemitones = summary.pitchRangeSemitones
         self.energyRangeDB = summary.energyRangeDB
         self.cueCount = summary.cueCount
@@ -57,6 +65,10 @@ public final class SessionRecord {
             fillerCount: fillerCount,
             fillersPerSpeakingMinute: fillersPerSpeakingMinute,
             talkRatio: talkRatio,
+            paceStandardDeviationWPM: paceStandardDeviationWPM,
+            pauseCount: pauseCount,
+            averagePauseSeconds: averagePauseSeconds,
+            longestPauseSeconds: longestPauseSeconds,
             pitchRangeSemitones: pitchRangeSemitones,
             energyRangeDB: energyRangeDB,
             cueCount: cueCount,
