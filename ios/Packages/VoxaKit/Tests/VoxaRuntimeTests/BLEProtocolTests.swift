@@ -11,9 +11,20 @@ func discoveryContractIncludesD2Diagnostic() {
 
 @Test("BLE command matches the six-byte wire contract")
 func commandEncodingMatchesContract() throws {
-    let command = CueCommand(sequence: 0x1234, kind: .fillerBurst, intensity: .strong, repeatCount: 2)
+    let command = CueCommand(sequence: 0x1234, pattern: .calmWave, intensity: .strong, repeatCount: 2)
     let data = try CueBLE.encode(command: command)
-    #expect([UInt8](data) == [1, 0x34, 0x12, 3, 2, 2])
+    #expect([UInt8](data) == [1, 0x34, 0x12, HapticPattern.calmWave.rawValue, 2, 2])
+}
+
+@Test("Firmware 1.0 receives legacy equivalents for firmware 1.1 patterns")
+func legacyFirmwarePatternCompatibility() {
+    let calmWave = CueCommand(sequence: 8, pattern: .calmWave, intensity: .medium, repeatCount: 1)
+    let deadline = CueCommand(sequence: 9, pattern: .deadlineHold, intensity: .strong, repeatCount: 1)
+
+    #expect(CueBLE.command(calmWave, compatibleWithFirmwareMajor: 1, minor: 0).pattern == .tripleTap)
+    #expect(CueBLE.command(deadline, compatibleWithFirmwareMajor: 1, minor: 0).pattern == .triplePulse)
+    #expect(CueBLE.command(calmWave, compatibleWithFirmwareMajor: 1, minor: 1) == calmWave)
+    #expect(CueBLE.command(deadline, compatibleWithFirmwareMajor: 2, minor: 0) == deadline)
 }
 
 @Test("BLE status decodes firmware and acknowledgement")

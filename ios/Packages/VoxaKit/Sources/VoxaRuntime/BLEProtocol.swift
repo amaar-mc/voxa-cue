@@ -16,10 +16,36 @@ public enum CueBLE {
             protocolVersion,
             UInt8(truncatingIfNeeded: command.sequence),
             UInt8(truncatingIfNeeded: command.sequence >> 8),
-            command.kind.rawValue,
+            command.pattern.rawValue,
             command.intensity.rawValue,
             command.repeatCount
         ])
+    }
+
+    public static func command(
+        _ command: CueCommand,
+        compatibleWithFirmwareMajor firmwareMajor: UInt8,
+        minor firmwareMinor: UInt8
+    ) -> CueCommand {
+        let supportsExtendedPatterns = firmwareMajor > 1
+            || (firmwareMajor == 1 && firmwareMinor >= 1)
+        guard !supportsExtendedPatterns else { return command }
+
+        let compatiblePattern: HapticPattern
+        switch command.pattern {
+        case .calmWave:
+            compatiblePattern = .tripleTap
+        case .deadlineHold:
+            compatiblePattern = .triplePulse
+        default:
+            compatiblePattern = command.pattern
+        }
+        return CueCommand(
+            sequence: command.sequence,
+            pattern: compatiblePattern,
+            intensity: command.intensity,
+            repeatCount: command.repeatCount
+        )
     }
 
     public static func decode(status data: Data) throws -> CueBandStatus {
@@ -47,6 +73,7 @@ public enum CueBLEError: Error, Equatable {
     case incompatibleProtocol(UInt8)
     case invalidStatus
     case notConnected
+    case firmwareVersionUnavailable
 }
 
 public enum CueBandCommandState: UInt8, Codable, Sendable {
