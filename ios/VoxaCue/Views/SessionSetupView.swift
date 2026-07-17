@@ -1,5 +1,6 @@
 import SwiftUI
 import VoxaCore
+import VoxaRuntime
 
 struct SessionSetupView: View {
     @Environment(AppModel.self) private var model
@@ -10,6 +11,7 @@ struct SessionSetupView: View {
     @State private var minimumWPM = 130.0
     @State private var maximumWPM = 160.0
     @State private var advancedCuesExpanded = false
+    @State private var emergencyBuzzerEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +25,7 @@ struct SessionSetupView: View {
                     basicsCard
                     paceCard
                     cueCard
+                    overtimeSafetyCard
                     preflightCard
                     VStack(alignment: .leading, spacing: 9) {
                         VoxaButton(
@@ -221,6 +224,51 @@ struct SessionSetupView: View {
         .tint(CueTheme.signal)
     }
 
+    private var overtimeSafetyCard: some View {
+        PremiumCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 14) {
+                CueSectionLabel(text: "Overtime safety", color: CueTheme.signal)
+                Toggle(isOn: $emergencyBuzzerEnabled) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "speaker.wave.3.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(emergencyBuzzerEnabled ? CueTheme.red : CueTheme.secondaryInk)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                emergencyBuzzerEnabled
+                                    ? CueTheme.red.opacity(0.10)
+                                    : CueTheme.canvas.opacity(0.72)
+                            )
+                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Emergency buzzer")
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(CueTheme.ink)
+                            Text("One 2-second tone at 30 seconds overtime")
+                                .font(.cueCaption)
+                                .foregroundStyle(CueTheme.secondaryInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .tint(CueTheme.red)
+
+                if emergencyBuzzerEnabled {
+                    Label(
+                        emergencyBuzzerReadinessText,
+                        systemImage: emergencyBuzzerFirmwareSupported
+                            ? "info.circle.fill"
+                            : "exclamationmark.circle"
+                    )
+                    .font(.cueCaption.weight(.semibold))
+                    .foregroundStyle(emergencyBuzzerFirmwareSupported ? CueTheme.signal : CueTheme.red)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .animation(.easeOut(duration: 0.18), value: emergencyBuzzerEnabled)
+        }
+    }
+
     private var preflightCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
@@ -280,15 +328,29 @@ struct SessionSetupView: View {
     }
 
     private var bandPreflightState: PreflightState {
-        if isCueReady { return enabledCues.isEmpty ? .optional : .ready }
+        if isCueReady, emergencyBuzzerEnabled, !emergencyBuzzerFirmwareSupported {
+            return .required
+        }
+        if isCueReady {
+            return enabledCues.isEmpty && !emergencyBuzzerEnabled ? .optional : .ready
+        }
         if bandConnectionIsBusy { return .pending }
+        if emergencyBuzzerEnabled { return .required }
         return .optional
     }
 
     private var bandPreflightDetail: String {
-        if isCueReady, enabledCues.isEmpty { return "Connected · all wrist cues are off" }
+        if isCueReady, emergencyBuzzerEnabled, !emergencyBuzzerFirmwareSupported {
+            return "Connected · firmware 1.3 required"
+        }
+        if isCueReady, enabledCues.isEmpty, emergencyBuzzerEnabled {
+            return "Connected for the overtime buzzer"
+        }
+        if isCueReady, enabledCues.isEmpty { return "Connected · all band cues are off" }
+        if isCueReady, emergencyBuzzerEnabled { return "Connected for haptics and overtime buzzer" }
         if isCueReady { return "Connected for live haptics" }
         if bandConnectionIsBusy { return model.connectionState.label }
+        if emergencyBuzzerEnabled { return "Required for the emergency buzzer" }
         return "Optional · analytics continue without it"
     }
 
@@ -296,12 +358,12 @@ struct SessionSetupView: View {
         minimumWPM < maximumWPM
     }
 
-    private var willSendHaptics: Bool {
-        isCueReady && !enabledCues.isEmpty
+    private var willUseCueBand: Bool {
+        isCueReady && (!enabledCues.isEmpty || emergencyBuzzerEnabled)
     }
 
     private var beginButtonTitle: String {
-        willSendHaptics ? "Begin with haptics" : "Begin analytics only"
+        willUseCueBand ? "Begin with Cue Band" : "Begin analytics only"
     }
 
     private var startDisabled: Bool {
@@ -315,7 +377,31 @@ struct SessionSetupView: View {
         if !paceRangeIsValid {
             return "Set a valid pace range to continue."
         }
+        if emergencyBuzzerEnabled, !isCueReady {
+            return "Connect a Cue Band or turn off the emergency buzzer."
+        }
+        if emergencyBuzzerEnabled, !emergencyBuzzerFirmwareSupported {
+            return "Flash Cue Band firmware 1.3 or turn off the emergency buzzer."
+        }
         return nil
+    }
+
+    private var emergencyBuzzerFirmwareSupported: Bool {
+        guard isCueReady, let status = model.lastBandStatus else { return false }
+        return CueBLE.supportsEmergencyBuzzer(
+            firmwareMajor: status.firmwareMajor,
+            firmwareMinor: status.firmwareMinor
+        )
+    }
+
+    private var emergencyBuzzerReadinessText: String {
+        if emergencyBuzzerFirmwareSupported {
+            return "Firmware supports D9 · test the buzzer before presenting"
+        }
+        if isCueReady {
+            return "Connected band requires firmware 1.3 or newer"
+        }
+        return "Connect Cue Band before you begin"
     }
 
     private func cueBinding(_ cue: CueKind) -> Binding<Bool> {
@@ -370,7 +456,8 @@ struct SessionSetupView: View {
             mode: .freeSpeaking,
             targetDurationSeconds: targetMinutes * 60,
             profile: profile,
-            deckPlan: nil
+            deckPlan: nil,
+            emergencyBuzzerEnabled: emergencyBuzzerEnabled
         )
         model.beginSession(configuration: configuration)
     }
@@ -379,12 +466,14 @@ struct SessionSetupView: View {
 private enum PreflightState {
     case ready
     case pending
+    case required
     case optional
 
     var symbol: String {
         switch self {
         case .ready: "checkmark.circle.fill"
         case .pending: "clock.fill"
+        case .required: "exclamationmark.circle.fill"
         case .optional: "minus.circle.fill"
         }
     }
@@ -393,6 +482,7 @@ private enum PreflightState {
         switch self {
         case .ready: CueTheme.green
         case .pending: CueTheme.signal
+        case .required: CueTheme.red
         case .optional: CueTheme.secondaryInk
         }
     }

@@ -288,6 +288,7 @@ public struct SessionConfiguration: Codable, Equatable, Sendable {
     public let targetDurationSeconds: TimeInterval
     public let profile: CoachingProfile
     public let deckPlan: DeckPlan?
+    public let emergencyBuzzerEnabled: Bool
 
     public init(
         id: UUID,
@@ -295,7 +296,8 @@ public struct SessionConfiguration: Codable, Equatable, Sendable {
         mode: SessionMode,
         targetDurationSeconds: TimeInterval,
         profile: CoachingProfile,
-        deckPlan: DeckPlan?
+        deckPlan: DeckPlan?,
+        emergencyBuzzerEnabled: Bool
     ) {
         self.id = id
         self.name = name
@@ -303,6 +305,7 @@ public struct SessionConfiguration: Codable, Equatable, Sendable {
         self.targetDurationSeconds = targetDurationSeconds
         self.profile = profile
         self.deckPlan = deckPlan
+        self.emergencyBuzzerEnabled = emergencyBuzzerEnabled
     }
 }
 
