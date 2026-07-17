@@ -86,7 +86,7 @@ uvx --with pip platformio device list
 uvx --with pip platformio run -e nano_33_iot --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
 ```
 
-Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.1 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting.
+Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.2 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting, then run a short timed session to verify green, yellow, orange, solid red, flashing-red overtime, and off-at-end behavior.
 
 ## 5. Test the standalone IMU lab
 

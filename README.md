@@ -90,6 +90,7 @@ flowchart LR
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
     BLE --> NANO["Nano 33 IoT"]
     NANO --> MOTOR["DRV2605L<br/>+ 3 V LRA"]
+    NANO --> LIGHT["RGB session<br/>progress light"]
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
 
@@ -97,7 +98,7 @@ flowchart LR
     classDef band fill:#F3E7DC,stroke:#A85E24,color:#0B171B,stroke-width:2px;
     classDef optional fill:#0B756F,stroke:#07524E,color:#ffffff,stroke-width:2px;
     class MIC,SPEECH,METRICS,ENGINE,BLE,STORE phone;
-    class NANO,MOTOR band;
+    class NANO,MOTOR,LIGHT band;
     class API optional;
 ```
 
@@ -108,7 +109,7 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | Boundary | What crosses it | What never crosses it |
 | --- | --- | --- |
 | Microphone → app memory | PCM buffers during an active session | Retained audio files |
-| iPhone → Cue Band | Physical pattern ID, intensity, repeat count, sequence | Audio, transcript, identity |
+| iPhone → Cue Band | Physical pattern ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
 | iPhone → insight API | Confirmed transcript, aggregate metrics, and cue summaries | Raw audio |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
@@ -220,7 +221,7 @@ uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
-The serial monitor should print `Voxa Cue firmware 1.1 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command.
+The serial monitor should print `Voxa Cue firmware 1.2 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command. During a timed session, the RGB light moves from green through yellow and orange to red, then flashes red overtime.
 
 </details>
 
