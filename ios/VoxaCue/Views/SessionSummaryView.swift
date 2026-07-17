@@ -6,6 +6,7 @@ struct SessionSummaryView: View {
     let summary: SessionSummary
     let dismissAction: () -> Void
     @State private var confirmAI = false
+    @State private var showingProPaywall = false
     @State private var transcriptExpanded = false
 
     var body: some View {
@@ -52,33 +53,50 @@ struct SessionSummaryView: View {
                         : "This sends the final transcript, aggregate metrics, and cue delivery history to the Voxa Cue API. Raw audio never leaves the phone."
                 )
             }
+            .sheet(isPresented: $showingProPaywall) {
+                VoxaProPaywallView(entitlementStore: model.proEntitlementStore)
+            }
         }
     }
 
     private var hero: some View {
         PremiumCard(padding: 22) {
-            HStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(timingPresentation.tint.opacity(0.12))
-                    Image(systemName: timingPresentation.symbol)
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(timingPresentation.tint)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 18) {
+                    heroSymbol
+                    heroCopy
+                    Spacer(minLength: 0)
                 }
-                .frame(width: 72, height: 72)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(timingPresentation.title)
-                        .font(.cueSection)
-                        .foregroundStyle(CueTheme.ink)
-                    Text(summary.name)
-                        .font(.cueBody)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                    Text("\(summary.durationSeconds.clockString) of \(summary.targetDurationSeconds.clockString)")
-                        .font(.cueCaption.monospacedDigit())
-                        .foregroundStyle(timingPresentation.tint)
+                VStack(alignment: .leading, spacing: 14) {
+                    heroSymbol
+                    heroCopy
                 }
-                Spacer()
             }
+        }
+    }
+
+    private var heroSymbol: some View {
+        ZStack {
+            Circle()
+                .fill(timingPresentation.tint.opacity(0.12))
+            Image(systemName: timingPresentation.symbol)
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(timingPresentation.tint)
+        }
+        .frame(width: 72, height: 72)
+    }
+
+    private var heroCopy: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(timingPresentation.title)
+                .font(.cueSection)
+                .foregroundStyle(CueTheme.ink)
+            Text(summary.name)
+                .font(.cueBody)
+                .foregroundStyle(CueTheme.secondaryInk)
+            Text("\(summary.durationSeconds.clockString) of \(summary.targetDurationSeconds.clockString)")
+                .font(.cueCaption.monospacedDigit())
+                .foregroundStyle(timingPresentation.tint)
         }
     }
 
@@ -135,7 +153,7 @@ struct SessionSummaryView: View {
                         vocalMetrics
                     }
                 }
-                Text("These are descriptive acoustic ranges, not judgments about what a voice should sound like.")
+                Text("These are descriptive delivery measurements, not judgments about how a voice should sound.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
             }
@@ -145,7 +163,7 @@ struct SessionSummaryView: View {
     @ViewBuilder
     private var vocalMetrics: some View {
         vocalMetric(
-            title: "Pitch range",
+            title: "Intonation range",
             value: summary.pitchRangeSemitones.map { String(format: "%.1f st", $0) } ?? "—",
             symbol: "waveform.path"
         )
@@ -153,6 +171,16 @@ struct SessionSummaryView: View {
             title: "Energy range",
             value: summary.energyRangeDB.map { String(format: "%.1f dB", $0) } ?? "—",
             symbol: "speaker.wave.2"
+        )
+        vocalMetric(
+            title: "Pace variation",
+            value: summary.paceStandardDeviationWPM.map { String(format: "%.0f WPM", $0) } ?? "—",
+            symbol: "metronome"
+        )
+        vocalMetric(
+            title: "Average pause",
+            value: summary.averagePauseSeconds.map { String(format: "%.1f sec", $0) } ?? "—",
+            symbol: "pause"
         )
     }
 
@@ -277,7 +305,13 @@ struct SessionSummaryView: View {
                             symbol: "sparkles",
                             style: .secondary,
                             disabled: model.isGeneratingInsight || summary.transcript.isEmpty,
-                            action: { confirmAI = true }
+                            action: {
+                                if model.proEntitlementStore.hasProAccess {
+                                    confirmAI = true
+                                } else {
+                                    showingProPaywall = true
+                                }
+                            }
                         )
                         if summary.transcript.isEmpty {
                             Label("A finalized transcript is required for AI coaching.", systemImage: "info.circle")

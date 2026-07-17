@@ -218,6 +218,12 @@ struct LiveSessionView: View {
                 tint: CueTheme.signal
             )
             MetricTile(
+                label: "Intonation",
+                value: intonationValue,
+                detail: "semitone range",
+                tint: CueTheme.signal
+            )
+            MetricTile(
                 label: "Cues completed",
                 value: "\(session.cueLogs.filter { $0.deliveryStatus == .completed }.count)",
                 detail: model.demoMode ? "Simulated" : (isCueReady ? "Confirmed by band" : "Analytics only"),
@@ -233,6 +239,12 @@ struct LiveSessionView: View {
             )
         }
         .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var intonationValue: String {
+        guard let snapshot = session.prosodySnapshot,
+              snapshot.voicedFrameCount >= 20 else { return "—" }
+        return String(format: "%.1f", snapshot.pitchRangeSemitones)
     }
 
     private var detailsControl: some View {
