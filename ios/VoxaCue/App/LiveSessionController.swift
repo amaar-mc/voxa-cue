@@ -537,7 +537,8 @@ final class LiveSessionController: Identifiable {
         let light = cueSessionLight(
             elapsedSeconds: metrics.elapsedSeconds,
             targetDurationSeconds: TimeInterval(configuration.targetDurationSeconds),
-            presentationState: presentationState
+            presentationState: presentationState,
+            emergencyBuzzerEnabled: configuration.emergencyBuzzerEnabled
         )
         let now = monotonicNow()
         let heartbeatDue = lastSessionLightSentAt.map { now - $0 >= 1 } ?? true
