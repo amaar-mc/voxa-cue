@@ -45,7 +45,8 @@ func normalizedHapticPreferences(
     return HapticPreferences(
         enabledCues: enabledCues,
         patternByCue: patterns,
-        intensityByCue: intensities
+        intensityByCue: intensities,
+        fillerClusterConfiguration: stored.fillerClusterConfiguration
     )
 }
 
@@ -305,7 +306,8 @@ final class AppModel {
         hapticPreferences = HapticPreferences(
             enabledCues: enabledCues,
             patternByCue: hapticPreferences.patternByCue,
-            intensityByCue: hapticPreferences.intensityByCue
+            intensityByCue: hapticPreferences.intensityByCue,
+            fillerClusterConfiguration: hapticPreferences.fillerClusterConfiguration
         )
     }
 
@@ -315,7 +317,8 @@ final class AppModel {
         hapticPreferences = HapticPreferences(
             enabledCues: hapticPreferences.enabledCues,
             patternByCue: patterns,
-            intensityByCue: hapticPreferences.intensityByCue
+            intensityByCue: hapticPreferences.intensityByCue,
+            fillerClusterConfiguration: hapticPreferences.fillerClusterConfiguration
         )
     }
 
@@ -325,7 +328,17 @@ final class AppModel {
         hapticPreferences = HapticPreferences(
             enabledCues: hapticPreferences.enabledCues,
             patternByCue: hapticPreferences.patternByCue,
-            intensityByCue: intensities
+            intensityByCue: intensities,
+            fillerClusterConfiguration: hapticPreferences.fillerClusterConfiguration
+        )
+    }
+
+    func setFillerClusterConfiguration(_ configuration: FillerClusterConfiguration) {
+        hapticPreferences = HapticPreferences(
+            enabledCues: hapticPreferences.enabledCues,
+            patternByCue: hapticPreferences.patternByCue,
+            intensityByCue: hapticPreferences.intensityByCue,
+            fillerClusterConfiguration: configuration
         )
     }
 

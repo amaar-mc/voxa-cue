@@ -5,6 +5,12 @@ import VoxaCore
 import VoxaRuntime
 @testable import VoxaCue
 
+private struct LegacyHapticPreferences: Encodable {
+    let enabledCues: Set<CueKind>
+    let patternByCue: [CueKind: HapticPattern]
+    let intensityByCue: [CueKind: CueIntensity]
+}
+
 @Test("Local deck planning preserves order and lands exactly on target time")
 func localDeckPlanTiming() {
     let slides = [
@@ -127,7 +133,7 @@ func appModelNormalizesLegacyHapticPreferences() throws {
     let suiteName = "VoxaCueTests.legacy-haptic-preferences"
     let preferences = try #require(UserDefaults(suiteName: suiteName))
     preferences.removePersistentDomain(forName: suiteName)
-    let legacy = HapticPreferences(
+    let legacy = LegacyHapticPreferences(
         enabledCues: Set(CueKind.essentialDefaults),
         patternByCue: [.tooFast: .singlePulse],
         intensityByCue: [.tooFast: .strong]
@@ -151,9 +157,81 @@ func appModelNormalizesLegacyHapticPreferences() throws {
     #expect(model.hapticPreferences.intensityByCue[.tooFast] == .strong)
     #expect(model.hapticPreferences.patternByCue[.fillerBurst] == .calmWave)
     #expect(model.hapticPreferences.intensityByCue[.time100] == .strong)
+    #expect(model.hapticPreferences.fillerClusterConfiguration == .responsiveDefault())
     let migratedData = try #require(preferences.data(forKey: "voxaCueHapticPreferencesV1"))
     let migrated = try JSONDecoder().decode(HapticPreferences.self, from: migratedData)
     #expect(migrated == model.hapticPreferences)
+}
+
+@MainActor
+@Test("App model repairs invalid filler cluster settings without replacing custom choices")
+func appModelNormalizesInvalidFillerClusterConfiguration() throws {
+    let suiteName = "VoxaCueTests.invalid-filler-cluster-configuration"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let customPreferences = HapticPreferences(
+        enabledCues: Set(CueKind.essentialDefaults),
+        patternByCue: [.tooFast: .singlePulse],
+        intensityByCue: [.tooFast: .strong],
+        fillerClusterConfiguration: FillerClusterConfiguration(requiredFillerCount: 4, windowSeconds: 15)
+    )
+    let encoded = try JSONEncoder().encode(customPreferences)
+    var payload = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    payload["fillerClusterConfiguration"] = [
+        "requiredFillerCount": 99,
+        "windowSeconds": 3,
+    ]
+    preferences.set(
+        try JSONSerialization.data(withJSONObject: payload),
+        forKey: "voxaCueHapticPreferencesV1"
+    )
+
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    #expect(model.hapticPreferences.enabledCues == customPreferences.enabledCues)
+    #expect(model.hapticPreferences.patternByCue[.tooFast] == .singlePulse)
+    #expect(model.hapticPreferences.intensityByCue[.tooFast] == .strong)
+    #expect(model.hapticPreferences.fillerClusterConfiguration == .responsiveDefault())
+}
+
+@MainActor
+@Test("Filler cluster settings persist with haptic preferences")
+func appModelPersistsFillerClusterConfiguration() throws {
+    let suiteName = "VoxaCueTests.filler-cluster-configuration"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    let customConfiguration = FillerClusterConfiguration(requiredFillerCount: 4, windowSeconds: 15)
+    model.setFillerClusterConfiguration(customConfiguration)
+
+    let storedData = try #require(preferences.data(forKey: "voxaCueHapticPreferencesV1"))
+    let stored = try JSONDecoder().decode(HapticPreferences.self, from: storedData)
+    #expect(stored.fillerClusterConfiguration == customConfiguration)
+
+    let reloadedModel = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    #expect(reloadedModel.hapticPreferences.fillerClusterConfiguration == customConfiguration)
 }
 
 @MainActor
