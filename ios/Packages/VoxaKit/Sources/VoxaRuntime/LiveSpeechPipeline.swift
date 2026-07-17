@@ -3,6 +3,7 @@ import CoreMedia
 import Foundation
 import Speech
 import Synchronization
+import VoxaCore
 
 public enum LiveSpeechPipelineError: Error, Equatable {
     case permissionDenied
@@ -63,8 +64,12 @@ func makeLiveAudioConverter(
 public enum LiveSpeechEvent: Sendable {
     case volatileTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
     case finalizedTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
-    case voiceActivity(isSpeech: Bool, durationSeconds: TimeInterval)
-    case vocalSample(energyDBFS: Double, pitchHertz: Double?)
+    case voiceActivity(
+        isSpeech: Bool,
+        startSeconds: TimeInterval,
+        endSeconds: TimeInterval
+    )
+    case prosodySnapshot(ProsodySnapshot)
     case failure(message: String)
 }
 
@@ -81,7 +86,6 @@ public final class LiveSpeechPipeline {
     private var analyzerTask: Task<Void, Never>?
     private var bufferTask: Task<Void, Never>?
     private var transcriptionTask: Task<Void, Never>?
-    private var detectionTask: Task<Void, Never>?
     private var interruptionTask: Task<Void, Never>?
     private var routeChangeTask: Task<Void, Never>?
     private var eventHandler: EventHandler?
@@ -96,7 +100,6 @@ public final class LiveSpeechPipeline {
         analyzerTask?.cancel()
         bufferTask?.cancel()
         transcriptionTask?.cancel()
-        detectionTask?.cancel()
         interruptionTask?.cancel()
         routeChangeTask?.cancel()
     }
@@ -125,7 +128,7 @@ public final class LiveSpeechPipeline {
         let transcriber = SpeechTranscriber(locale: locale, preset: .timeIndexedProgressiveTranscription)
         let detector = SpeechDetector(
             detectionOptions: SpeechDetector.DetectionOptions(sensitivityLevel: .medium),
-            reportResults: true
+            reportResults: false
         )
         let modules: [any SpeechModule] = [transcriber, detector]
         let status = await AssetInventory.status(forModules: modules)
@@ -176,6 +179,21 @@ public final class LiveSpeechPipeline {
             if naturalFormat != analyzerFormat, conversionContext.converter == nil {
                 throw LiveSpeechPipelineError.conversionFailed
             }
+            guard let prosodyFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: ProsodyConfiguration.voxaV1().pitch.sampleRate,
+                channels: 1,
+                interleaved: false
+            ) else {
+                throw LiveSpeechPipelineError.noCompatibleAudioFormat
+            }
+            let prosodyConversionContext = AudioConversionContext(
+                converter: makeLiveAudioConverter(from: naturalFormat, to: prosodyFormat),
+                outputFormat: prosodyFormat
+            )
+            if naturalFormat != prosodyFormat, prosodyConversionContext.converter == nil {
+                throw LiveSpeechPipelineError.conversionFailed
+            }
 
             let inputPair = AsyncStream<AnalyzerInput>.makeStream(bufferingPolicy: .bufferingNewest(64))
             inputContinuation = inputPair.continuation
@@ -209,25 +227,12 @@ public final class LiveSpeechPipeline {
                 }
             }
 
-            detectionTask = Task { [weak self] in
-                do {
-                    for try await result in detector.results where result.isFinal {
-                        self?.eventHandler?(
-                            .voiceActivity(isSpeech: result.speechDetected, durationSeconds: result.range.duration.seconds)
-                        )
-                    }
-                } catch where !Task.isCancelled {
-                    self?.eventHandler?(.failure(message: error.localizedDescription))
-                } catch {
-                    return
-                }
-            }
-
             let bufferPair = AsyncStream<SendableAudioBuffer>.makeStream(bufferingPolicy: .bufferingNewest(32))
             bufferContinuation = bufferPair.continuation
             let captureGate = self.captureGate
             bufferTask = Task.detached {
-                var vocalSampleCounter = 0
+                var prosodyAnalyzer = ProsodyStreamAnalyzer(configuration: .voxaV1())
+                var voiceActivityAnalyzer = VoiceActivityStreamAnalyzer(configuration: .voxaV1())
                 for await item in bufferPair.stream {
                     guard captureGate.isActive(generation: item.captureGeneration) else { continue }
                     do {
@@ -237,11 +242,27 @@ public final class LiveSpeechPipeline {
                             outputFormat: conversionContext.outputFormat
                         )
                         guard captureGate.isActive(generation: item.captureGeneration) else { continue }
-                        guard let inputPlan = contiguousAnalyzerInputPlan(buffer: converted) else { continue }
-                        inputPair.continuation.yield(inputPlan.makeInput())
-                        vocalSampleCounter += 1
-                        if vocalSampleCounter.isMultiple(of: 5), let sample = analyzeVocalBuffer(item.buffer) {
-                            await eventHandler(.vocalSample(energyDBFS: sample.energyDBFS, pitchHertz: sample.pitchHertz))
+                        if let inputPlan = contiguousAnalyzerInputPlan(buffer: converted) {
+                            inputPair.continuation.yield(inputPlan.makeInput())
+                        }
+                        let prosodyBuffer = try convert(
+                            input: item.buffer,
+                            converter: prosodyConversionContext.converter,
+                            outputFormat: prosodyConversionContext.outputFormat
+                        )
+                        if let samples = monoFloatSamples(prosodyBuffer) {
+                            for frame in voiceActivityAnalyzer.consume(samples: samples) {
+                                await eventHandler(
+                                    .voiceActivity(
+                                        isSpeech: frame.isSpeech,
+                                        startSeconds: frame.startSeconds,
+                                        endSeconds: frame.endSeconds
+                                    )
+                                )
+                            }
+                            for snapshot in prosodyAnalyzer.consume(samples: samples) {
+                                await eventHandler(.prosodySnapshot(snapshot))
+                            }
                         }
                     } catch {
                         await eventHandler(.failure(message: error.localizedDescription))
@@ -318,7 +339,6 @@ public final class LiveSpeechPipeline {
         }
         await analyzerTask?.value
         await transcriptionTask?.value
-        await detectionTask?.value
         clearRuntimeState()
         deactivateAudioSession()
     }
@@ -339,7 +359,6 @@ public final class LiveSpeechPipeline {
         analyzerTask?.cancel()
         bufferTask?.cancel()
         transcriptionTask?.cancel()
-        detectionTask?.cancel()
         if let analyzer {
             await analyzer.cancelAndFinishNow()
         }
@@ -353,7 +372,6 @@ public final class LiveSpeechPipeline {
         analyzerTask = nil
         bufferTask = nil
         transcriptionTask = nil
-        detectionTask = nil
         interruptionTask = nil
         routeChangeTask = nil
         self.analyzer = nil
@@ -495,11 +513,6 @@ private final class AudioCaptureGate: Sendable {
     }
 }
 
-private struct VocalSample {
-    let energyDBFS: Double
-    let pitchHertz: Double?
-}
-
 private func copiedBuffer(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     guard let copy = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: source.frameLength) else { return nil }
     copy.frameLength = source.frameLength
@@ -542,43 +555,9 @@ private func convert(
     return output
 }
 
-private func analyzeVocalBuffer(_ buffer: AVAudioPCMBuffer) -> VocalSample? {
+private func monoFloatSamples(_ buffer: AVAudioPCMBuffer) -> [Float]? {
     guard let channel = buffer.floatChannelData?[0] else { return nil }
     let count = Int(buffer.frameLength)
     guard count > 0 else { return nil }
-    var sumSquares = 0.0
-    for index in 0..<count {
-        let value = Double(channel[index])
-        sumSquares += value * value
-    }
-    let rms = sqrt(sumSquares / Double(count))
-    let energyDBFS = 20 * log10(max(rms, 0.000_001))
-    let pitch = estimatedPitch(channel: channel, count: count, sampleRate: buffer.format.sampleRate)
-    return VocalSample(energyDBFS: energyDBFS, pitchHertz: pitch)
-}
-
-private func estimatedPitch(channel: UnsafeMutablePointer<Float>, count: Int, sampleRate: Double) -> Double? {
-    guard count >= 512, sampleRate > 0 else { return nil }
-    let minimumLag = max(1, Int(sampleRate / 300))
-    let maximumLag = min(count / 2, Int(sampleRate / 80))
-    guard minimumLag < maximumLag else { return nil }
-    var bestLag = 0
-    var bestCorrelation = 0.0
-    for lag in stride(from: minimumLag, through: maximumLag, by: 2) {
-        var correlation = 0.0
-        var energy = 0.0
-        for index in 0..<(count - lag) {
-            let first = Double(channel[index])
-            let second = Double(channel[index + lag])
-            correlation += first * second
-            energy += first * first
-        }
-        let normalized = energy > 0 ? correlation / energy : 0
-        if normalized > bestCorrelation {
-            bestCorrelation = normalized
-            bestLag = lag
-        }
-    }
-    guard bestLag > 0, bestCorrelation >= 0.35 else { return nil }
-    return sampleRate / Double(bestLag)
+    return Array(UnsafeBufferPointer(start: channel, count: count))
 }
