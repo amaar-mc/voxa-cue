@@ -25,6 +25,7 @@ public final class CueBandClient: NSObject {
     private var peripheral: CBPeripheral?
     private var commandCharacteristic: CBCharacteristic?
     private var statusCharacteristic: CBCharacteristic?
+    private var sessionLightCharacteristic: CBCharacteristic?
     private var firmwareVersion: (major: UInt8, minor: UInt8)?
     private var shouldReconnect = false
     private var failedPeripheralID: UUID?
@@ -81,6 +82,18 @@ public final class CueBandClient: NSObject {
         peripheral.writeValue(data, for: commandCharacteristic, type: .withResponse)
     }
 
+    public func send(sessionLight: CueSessionLight) throws {
+        guard let peripheral,
+              peripheral.state == .connected else {
+            throw CueBLEError.notConnected
+        }
+        guard let sessionLightCharacteristic else {
+            throw CueBLEError.sessionLightUnavailable
+        }
+        let data = try CueBLE.encode(sessionLight: sessionLight)
+        peripheral.writeValue(data, for: sessionLightCharacteristic, type: .withResponse)
+    }
+
     private func beginScan() {
         guard let central else { return }
         guard central.state == .poweredOn else {
@@ -99,6 +112,7 @@ public final class CueBandClient: NSObject {
         peripheral = nil
         commandCharacteristic = nil
         statusCharacteristic = nil
+        sessionLightCharacteristic = nil
         firmwareVersion = nil
     }
 
@@ -194,7 +208,10 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
             failConnection("Cue service is unavailable")
             return
         }
-        peripheral.discoverCharacteristics([CueBLE.commandUUID, CueBLE.statusUUID], for: service)
+        peripheral.discoverCharacteristics(
+            [CueBLE.commandUUID, CueBLE.statusUUID, CueBLE.sessionLightUUID],
+            for: service
+        )
     }
 
     public func peripheral(
@@ -208,6 +225,9 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
         }
         commandCharacteristic = service.characteristics?.first(where: { $0.uuid == CueBLE.commandUUID })
         statusCharacteristic = service.characteristics?.first(where: { $0.uuid == CueBLE.statusUUID })
+        sessionLightCharacteristic = service.characteristics?.first(where: {
+            $0.uuid == CueBLE.sessionLightUUID && $0.properties.contains(.write)
+        })
         guard let commandCharacteristic,
               commandCharacteristic.properties.contains(.write),
               let statusCharacteristic,
@@ -268,6 +288,11 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
         didWriteValueFor characteristic: CBCharacteristic,
         error: (any Error)?
     ) {
-        if let error { failConnection(error.localizedDescription) }
+        guard let error else { return }
+        if characteristic.uuid == CueBLE.sessionLightUUID {
+            sessionLightCharacteristic = nil
+            return
+        }
+        failConnection(error.localizedDescription)
     }
 }
