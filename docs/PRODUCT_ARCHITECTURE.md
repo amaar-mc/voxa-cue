@@ -75,7 +75,7 @@ cue but are never persisted or included in the final summary.
 filler-burst, 50%, and 100% cues are enabled by default; too-slow, 75%, and 90%
 are opt-in. Filler-cluster configuration is snapshotted into the session
 profile. It defaults to two detected fillers inside five seconds; the app lets
-the presenter require two to six fillers and choose a five- to 30-second
+the presenter require one to six fillers and choose a five- to 30-second
 lookback window. A 30-second per-rule cooldown prevents per-word buzzing.
 Persistence, transcript freshness, three-second pace evaluation cadence, 5 WPM hysteresis,
 global cooldown, enablement, intensity, pattern mapping, and priority suppress

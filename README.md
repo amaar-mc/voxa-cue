@@ -76,7 +76,7 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 Slow down, filler cluster, halfway, and target reached are enabled by default. The
 other cues are opt-in under Advanced. Every cue can use any pulse preset and a
 soft, medium, or strong intensity. Filler clusters default to two detected
-fillers within five seconds. The presenter can require two to six fillers and
+fillers within five seconds. The presenter can require one to six fillers and
 choose a five- to 30-second lookback window. A 30-second filler reset,
 persistence thresholds, and cue priority prevent noisy or conflicting feedback.
 
