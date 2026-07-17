@@ -29,6 +29,10 @@ func insightRequestPreservesExplicitNullFields() async throws {
         fillerCount: 4,
         fillersPerSpeakingMinute: 1.74,
         talkRatio: 0.783,
+        paceStandardDeviationWPM: nil,
+        pauseCount: nil,
+        averagePauseSeconds: nil,
+        longestPauseSeconds: nil,
         pitchRangeSemitones: nil,
         energyRangeDB: nil,
         cueCount: 0,
@@ -71,6 +75,10 @@ func insightRequestPreservesExplicitNullFields() async throws {
     let metrics = try #require(json["metrics"] as? [String: Any])
     #expect(metrics["pitchRangeSemitones"] is NSNull)
     #expect(metrics["energyRangeDb"] is NSNull)
+    #expect(metrics["paceStandardDeviationWpm"] is NSNull)
+    #expect(metrics["pauseCount"] is NSNull)
+    #expect(metrics["averagePauseSeconds"] is NSNull)
+    #expect(metrics["longestPauseSeconds"] is NSNull)
     let encodedCheckpoints = try #require(json["checkpoints"] as? [[String: Any]])
     let checkpoint = try #require(encodedCheckpoints.first)
     #expect(checkpoint["observedCumulativeSeconds"] is NSNull)
@@ -106,6 +114,10 @@ func insightRequestBoundsShortSessionRates() async throws {
         fillerCount: 10,
         fillersPerSpeakingMinute: 600,
         talkRatio: 1,
+        paceStandardDeviationWPM: nil,
+        pauseCount: nil,
+        averagePauseSeconds: nil,
+        longestPauseSeconds: nil,
         pitchRangeSemitones: nil,
         energyRangeDB: nil,
         cueCount: 0,
@@ -121,6 +133,8 @@ func insightRequestBoundsShortSessionRates() async throws {
     let metrics = try #require(json["metrics"] as? [String: Any])
     #expect(metrics["averageWpm"] as? Double == 400)
     #expect(metrics["fillersPerMinute"] as? Double == 100)
+    #expect(metrics["paceStandardDeviationWpm"] is NSNull)
+    #expect(metrics["pauseCount"] is NSNull)
     #expect(metrics["completedOnTime"] as? Bool == false)
 }
 
@@ -148,6 +162,10 @@ func insightRequestReportsLateGraceRangeAsNotCompletedOnTime() async throws {
         fillerCount: 3,
         fillersPerSpeakingMinute: 0.72,
         talkRatio: 0.79,
+        paceStandardDeviationWPM: 10,
+        pauseCount: 4,
+        averagePauseSeconds: 0.8,
+        longestPauseSeconds: 1.4,
         pitchRangeSemitones: 7,
         energyRangeDB: 11,
         cueCount: 1,
@@ -162,6 +180,10 @@ func insightRequestReportsLateGraceRangeAsNotCompletedOnTime() async throws {
     let json = try #require(JSONSerialization.jsonObject(with: capturedRequest.body) as? [String: Any])
     let metrics = try #require(json["metrics"] as? [String: Any])
     #expect(summary.timingOutcome == .onTarget)
+    #expect(metrics["paceStandardDeviationWpm"] as? Double == 10)
+    #expect(metrics["pauseCount"] as? Int == 4)
+    #expect(metrics["averagePauseSeconds"] as? Double == 0.8)
+    #expect(metrics["longestPauseSeconds"] as? Double == 1.4)
     #expect(metrics["completedOnTime"] as? Bool == false)
 }
 

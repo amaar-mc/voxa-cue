@@ -109,6 +109,22 @@ public actor VoxaAPIClient {
                     upperBound: 100
                 ),
                 talkRatio: summary.talkRatio,
+                paceStandardDeviationWpm: boundedOptionalMetric(
+                    summary.paceStandardDeviationWPM,
+                    lowerBound: 0,
+                    upperBound: 200
+                ),
+                pauseCount: summary.pauseCount.map { min(max($0, 0), 10_000) },
+                averagePauseSeconds: boundedOptionalMetric(
+                    summary.averagePauseSeconds,
+                    lowerBound: 0,
+                    upperBound: 600
+                ),
+                longestPauseSeconds: boundedOptionalMetric(
+                    summary.longestPauseSeconds,
+                    lowerBound: 0,
+                    upperBound: 7_200
+                ),
                 pitchRangeSemitones: summary.pitchRangeSemitones,
                 energyRangeDb: summary.energyRangeDB,
                 completedOnTime: summary.timingOutcome == .onTarget
@@ -265,6 +281,14 @@ private func boundedMetric(_ value: Double, lowerBound: Double, upperBound: Doub
     min(max(value, lowerBound), upperBound)
 }
 
+private func boundedOptionalMetric(
+    _ value: Double?,
+    lowerBound: Double,
+    upperBound: Double
+) -> Double? {
+    value.map { boundedMetric($0, lowerBound: lowerBound, upperBound: upperBound) }
+}
+
 private struct DeckPlanRequest: Encodable {
     let schemaVersion: Int
     let locale: String
@@ -305,6 +329,10 @@ private struct InsightMetrics: Encodable {
     let fillerCount: Int
     let fillersPerMinute: Double
     let talkRatio: Double
+    let paceStandardDeviationWpm: Double?
+    let pauseCount: Int?
+    let averagePauseSeconds: Double?
+    let longestPauseSeconds: Double?
     let pitchRangeSemitones: Double?
     let energyRangeDb: Double?
     let completedOnTime: Bool
@@ -317,6 +345,10 @@ private struct InsightMetrics: Encodable {
         case fillerCount
         case fillersPerMinute
         case talkRatio
+        case paceStandardDeviationWpm
+        case pauseCount
+        case averagePauseSeconds
+        case longestPauseSeconds
         case pitchRangeSemitones
         case energyRangeDb
         case completedOnTime
@@ -331,6 +363,10 @@ private struct InsightMetrics: Encodable {
         try container.encode(fillerCount, forKey: .fillerCount)
         try container.encode(fillersPerMinute, forKey: .fillersPerMinute)
         try container.encode(talkRatio, forKey: .talkRatio)
+        try container.encode(paceStandardDeviationWpm, forKey: .paceStandardDeviationWpm)
+        try container.encode(pauseCount, forKey: .pauseCount)
+        try container.encode(averagePauseSeconds, forKey: .averagePauseSeconds)
+        try container.encode(longestPauseSeconds, forKey: .longestPauseSeconds)
         if let pitchRangeSemitones {
             try container.encode(pitchRangeSemitones, forKey: .pitchRangeSemitones)
         } else {
