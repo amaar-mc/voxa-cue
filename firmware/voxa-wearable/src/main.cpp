@@ -12,10 +12,17 @@
 #include "voxa_ble_transport.hpp"
 #include "voxa_patterns.hpp"
 #include "voxa_protocol.hpp"
+#include "voxa_session_light.hpp"
 
 namespace {
 
 constexpr std::uint32_t kDriverProbeIntervalMilliseconds = 250U;
+constexpr std::uint8_t kSessionLightRedPin = 6U;
+constexpr std::uint8_t kSessionLightBluePin = 7U;
+constexpr std::uint8_t kSessionLightGreenPin = 8U;
+constexpr std::uint8_t kSessionLightPwmSteps = 32U;
+constexpr std::uint32_t kSessionLightPwmStepMicroseconds = 250U;
+constexpr std::uint32_t kSessionLightHeartbeatTimeoutMilliseconds = 5000U;
 
 #if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
 constexpr std::uint8_t kDiagnosticControlPin = 2U;
@@ -37,6 +44,15 @@ struct PlaybackState {
   std::uint32_t lastDriverProbeMilliseconds;
 };
 
+struct SessionLightState {
+  voxa::SessionLightCommand command;
+  bool hasCommand;
+  std::uint32_t modeStartedMilliseconds;
+  std::uint32_t lastHeartbeatMilliseconds;
+  std::uint32_t nextPwmStepMicroseconds;
+  std::uint8_t pwmPhase;
+};
+
 enum class PlaybackUpdate : std::uint8_t {
   kNone = 0U,
   kCompleted = 1U,
@@ -47,6 +63,7 @@ enum class PlaybackUpdate : std::uint8_t {
 Adafruit_DRV2605 hapticDriver;
 #endif
 PlaybackState playback{};
+SessionLightState sessionLight{};
 voxa::SequenceTracker sequenceTracker{};
 bool driverReady = false;
 
@@ -54,6 +71,86 @@ bool timeReached(std::uint32_t nowMilliseconds,
                  std::uint32_t deadlineMilliseconds) {
   return static_cast<std::int32_t>(nowMilliseconds - deadlineMilliseconds) >=
          0;
+}
+
+void writeSessionLightPin(std::uint8_t pin, bool enabled) {
+#if defined(VOXA_RGB_COMMON_ANODE)
+  digitalWrite(pin, enabled ? LOW : HIGH);
+#else
+  digitalWrite(pin, enabled ? HIGH : LOW);
+#endif
+}
+
+void initializeSessionLight() {
+  pinMode(kSessionLightRedPin, OUTPUT);
+  pinMode(kSessionLightBluePin, OUTPUT);
+  pinMode(kSessionLightGreenPin, OUTPUT);
+  writeSessionLightPin(kSessionLightRedPin, false);
+  writeSessionLightPin(kSessionLightBluePin, false);
+  writeSessionLightPin(kSessionLightGreenPin, false);
+  sessionLight.command = voxa::SessionLightCommand{
+      voxa::kProtocolVersion, voxa::SessionLightMode::kOff, 0U};
+  sessionLight.nextPwmStepMicroseconds = micros();
+}
+
+std::uint8_t pwmDutySteps(std::uint8_t channel) {
+  return static_cast<std::uint8_t>(
+      (static_cast<std::uint16_t>(channel) * kSessionLightPwmSteps + 127U) /
+      255U);
+}
+
+voxa::RgbColor currentSessionLightColor(std::uint32_t nowMilliseconds) {
+  if (!sessionLight.hasCommand ||
+      !voxa::ble_transport::isCentralConnected() ||
+      nowMilliseconds - sessionLight.lastHeartbeatMilliseconds >
+          kSessionLightHeartbeatTimeoutMilliseconds) {
+    return voxa::RgbColor{0U, 0U, 0U};
+  }
+  return voxa::resolvedSessionColor(
+      sessionLight.command,
+      nowMilliseconds - sessionLight.modeStartedMilliseconds);
+}
+
+void updateSessionLightOutput(std::uint32_t nowMilliseconds,
+                              std::uint32_t nowMicroseconds) {
+  if (!timeReached(nowMicroseconds,
+                   sessionLight.nextPwmStepMicroseconds)) {
+    return;
+  }
+
+  const std::uint32_t overdueMicroseconds =
+      nowMicroseconds - sessionLight.nextPwmStepMicroseconds;
+  const std::uint32_t elapsedSteps =
+      overdueMicroseconds / kSessionLightPwmStepMicroseconds + 1U;
+  sessionLight.nextPwmStepMicroseconds +=
+      elapsedSteps * kSessionLightPwmStepMicroseconds;
+  sessionLight.pwmPhase = static_cast<std::uint8_t>(
+      (sessionLight.pwmPhase + elapsedSteps) % kSessionLightPwmSteps);
+
+  const voxa::RgbColor color = currentSessionLightColor(nowMilliseconds);
+  writeSessionLightPin(kSessionLightRedPin,
+                       sessionLight.pwmPhase < pwmDutySteps(color.red));
+  writeSessionLightPin(kSessionLightBluePin,
+                       sessionLight.pwmPhase < pwmDutySteps(color.blue));
+  writeSessionLightPin(kSessionLightGreenPin,
+                       sessionLight.pwmPhase < pwmDutySteps(color.green));
+}
+
+void handleSessionLightFrame(
+    const voxa::ble_transport::ReceivedSessionLightFrame& frame,
+    std::uint32_t nowMilliseconds) {
+  const voxa::ParseSessionLightResult parsed =
+      voxa::parseSessionLight(frame.bytes, frame.reportedLength);
+  if (!parsed.valid) {
+    return;
+  }
+  if (!sessionLight.hasCommand ||
+      sessionLight.command.mode != parsed.command.mode) {
+    sessionLight.modeStartedMilliseconds = nowMilliseconds;
+  }
+  sessionLight.command = parsed.command;
+  sessionLight.hasCommand = true;
+  sessionLight.lastHeartbeatMilliseconds = nowMilliseconds;
 }
 
 bool driverPresent() {
@@ -254,6 +351,7 @@ void handleCommandFrame(const voxa::ble_transport::ReceivedCommandFrame& frame,
 void setup() {
   Serial.begin(115200);
   voxa::clearSequenceTracker(&sequenceTracker);
+  initializeSessionLight();
   driverReady = initializeHapticDriver();
   const bool bluetoothReady = voxa::ble_transport::initialize();
   if (bluetoothReady) {
@@ -267,7 +365,7 @@ void setup() {
 #if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
     Serial.println("Voxa Cue D2 PWM diagnostic ready");
 #else
-    Serial.println("Voxa Cue firmware 1.1 ready");
+    Serial.println("Voxa Cue firmware 1.2 ready");
 #endif
   } else {
     Serial.println("DRV2605L not detected; haptic commands will be rejected");
@@ -283,6 +381,11 @@ void loop() {
     handleCommandFrame(frame, nowMilliseconds);
   }
 
+  voxa::ble_transport::ReceivedSessionLightFrame sessionLightFrame{};
+  if (voxa::ble_transport::dequeueSessionLight(&sessionLightFrame)) {
+    handleSessionLightFrame(sessionLightFrame, nowMilliseconds);
+  }
+
   const PlaybackUpdate update = updatePlayback(nowMilliseconds);
   if (update == PlaybackUpdate::kCompleted) {
     voxa::recordCompletedSequence(&sequenceTracker,
@@ -294,5 +397,6 @@ void loop() {
                   voxa::ErrorCode::kDriverFault);
   }
 
-  delay(1U);
+  updateSessionLightOutput(nowMilliseconds, micros());
+  delayMicroseconds(100U);
 }
