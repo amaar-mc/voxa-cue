@@ -37,6 +37,29 @@ func liveAudioTapBufferSize(sampleRate: Double) throws -> AVAudioFrameCount {
     return AVAudioFrameCount(frameCount)
 }
 
+struct ContiguousAnalyzerInputPlan {
+    let buffer: AVAudioPCMBuffer
+    let bufferStartTime: CMTime? = nil
+
+    func makeInput() -> AnalyzerInput {
+        AnalyzerInput(buffer: buffer, bufferStartTime: bufferStartTime)
+    }
+}
+
+func contiguousAnalyzerInputPlan(buffer: AVAudioPCMBuffer) -> ContiguousAnalyzerInputPlan? {
+    guard buffer.frameLength > 0 else { return nil }
+    return ContiguousAnalyzerInputPlan(buffer: buffer)
+}
+
+func makeLiveAudioConverter(
+    from inputFormat: AVAudioFormat,
+    to outputFormat: AVAudioFormat
+) -> AVAudioConverter? {
+    guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return nil }
+    converter.primeMethod = .none
+    return converter
+}
+
 public enum LiveSpeechEvent: Sendable {
     case volatileTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
     case finalizedTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
@@ -147,7 +170,7 @@ public final class LiveSpeechPipeline {
                 throw LiveSpeechPipelineError.invalidInputFormat
             }
             let conversionContext = AudioConversionContext(
-                converter: AVAudioConverter(from: naturalFormat, to: analyzerFormat),
+                converter: makeLiveAudioConverter(from: naturalFormat, to: analyzerFormat),
                 outputFormat: analyzerFormat
             )
             if naturalFormat != analyzerFormat, conversionContext.converter == nil {
@@ -204,7 +227,6 @@ public final class LiveSpeechPipeline {
             bufferContinuation = bufferPair.continuation
             let captureGate = self.captureGate
             bufferTask = Task.detached {
-                var timeline = ContiguousAudioTimeline()
                 var vocalSampleCounter = 0
                 for await item in bufferPair.stream {
                     guard captureGate.isActive(generation: item.captureGeneration) else { continue }
@@ -215,12 +237,8 @@ public final class LiveSpeechPipeline {
                             outputFormat: conversionContext.outputFormat
                         )
                         guard captureGate.isActive(generation: item.captureGeneration) else { continue }
-                        let startSeconds = timeline.consume(
-                            frameCount: Int(converted.frameLength),
-                            sampleRate: converted.format.sampleRate
-                        )
-                        let startTime = CMTime(seconds: startSeconds, preferredTimescale: 48_000)
-                        inputPair.continuation.yield(AnalyzerInput(buffer: converted, bufferStartTime: startTime))
+                        guard let inputPlan = contiguousAnalyzerInputPlan(buffer: converted) else { continue }
+                        inputPair.continuation.yield(inputPlan.makeInput())
                         vocalSampleCounter += 1
                         if vocalSampleCounter.isMultiple(of: 5), let sample = analyzeVocalBuffer(item.buffer) {
                             await eventHandler(.vocalSample(energyDBFS: sample.energyDBFS, pitchHertz: sample.pitchHertz))
@@ -503,7 +521,8 @@ private func convert(
     if input.format == outputFormat { return input }
     guard let converter else { throw LiveSpeechPipelineError.conversionFailed }
     let ratio = outputFormat.sampleRate / input.format.sampleRate
-    let capacity = AVAudioFrameCount(ceil(Double(input.frameLength) * ratio)) + 1
+    let capacity = AVAudioFrameCount(ceil(Double(input.frameLength) * ratio))
+    guard capacity > 0 else { throw LiveSpeechPipelineError.conversionFailed }
     guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
         throw LiveSpeechPipelineError.bufferAllocationFailed
     }
