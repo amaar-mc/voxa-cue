@@ -258,9 +258,19 @@ final class LiveSessionController: Identifiable {
 
     func handleBandStatus(_ status: CueBandStatus) {
         guard let index = cueLogs.firstIndex(where: { $0.sequence == status.sequence }) else { return }
-        guard cueLogs[index].deliveryStatus == .pending || cueLogs[index].deliveryStatus == .accepted else { return }
-        switch status.state {
+        let phase: CueBandAcknowledgementPhase
+        switch cueLogs[index].deliveryStatus {
+        case .pending:
+            phase = .awaitingAcceptance
         case .accepted:
+            phase = .awaitingCompletion
+        case .completed, .failed, .notConnected, .suppressed:
+            return
+        }
+        switch advanceCueBandAcknowledgement(phase, with: status) {
+        case .awaitingAcceptance:
+            break
+        case .awaitingCompletion:
             if cueLogs[index].deliveryStatus == .pending {
                 cueLogs[index].deliveryStatus = .accepted
                 cueLogs[index].acceptedAtMonotonicSeconds = monotonicNow()
@@ -269,20 +279,29 @@ final class LiveSessionController: Identifiable {
         case .completed:
             cueLogs[index].deliveryStatus = .completed
             latestBandFailure = nil
-        case .rejected:
+        case let .failed(failure):
             cueLogs[index].deliveryStatus = .failed
-            switch status.error {
-            case .none:
-                latestBandFailure = "Cue rejected"
-            case .invalidVersion:
-                latestBandFailure = "Firmware mismatch"
-            case .invalidCommand:
-                latestBandFailure = "Cue command rejected"
-            case .driverFault:
-                latestBandFailure = "Haptic driver fault"
+            switch failure {
+            case .completionBeforeAcceptance:
+                latestBandFailure = "Cue completion arrived before acceptance."
+            case let .rejected(error), let .statusError(error):
+                latestBandFailure = bandFailureMessage(for: error)
             }
         }
         scheduleCueDeadlineCheck()
+    }
+
+    private func bandFailureMessage(for error: CueBandCommandError) -> String {
+        switch error {
+        case .none:
+            "Cue rejected"
+        case .invalidVersion:
+            "Firmware mismatch"
+        case .invalidCommand:
+            "Cue command rejected"
+        case .driverFault:
+            "Haptic driver fault"
+        }
     }
 
     func expireCueDeliveryDeadlines(atMonotonicSeconds now: TimeInterval) {
