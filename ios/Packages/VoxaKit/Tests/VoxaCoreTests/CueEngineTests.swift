@@ -15,7 +15,71 @@ func mvpProfileContainsOnlyPhoneFirstCues() {
     #expect(profile.patternByCue[.time50] == .tripleTap)
     #expect(profile.patternByCue[.time100] == .deadlineHold)
     #expect(profile.intensityByCue[.time100] == .strong)
+    #expect(profile.fillerClusterConfiguration == .responsiveDefault())
     #expect(!profile.enabledCues.contains(.deckBehind))
+}
+
+@Test("Filler count and lookback window control clusters without changing the cooldown")
+func fillerClusterConfigurationControlsThreshold() {
+    let configurations = [
+        FillerClusterConfiguration(requiredFillerCount: 2, windowSeconds: 5),
+        FillerClusterConfiguration(requiredFillerCount: 3, windowSeconds: 10),
+        FillerClusterConfiguration(requiredFillerCount: 5, windowSeconds: 20),
+    ]
+
+    for clusterConfiguration in configurations {
+        let requiredCount = clusterConfiguration.requiredFillerCount
+        let belowThreshold = evaluateCue(
+            input: makeFillerInput(
+                clusterConfiguration: clusterConfiguration,
+                elapsed: 30,
+                fillerOffsets: Array(0..<(requiredCount - 1)).map { 30 - Double($0) }
+            ),
+            state: .initial(),
+            configuration: configuration
+        )
+        let atThreshold = evaluateCue(
+            input: makeFillerInput(
+                clusterConfiguration: clusterConfiguration,
+                elapsed: 30,
+                fillerOffsets: Array(0..<requiredCount).map { 30 - Double($0) }
+            ),
+            state: .initial(),
+            configuration: configuration
+        )
+
+        #expect(belowThreshold.decision == nil)
+        #expect(atThreshold.decision?.kind == .fillerBurst)
+    }
+
+    let responsive = FillerClusterConfiguration.responsiveDefault()
+    let firstCue = evaluateCue(
+        input: makeFillerInput(clusterConfiguration: responsive, elapsed: 30, fillerOffsets: [28, 29]),
+        state: .initial(),
+        configuration: configuration
+    )
+    let duringCooldown = evaluateCue(
+        input: makeFillerInput(clusterConfiguration: responsive, elapsed: 40, fillerOffsets: [39, 40]),
+        state: firstCue.state,
+        configuration: configuration
+    )
+
+    #expect(firstCue.decision?.kind == .fillerBurst)
+    #expect(duringCooldown.decision == nil)
+
+    let exactWindowBoundary = evaluateCue(
+        input: makeFillerInput(clusterConfiguration: responsive, elapsed: 30, fillerOffsets: [25, 29]),
+        state: .initial(),
+        configuration: configuration
+    )
+    let justInsideWindow = evaluateCue(
+        input: makeFillerInput(clusterConfiguration: responsive, elapsed: 30, fillerOffsets: [25.001, 29]),
+        state: .initial(),
+        configuration: configuration
+    )
+
+    #expect(exactWindowBoundary.decision == nil)
+    #expect(justInsideWindow.decision?.kind == .fillerBurst)
 }
 
 @Test("Time milestone outranks filler and pace candidates")
@@ -391,6 +455,43 @@ private func makeInput(
         targetDurationSeconds: target,
         recentFillerOffsets: fillers,
         deckProgress: deck,
+        profile: profile,
+        isPaused: false
+    )
+}
+
+private func makeFillerInput(
+    clusterConfiguration: FillerClusterConfiguration,
+    elapsed: TimeInterval,
+    fillerOffsets: [TimeInterval]
+) -> CueEvaluationInput {
+    let baseProfile = CoachingProfile.rehearsalV1()
+    let profile = CoachingProfile(
+        minimumWPM: baseProfile.minimumWPM,
+        maximumWPM: baseProfile.maximumWPM,
+        enabledCues: baseProfile.enabledCues,
+        patternByCue: baseProfile.patternByCue,
+        intensityByCue: baseProfile.intensityByCue,
+        fillerClusterConfiguration: clusterConfiguration,
+        highConfidenceFillers: baseProfile.highConfidenceFillers,
+        optionalFillers: baseProfile.optionalFillers
+    )
+    let metrics = LiveMetrics(
+        elapsedSeconds: elapsed,
+        rollingWPM: 0,
+        finalizedWordCount: 0,
+        fillerCount: fillerOffsets.count,
+        voicedSeconds: 0,
+        talkRatio: 0,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+    return CueEvaluationInput(
+        metrics: metrics,
+        paceEvidence: PaceEvidence(recognizedWordCount: 0, latestTranscriptEndSeconds: nil),
+        targetDurationSeconds: 600,
+        recentFillerOffsets: fillerOffsets,
+        deckProgress: nil,
         profile: profile,
         isPaused: false
     )
