@@ -4,6 +4,7 @@ import VoxaCore
 struct InsightsView: View {
     @Environment(AppModel.self) private var model
     @State private var window: InsightWindow = .all
+    @State private var showingProPaywall = false
 
     var body: some View {
         ScrollView {
@@ -22,6 +23,10 @@ struct InsightsView: View {
                 }
                 if model.sessions.isEmpty {
                     emptyState
+                } else if !model.proEntitlementStore.hasProAccess {
+                    ProInsightsGateCard {
+                        showingProPaywall = true
+                    }
                 } else {
                     windowPicker
                     if filteredSessions.isEmpty {
@@ -29,6 +34,8 @@ struct InsightsView: View {
                     } else {
                         trendCard
                         metricsGrid
+                        voiceAndRhythmCard
+                        measurementCoverageCard
                         coachingFocus
                         recentSessions
                     }
@@ -40,6 +47,9 @@ struct InsightsView: View {
         }
         .background(CueTheme.canvas)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingProPaywall) {
+            VoxaProPaywallView(entitlementStore: model.proEntitlementStore)
+        }
     }
 
     private var windowPicker: some View {
@@ -88,29 +98,131 @@ struct InsightsView: View {
         CueMetricGrid(spacing: 12) {
             MetricTile(
                 label: "Average pace",
-                value: "\(Int(averageWPM.rounded()))",
+                value: "\(Int(analytics.averageWPM.rounded()))",
                 detail: "WPM",
                 tint: CueTheme.signal
             )
             MetricTile(
                 label: "Filler rate",
-                value: String(format: "%.1f", averageFillersPerSpeakingMinute),
+                value: String(format: "%.1f", analytics.fillersPerSpeakingMinute),
                 detail: "per speaking min",
-                tint: averageFillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
+                tint: analytics.fillersPerSpeakingMinute <= 2 ? CueTheme.green : CueTheme.amber
             )
             MetricTile(
                 label: TimingOutcome.onTarget.presentation.aggregateLabel,
-                value: "\(Int((onTargetRatio * 100).rounded()))%",
+                value: "\(Int((analytics.onTargetSessionRatio * 100).rounded()))%",
                 detail: "of sessions",
                 tint: TimingOutcome.onTarget.presentation.tint
             )
             MetricTile(
                 label: "Talk ratio",
-                value: "\(Int((averageTalkRatio * 100).rounded()))%",
+                value: "\(Int((analytics.talkRatio * 100).rounded()))%",
                 detail: "active speech",
                 tint: CueTheme.signal
             )
         }
+    }
+
+    private var voiceAndRhythmCard: some View {
+        PremiumCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    CueSectionLabel(text: "Voice and rhythm", color: CueTheme.signal)
+                    Spacer()
+                    StatusPill(
+                        label: "On-device",
+                        symbol: "iphone",
+                        color: CueTheme.green
+                    )
+                }
+                CueMetricGrid(spacing: 12) {
+                    compactMetric(
+                        label: "Intonation span",
+                        value: analytics.averagePitchRangeSemitones.map { String(format: "%.1f st", $0) },
+                        fallback: "Not measured"
+                    )
+                    compactMetric(
+                        label: "Pace variability",
+                        value: analytics.averagePaceStandardDeviationWPM.map { String(format: "%.0f WPM", $0) },
+                        fallback: "Not measured"
+                    )
+                    compactMetric(
+                        label: "Internal pauses",
+                        value: analytics.pausesPerPresentationMinute.map { String(format: "%.1f/min", $0) },
+                        fallback: "Not measured"
+                    )
+                    compactMetric(
+                        label: "Average pause",
+                        value: analytics.averagePauseSeconds.map { String(format: "%.1f sec", $0) },
+                        fallback: "Not measured"
+                    )
+                }
+                Text("These are descriptive measurements from voiced audio and internal speech gaps. Voxa Cue does not assign a universal voice score.")
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var measurementCoverageCard: some View {
+        PremiumCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 15) {
+                CueSectionLabel(text: "Measurement coverage", color: CueTheme.secondaryInk)
+                CueMetricGrid(spacing: 12) {
+                    coverageValue(
+                        value: "\(analytics.sessionCount)",
+                        label: "sessions"
+                    )
+                    coverageValue(
+                        value: "\(Int((analytics.totalPresentationSeconds / 60).rounded()))",
+                        label: "minutes"
+                    )
+                    coverageValue(
+                        value: "\(analytics.measuredIntonationSessionCount)",
+                        label: "measured sessions"
+                    )
+                }
+                HStack {
+                    Label(
+                        "Average finish deviation",
+                        systemImage: "timer"
+                    )
+                    Spacer()
+                    Text("\(Int(analytics.averageAbsoluteTimingDeviationSeconds.rounded())) sec")
+                        .monospacedDigit()
+                }
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+            }
+        }
+    }
+
+    private func compactMetric(label: String, value: String?, fallback: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(value ?? fallback)
+                .font(.system(.title3, design: .rounded, weight: .medium).monospacedDigit())
+                .foregroundStyle(value == nil ? CueTheme.secondaryInk : CueTheme.ink)
+            Text(label)
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+        }
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .padding(14)
+        .background(CueTheme.canvas.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func coverageValue(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .medium).monospacedDigit())
+                .foregroundStyle(CueTheme.ink)
+            Text(label)
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+        }
+        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
     }
 
     @ViewBuilder
@@ -325,49 +437,38 @@ struct InsightsView: View {
         filteredSessions.sorted { $0.startedAt < $1.startedAt }
     }
 
-    private var averageWPM: Double {
-        average(orderedSessions.map(\.averageWPM))
-    }
-
     private var averagePaceRange: Double {
-        average(orderedSessions.map(\.timeInPaceRange))
+        analytics.timeInPaceRange
     }
 
-    private var averageFillersPerSpeakingMinute: Double {
-        average(orderedSessions.map(\.fillersPerSpeakingMinute))
+    private var analytics: LongTermAnalytics {
+        makeLongTermAnalytics(sessions: orderedSessions)
     }
 
-    private var averageTalkRatio: Double {
-        average(orderedSessions.map(\.talkRatio))
-    }
-
-    private var onTargetRatio: Double {
-        guard !orderedSessions.isEmpty else { return 0 }
-        let onTarget = orderedSessions.filter { $0.timingOutcome == .onTarget }.count
-        return Double(onTarget) / Double(orderedSessions.count)
-    }
-
-    private var paceTrend: Double {
-        guard let first = orderedSessions.first, let last = orderedSessions.last else { return 0 }
-        return last.timeInPaceRange - first.timeInPaceRange
+    private var paceTrend: Double? {
+        guard orderedSessions.count >= 6 else { return nil }
+        let comparison = Array(orderedSessions.suffix(6))
+        let previous = Array(comparison.prefix(3))
+        let recent = Array(comparison.suffix(3))
+        return weightedPaceRange(recent) - weightedPaceRange(previous)
     }
 
     private var paceTrendLabel: String {
-        guard orderedSessions.count > 1 else { return "Baseline" }
+        guard let paceTrend else { return "Building baseline" }
         let points = Int(abs(paceTrend * 100).rounded())
         if points == 0 { return "Steady" }
         return paceTrend > 0 ? "+\(points) pts" : "−\(points) pts"
     }
 
     private var paceTrendSymbol: String {
-        guard orderedSessions.count > 1 else { return "scope" }
+        guard let paceTrend else { return "circle.dotted" }
         if paceTrend > 0 { return "arrow.up.right" }
         if paceTrend < 0 { return "arrow.down.right" }
         return "arrow.right"
     }
 
     private var paceTrendColor: Color {
-        guard orderedSessions.count > 1 else { return CueTheme.signal }
+        guard let paceTrend else { return CueTheme.secondaryInk }
         if paceTrend > 0 { return CueTheme.green }
         if paceTrend < 0 { return CueTheme.amber }
         return CueTheme.secondaryInk
@@ -391,9 +492,12 @@ struct InsightsView: View {
         return nil
     }
 
-    private func average(_ values: [Double]) -> Double {
-        guard !values.isEmpty else { return 0 }
-        return values.reduce(0, +) / Double(values.count)
+    private func weightedPaceRange(_ sessions: [SessionSummary]) -> Double {
+        let duration = sessions.reduce(0) { $0 + max(0, $1.durationSeconds) }
+        guard duration > 0 else { return 0 }
+        return sessions.reduce(0) { partial, session in
+            partial + session.timeInPaceRange * max(0, session.durationSeconds)
+        } / duration
     }
 }
 
