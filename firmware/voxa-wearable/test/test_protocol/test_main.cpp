@@ -59,7 +59,7 @@ void invalidVersionHasSpecificErrorAndPreservesSequence() {
 
 void invalidFieldsAreRejected() {
   const std::uint8_t invalidPattern[voxa::kCommandPacketSize]{
-      1U, 1U, 0U, 8U, 0U, 1U};
+      1U, 1U, 0U, 10U, 0U, 1U};
   const std::uint8_t invalidIntensity[voxa::kCommandPacketSize]{
       1U, 2U, 0U, 1U, 3U, 1U};
   const std::uint8_t zeroRepeats[voxa::kCommandPacketSize]{
@@ -75,6 +75,16 @@ void invalidFieldsAreRejected() {
       voxa::parseCommand(zeroRepeats, sizeof(zeroRepeats)).valid);
   TEST_ASSERT_FALSE(
       voxa::parseCommand(tooManyRepeats, sizeof(tooManyRepeats)).valid);
+}
+
+void calmWaveAndDeadlinePatternsAreAccepted() {
+  const std::uint8_t calmWave[voxa::kCommandPacketSize]{
+      1U, 1U, 0U, 8U, 1U, 1U};
+  const std::uint8_t deadline[voxa::kCommandPacketSize]{
+      1U, 2U, 0U, 9U, 2U, 1U};
+
+  TEST_ASSERT_TRUE(voxa::parseCommand(calmWave, sizeof(calmWave)).valid);
+  TEST_ASSERT_TRUE(voxa::parseCommand(deadline, sizeof(deadline)).valid);
 }
 
 void statusSerializesToContractBytes() {
@@ -139,6 +149,7 @@ int main() {
   RUN_TEST(invalidLengthIsRejectedWithoutReadingBytes);
   RUN_TEST(invalidVersionHasSpecificErrorAndPreservesSequence);
   RUN_TEST(invalidFieldsAreRejected);
+  RUN_TEST(calmWaveAndDeadlinePatternsAreAccepted);
   RUN_TEST(statusSerializesToContractBytes);
   RUN_TEST(untrustedSequenceOnlyReadsCompletePrefix);
   RUN_TEST(sequenceTrackerRejectsDuplicatesAndStaleCommands);
