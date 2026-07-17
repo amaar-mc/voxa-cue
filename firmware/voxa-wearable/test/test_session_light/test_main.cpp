@@ -58,6 +58,12 @@ void malformedSessionLightPacketsAreRejected() {
           .valid);
 }
 
+void nanoSessionLightPinsMatchThePhysicalRgbChannels() {
+  TEST_ASSERT_EQUAL_UINT8(6U, voxa::kNanoSessionLightPins.red);
+  TEST_ASSERT_EQUAL_UINT8(7U, voxa::kNanoSessionLightPins.green);
+  TEST_ASSERT_EQUAL_UINT8(8U, voxa::kNanoSessionLightPins.blue);
+}
+
 void activeColorMovesThroughGreenYellowOrangeRed() {
   const voxa::RgbColor green = voxa::activeSessionColor(0U);
   const voxa::RgbColor yellow = voxa::activeSessionColor(50U);
@@ -183,6 +189,7 @@ int main() {
   RUN_TEST(validSessionLightPacketParses);
   RUN_TEST(emergencySessionLightPacketParses);
   RUN_TEST(malformedSessionLightPacketsAreRejected);
+  RUN_TEST(nanoSessionLightPinsMatchThePhysicalRgbChannels);
   RUN_TEST(activeColorMovesThroughGreenYellowOrangeRed);
   RUN_TEST(activeColorInterpolatesBetweenMilestones);
   RUN_TEST(resolvedLightHandlesPauseOvertimeAndOff);
