@@ -383,26 +383,30 @@ struct CueWordmark: View {
     var body: some View {
         HStack(spacing: compact ? 8 : 11) {
             ZStack {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .stroke(CueTheme.signalBright.opacity(0.95 - (Double(index) * 0.22)), lineWidth: 1.4)
-                        .frame(
-                            width: (compact ? 10 : 13) + CGFloat(index * (compact ? 7 : 9)),
-                            height: (compact ? 10 : 13) + CGFloat(index * (compact ? 7 : 9))
-                        )
-                }
+                Circle()
+                    .trim(from: 0.10, to: 0.90)
+                    .stroke(
+                        CueTheme.ink,
+                        style: StrokeStyle(lineWidth: compact ? 2.2 : 2.8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-35))
+                    .padding(compact ? 3 : 4)
+                Image(systemName: "waveform.path")
+                    .font(.system(size: compact ? 11 : 15, weight: .medium))
+                    .foregroundStyle(CueTheme.ink)
                 Circle()
                     .fill(CueTheme.actionFill)
-                    .frame(width: compact ? 7 : 9, height: compact ? 7 : 9)
+                    .frame(width: compact ? 5 : 7, height: compact ? 5 : 7)
+                    .offset(x: compact ? 11 : 14)
             }
             .frame(width: compact ? 31 : 40, height: compact ? 31 : 40)
 
-            HStack(alignment: .firstTextBaseline, spacing: compact ? 5 : 7) {
+            HStack(alignment: .firstTextBaseline, spacing: compact ? 4 : 5) {
                 Text("Voxa")
                     .font(.system(size: compact ? 20 : 28, weight: .light, design: .rounded))
                     .foregroundStyle(CueTheme.ink)
                 Text("Cue")
-                    .font(.system(size: compact ? 8 : 9, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 20 : 28, weight: .medium, design: .rounded))
                     .foregroundStyle(CueTheme.signal)
             }
         }
