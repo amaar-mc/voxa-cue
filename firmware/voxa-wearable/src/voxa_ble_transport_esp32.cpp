@@ -22,6 +22,9 @@ struct CommandMailbox {
 
 NimBLECharacteristic* statusCharacteristic = nullptr;
 CommandMailbox commandMailbox{};
+ReceivedSessionLightFrame pendingSessionLight{};
+bool hasPendingSessionLight = false;
+bool centralConnected = false;
 portMUX_TYPE mailboxMutex = portMUX_INITIALIZER_UNLOCKED;
 
 bool enqueueCommand(const std::uint8_t* bytes, std::size_t length) {
@@ -74,18 +77,48 @@ class CommandCallbacks final : public NimBLECharacteristicCallbacks {
   }
 };
 
+class SessionLightCallbacks final : public NimBLECharacteristicCallbacks {
+ public:
+  void onWrite(NimBLECharacteristic* characteristic,
+               NimBLEConnInfo& connectionInfo) override {
+    (void)connectionInfo;
+    const NimBLEAttValue value = characteristic->getValue();
+    portENTER_CRITICAL(&mailboxMutex);
+    for (std::size_t index = 0U; index < kSessionLightPacketSize; ++index) {
+      pendingSessionLight.bytes[index] =
+          index < value.size() ? value.data()[index] : 0U;
+    }
+    pendingSessionLight.reportedLength = value.size();
+    hasPendingSessionLight = true;
+    portEXIT_CRITICAL(&mailboxMutex);
+  }
+};
+
 class ServerCallbacks final : public NimBLEServerCallbacks {
  public:
+  void onConnect(NimBLEServer* server,
+                 NimBLEConnInfo& connectionInfo) override {
+    (void)server;
+    (void)connectionInfo;
+    portENTER_CRITICAL(&mailboxMutex);
+    centralConnected = true;
+    portEXIT_CRITICAL(&mailboxMutex);
+  }
+
   void onDisconnect(NimBLEServer* server, NimBLEConnInfo& connectionInfo,
                     int reason) override {
     (void)server;
     (void)connectionInfo;
     (void)reason;
+    portENTER_CRITICAL(&mailboxMutex);
+    centralConnected = false;
+    portEXIT_CRITICAL(&mailboxMutex);
     NimBLEDevice::getAdvertising()->start();
   }
 };
 
 CommandCallbacks commandCallbacks;
+SessionLightCallbacks sessionLightCallbacks;
 ServerCallbacks serverCallbacks;
 
 }  // namespace
@@ -110,11 +143,16 @@ bool initialize() {
   statusCharacteristic = service->createCharacteristic(
       kStatusCharacteristicUuid,
       NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  if (commandCharacteristic == nullptr || statusCharacteristic == nullptr) {
+  NimBLECharacteristic* sessionLightCharacteristic =
+      service->createCharacteristic(kSessionLightCharacteristicUuid,
+                                    NIMBLE_PROPERTY::WRITE);
+  if (commandCharacteristic == nullptr || statusCharacteristic == nullptr ||
+      sessionLightCharacteristic == nullptr) {
     statusCharacteristic = nullptr;
     return false;
   }
   commandCharacteristic->setCallbacks(&commandCallbacks);
+  sessionLightCharacteristic->setCallbacks(&sessionLightCallbacks);
 
   service->start();
 
@@ -156,6 +194,30 @@ bool dequeueCommand(ReceivedCommandFrame* output) {
   }
   portEXIT_CRITICAL(&mailboxMutex);
   return dequeued;
+}
+
+bool dequeueSessionLight(ReceivedSessionLightFrame* output) {
+  if (output == nullptr) {
+    return false;
+  }
+
+  bool dequeued = false;
+  portENTER_CRITICAL(&mailboxMutex);
+  if (hasPendingSessionLight) {
+    *output = pendingSessionLight;
+    hasPendingSessionLight = false;
+    dequeued = true;
+  }
+  portEXIT_CRITICAL(&mailboxMutex);
+  return dequeued;
+}
+
+bool isCentralConnected() {
+  bool connected = false;
+  portENTER_CRITICAL(&mailboxMutex);
+  connected = centralConnected;
+  portEXIT_CRITICAL(&mailboxMutex);
+  return connected;
 }
 
 }  // namespace voxa::ble_transport
