@@ -235,6 +235,101 @@ func appModelPersistsFillerClusterConfiguration() throws {
 }
 
 @MainActor
+@Test("Fresh installs present onboarding and persist skipping")
+func freshInstallOnboardingPersistsSkipping() throws {
+    let suiteName = "VoxaCueTests.onboarding-first-run"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    #expect(model.onboardingPresentation == .firstRun)
+    #expect(model.hapticPreferences == .defaultsV1())
+
+    model.skipOnboarding()
+
+    #expect(model.onboardingPresentation == nil)
+    #expect(preferences.bool(forKey: "hasCompletedVoxaOnboarding"))
+
+    let reloadedModel = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    #expect(reloadedModel.onboardingPresentation == nil)
+}
+
+@MainActor
+@Test("Replaying or skipping onboarding preserves customized cues")
+func replayedOnboardingPreservesCustomizedCues() throws {
+    let suiteName = "VoxaCueTests.onboarding-replay"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    preferences.set(true, forKey: "hasCompletedVoxaOnboarding")
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    model.setCuePattern(.tooFast, pattern: .singlePulse)
+    let customizedHaptics = model.hapticPreferences
+
+    model.presentOnboarding()
+    #expect(model.onboardingPresentation == .replay)
+
+    model.skipOnboarding()
+
+    #expect(model.onboardingPresentation == nil)
+    #expect(model.hapticPreferences == customizedHaptics)
+    #expect(preferences.bool(forKey: "hasCompletedVoxaOnboarding"))
+}
+
+@MainActor
+@Test("Onboarding can route directly into first session setup")
+func onboardingRoutesIntoSessionSetup() throws {
+    let suiteName = "VoxaCueTests.onboarding-session-setup"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    model.selectedTab = .settings
+
+    model.completeOnboarding(openSessionSetup: true)
+
+    #expect(model.onboardingPresentation == nil)
+    #expect(model.selectedTab == .today)
+    #expect(model.setupPresented)
+    #expect(preferences.bool(forKey: "hasCompletedVoxaOnboarding"))
+}
+
+@Test("Session setup keeps the emergency buzzer off unless explicitly enabled")
+func sessionConfigurationKeepsEmergencyBuzzerOptIn() {
+    let disabled = behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false)
+    let enabled = behaviorTestSessionConfiguration(emergencyBuzzerEnabled: true)
+
+    #expect(!disabled.emergencyBuzzerEnabled)
+    #expect(enabled.emergencyBuzzerEnabled)
+}
+
+@MainActor
 @Test("Demo mode never contacts the coaching API")
 func demoModeAvoidsCoachingAPI() async throws {
     let configuration = URLSessionConfiguration.ephemeral
@@ -343,7 +438,7 @@ func lifecyclePauseRequiresExplicitResume() throws {
 func liveSessionLightFollowsSessionLifecycle() async throws {
     var sentLights: [CueSessionLight] = []
     let controller = LiveSessionController(
-        configuration: behaviorTestSessionConfiguration(),
+        configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
         semanticMatcher: SemanticMatcher(),
@@ -396,6 +491,43 @@ func liveSessionLightFollowsSessionLifecycle() async throws {
 }
 
 @MainActor
+@Test("Live session requests the emergency buzzer at thirty seconds overtime")
+func liveSessionRequestsEmergencyBuzzerAtThreshold() throws {
+    var sentLights: [CueSessionLight] = []
+    let controller = LiveSessionController(
+        configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        dataStore: try VoxaDataStore(inMemory: true),
+        semanticMatcher: SemanticMatcher(),
+        demoMode: true,
+        allocateCueSequence: { 1 },
+        sendCue: { _ in },
+        sendSessionLight: { sentLights.append($0) },
+        monotonicNow: { 100 },
+        cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration(
+            acceptanceTimeoutSeconds: 2,
+            completionTimeoutSeconds: 4
+        ),
+        onFinish: { _ in }
+    )
+    controller.phase = .recording
+    controller.metrics = LiveMetrics(
+        elapsedSeconds: 150,
+        rollingWPM: 145,
+        finalizedWordCount: 360,
+        fillerCount: 0,
+        voicedSeconds: 120,
+        talkRatio: 0.8,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+
+    controller.resendSessionLight()
+
+    #expect(sentLights == [CueSessionLight(mode: .overtimeEmergency, progressPercent: 100)])
+}
+
+@MainActor
 @Test("Entering the background during preparation cancels session startup")
 func backgroundingCancelsSessionStartup() async throws {
     let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.lifecycle-start-cancellation"))
@@ -408,7 +540,7 @@ func backgroundingCancelsSessionStartup() async throws {
         demoMode: true,
         preferences: preferences
     )
-    model.beginSession(configuration: behaviorTestSessionConfiguration())
+    model.beginSession(configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false))
 
     model.handleSceneEnteredBackground()
     await Task.yield()
@@ -433,7 +565,7 @@ func temporaryInactivityPreservesSessionStartup() async throws {
         demoMode: true,
         preferences: preferences
     )
-    model.beginSession(configuration: behaviorTestSessionConfiguration())
+    model.beginSession(configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false))
     let controller = try #require(model.activeSession)
 
     model.handleSceneBecameInactive()
@@ -461,7 +593,7 @@ func sessionPresentationWaitsForSetupDismissal() async throws {
     )
     model.setupPresented = true
 
-    model.beginSession(configuration: behaviorTestSessionConfiguration())
+    model.beginSession(configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false))
 
     #expect(model.setupPresented == false)
     #expect(model.activeSession == nil)
@@ -793,7 +925,7 @@ private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendab
 @MainActor
 private func makeSessionControllerForBehaviorTests(demoMode: Bool) throws -> LiveSessionController {
     LiveSessionController(
-        configuration: behaviorTestSessionConfiguration(),
+        configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
         semanticMatcher: SemanticMatcher(),
@@ -810,14 +942,15 @@ private func makeSessionControllerForBehaviorTests(demoMode: Bool) throws -> Liv
     )
 }
 
-private func behaviorTestSessionConfiguration() -> SessionConfiguration {
+private func behaviorTestSessionConfiguration(emergencyBuzzerEnabled: Bool) -> SessionConfiguration {
     SessionConfiguration(
         id: UUID(),
         name: "Lifecycle rehearsal",
         mode: .freeSpeaking,
         targetDurationSeconds: 120,
         profile: .rehearsalV1(),
-        deckPlan: nil
+        deckPlan: nil,
+        emergencyBuzzerEnabled: emergencyBuzzerEnabled
     )
 }
 

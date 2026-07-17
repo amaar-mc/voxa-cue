@@ -28,43 +28,121 @@ func sessionTimingMapsToLightStates() {
         cueSessionLight(
             elapsedSeconds: 0,
             targetDurationSeconds: 120,
-            presentationState: .active
+            presentationState: .active,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .active, progressPercent: 0)
     )
     #expect(
         cueSessionLight(
             elapsedSeconds: 60,
             targetDurationSeconds: 120,
-            presentationState: .paused
+            presentationState: .paused,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .paused, progressPercent: 50)
     )
     #expect(
         cueSessionLight(
             elapsedSeconds: 120,
             targetDurationSeconds: 120,
-            presentationState: .active
+            presentationState: .active,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .active, progressPercent: 100)
     )
     #expect(
         cueSessionLight(
             elapsedSeconds: 120.01,
             targetDurationSeconds: 120,
-            presentationState: .active
+            presentationState: .active,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .overtime, progressPercent: 100)
     )
     #expect(
         cueSessionLight(
             elapsedSeconds: 42,
             targetDurationSeconds: 120,
-            presentationState: .off
+            presentationState: .off,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .off, progressPercent: 0)
     )
     #expect(
         cueSessionLight(
             elapsedSeconds: .nan,
             targetDurationSeconds: 120,
-            presentationState: .active
+            presentationState: .active,
+            emergencyBuzzerEnabled: false
         ) == CueSessionLight(mode: .off, progressPercent: 0)
+    )
+}
+
+@Test("Emergency buzzer mode starts once at thirty seconds overtime when enabled")
+func emergencyBuzzerTimingIsOptIn() throws {
+    let beforeThreshold = cueSessionLight(
+        elapsedSeconds: 149.99,
+        targetDurationSeconds: 120,
+        presentationState: .active,
+        emergencyBuzzerEnabled: true
+    )
+    let atThreshold = cueSessionLight(
+        elapsedSeconds: 150,
+        targetDurationSeconds: 120,
+        presentationState: .active,
+        emergencyBuzzerEnabled: true
+    )
+    let disabled = cueSessionLight(
+        elapsedSeconds: 150,
+        targetDurationSeconds: 120,
+        presentationState: .active,
+        emergencyBuzzerEnabled: false
+    )
+
+    #expect(beforeThreshold == CueSessionLight(mode: .overtime, progressPercent: 100))
+    #expect(atThreshold == CueSessionLight(mode: .overtimeEmergency, progressPercent: 100))
+    #expect(disabled == CueSessionLight(mode: .overtime, progressPercent: 100))
+    #expect(
+        [UInt8](try CueBLE.encode(sessionLight: atThreshold))
+            == [1, CueSessionLightMode.overtimeEmergency.rawValue, 100]
+    )
+}
+
+@Test("Emergency buzzer mode downgrades for firmware before 1.3")
+func emergencyBuzzerModeHonorsFirmwareCompatibility() {
+    let emergency = CueSessionLight(mode: .overtimeEmergency, progressPercent: 100)
+
+    #expect(
+        CueBLE.sessionLight(
+            emergency,
+            compatibleWithFirmwareMajor: 1,
+            minor: 2
+        ) == CueSessionLight(mode: .overtime, progressPercent: 100)
+    )
+    #expect(
+        CueBLE.sessionLight(
+            emergency,
+            compatibleWithFirmwareMajor: 1,
+            minor: 3
+        ) == emergency
+    )
+    #expect(
+        CueBLE.sessionLight(
+            emergency,
+            compatibleWithFirmwareMajor: 2,
+            minor: 0
+        ) == emergency
+    )
+    #expect(!CueBLE.supportsEmergencyBuzzer(firmwareMajor: 1, firmwareMinor: 2))
+    #expect(CueBLE.supportsEmergencyBuzzer(firmwareMajor: 1, firmwareMinor: 3))
+    #expect(CueBLE.supportsEmergencyBuzzer(firmwareMajor: 2, firmwareMinor: 0))
+}
+
+@Test("Session-light write failures leave ready state and request reconnection")
+func sessionLightWriteFailureRequestsReconnect() {
+    #expect(
+        cueBandStateAfterSessionLightWriteFailure(reconnectEnabled: true)
+            == .reconnecting
+    )
+    #expect(
+        cueBandStateAfterSessionLightWriteFailure(reconnectEnabled: false)
+            == nil
     )
 }
 
