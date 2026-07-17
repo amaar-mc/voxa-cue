@@ -38,8 +38,8 @@ Wire the session light separately:
 | Nano | RGB LED | Purpose |
 | --- | --- | --- |
 | `D6` | Red through 220–330 Ω | Red channel |
-| `D7` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
-| `D8` | Green through 220–330 Ω | Green channel |
+| `D7` | Green through 220–330 Ω | Green channel |
+| `D8` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
 | `GND` | Common cathode | Shared LED return |
 
 Wire the optional overtime buzzer separately:
