@@ -44,7 +44,7 @@ The SwiftUI app is generated from `ios/project.yml` and targets iPhone on iOS 26
 
 ### Capture and speech
 
-`LiveSpeechPipeline` configures `AVAudioSession` for built-in-microphone recording in measurement mode, requests a 48 kHz sample rate and 20 ms I/O buffer, and feeds copied buffers to an asynchronous pipeline. Audio is converted to the best format supported by `SpeechAnalyzer` modules and timestamped on a contiguous submitted-frame clock. Pausing a session gates microphone buffers and freezes the active presentation clock, so Q&A does not enter transcription, metrics, or cue decisions. `SpeechTranscriber` emits progressive time-indexed results; only finalized ranges enter session metrics. `SpeechDetector` contributes voiced duration.
+`LiveSpeechPipeline` configures `AVAudioSession` for built-in-microphone recording in measurement mode, requests a 48 kHz sample rate and 20 ms I/O buffer, and feeds copied buffers to an asynchronous pipeline. Audio is converted to the best format supported by `SpeechAnalyzer` modules with converter priming disabled. Empty conversion output is discarded, and each analyzer input uses the framework's contiguous sequence timing instead of reconstructed floating-point timestamps. Pausing a session gates microphone buffers and freezes the active presentation clock, so Q&A does not enter transcription, metrics, or cue decisions. `SpeechTranscriber` emits progressive time-indexed results; only finalized ranges enter session metrics. `SpeechDetector` contributes voiced duration.
 
 Every fifth input buffer is sampled for local RMS energy and an 80–300 Hz autocorrelation pitch estimate. Raw buffers are bounded in asynchronous streams, consumed in memory, and discarded. No audio-file writer or audio upload path exists.
 
