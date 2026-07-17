@@ -102,14 +102,18 @@ std::uint8_t diagnosticPwmForIntensity(voxa::Intensity intensity) {
 }
 #endif
 
-void setHapticOutput(bool enabled, voxa::Intensity intensity) {
+void setHapticOutput(std::uint8_t amplitudePercent,
+                     voxa::Intensity intensity) {
 #if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-  const std::uint8_t pwm =
-      enabled ? diagnosticPwmForIntensity(intensity) : 0U;
+  const std::uint16_t boundedPercent =
+      amplitudePercent > 100U ? 100U : amplitudePercent;
+  const std::uint8_t pwm = static_cast<std::uint8_t>(
+      static_cast<std::uint16_t>(diagnosticPwmForIntensity(intensity)) *
+      boundedPercent / 100U);
   analogWrite(kDiagnosticControlPin, pwm);
 #else
   const std::uint8_t amplitude =
-      enabled ? voxa::amplitudeForIntensity(intensity) : 0U;
+      voxa::scaledAmplitudeForIntensity(intensity, amplitudePercent);
   hapticDriver.setRealtimeValue(amplitude);
 #endif
 }
@@ -130,7 +134,7 @@ bool publishStatus(std::uint16_t sequence, voxa::StatusState state,
 void beginCurrentSegment(std::uint32_t nowMilliseconds) {
   const voxa::PatternSegment& segment =
       playback.program.segments[playback.segmentIndex];
-  setHapticOutput(segment.motorEnabled, playback.command.intensity);
+  setHapticOutput(segment.amplitudePercent, playback.command.intensity);
   playback.segmentDeadlineMilliseconds =
       nowMilliseconds + segment.durationMilliseconds;
 }
@@ -191,7 +195,7 @@ PlaybackUpdate updatePlayback(std::uint32_t nowMilliseconds) {
     return PlaybackUpdate::kNone;
   }
 
-  setHapticOutput(false, playback.command.intensity);
+  setHapticOutput(0U, playback.command.intensity);
   if (playback.repeatsRemaining > 1U) {
     --playback.repeatsRemaining;
     playback.waitingForRepeat = true;
@@ -263,7 +267,7 @@ void setup() {
 #if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
     Serial.println("Voxa Cue D2 PWM diagnostic ready");
 #else
-    Serial.println("Voxa Cue firmware 1.0 ready");
+    Serial.println("Voxa Cue firmware 1.1 ready");
 #endif
   } else {
     Serial.println("DRV2605L not detected; haptic commands will be rejected");

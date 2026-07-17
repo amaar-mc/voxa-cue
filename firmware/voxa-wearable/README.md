@@ -85,7 +85,7 @@ If the Nano 33 IoT does not enter its bootloader for upload, double-press its
 reset button, wait for the pulsing bootloader LED, list ports again, and upload
 to the newly appeared `/dev/cu.usbmodem...` port.
 
-On startup the serial monitor prints either `Voxa Cue firmware 1.0 ready` or a
+On startup the serial monitor prints either `Voxa Cue firmware 1.1 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
 rejected with the protocol's `driver fault` error.
 
@@ -145,7 +145,7 @@ Alternatively, use a BLE inspector such as LightBlue:
 4. Write `01 01 00 01 01 01` **with response** to command characteristic
    `6F2A0002-7C93-4A58-A9D4-3C52BBD1F110`.
 
-The write requests protocol 1, sequence 1, the `too fast` pattern, medium
+The write requests protocol 1, sequence 1, the two-short pattern, medium
 intensity, once. Expected notifications are:
 
 ```text
@@ -183,7 +183,7 @@ Calibrate on the exact production motor and enclosure:
 4. If adjustment is required, change only the three return values in
    `amplitudeForIntensity`, retain `soft < medium < strong <= 127`, and rerun the
    native test suite.
-5. Run the BLE smoke test for all seven pattern IDs and repeat counts 1–3, then
+5. Run the BLE smoke test for all nine pattern IDs and repeat counts 1–3, then
    wear-test continuously for 15 minutes before the demo.
 
 If the specific LRA requires rated-voltage, overdrive-clamp, resonance, or
@@ -196,7 +196,7 @@ design procedure. Do not copy register values from a different motor.
 - BLE is the only phone-to-wearable transport.
 - Nano 33 IoT uses ArduinoBLE; Nano ESP32 uses NimBLE-Arduino. Both transports
   implement the same BLE v1 contract.
-- The firmware receives semantic pattern IDs; speech analysis stays on iPhone.
+- The firmware receives physical pattern IDs; cue meaning and speech analysis stay on iPhone.
 - Status has protocol and firmware versions but no fabricated battery value.
 - The mailbox and playback state use fixed-size storage. No Arduino `String`
   allocations occur in the command or haptic loop.
