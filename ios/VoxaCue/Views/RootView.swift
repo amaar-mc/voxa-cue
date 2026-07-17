@@ -4,19 +4,18 @@ import VoxaCore
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage("hasCompletedVoxaOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         Group {
-            if hasCompletedOnboarding {
+            if let presentation = model.onboardingPresentation {
+                OnboardingView(presentation: presentation)
+                    .transition(.opacity)
+            } else {
                 MainTabView()
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.99)))
-            } else {
-                OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
-                    .transition(.opacity)
             }
         }
-        .animation(CueMotion.settle(reduceMotion: reduceMotion), value: hasCompletedOnboarding)
+        .animation(CueMotion.settle(reduceMotion: reduceMotion), value: model.onboardingPresentation)
         .background(CueTheme.canvas.ignoresSafeArea())
     }
 }

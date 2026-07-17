@@ -29,6 +29,11 @@ enum CoachingAPIState: Equatable {
     case unavailable(message: String)
 }
 
+enum OnboardingPresentation: Equatable {
+    case firstRun
+    case replay
+}
+
 func normalizedHapticPreferences(
     _ stored: HapticPreferences,
     defaults: HapticPreferences
@@ -183,6 +188,7 @@ final class AppModel {
 
     private static let cueSequencePreferenceKey = "voxaCueNextCommandSequence"
     private static let hapticPreferencesKey = "voxaCueHapticPreferencesV1"
+    private static let onboardingCompletionPreferenceKey = "hasCompletedVoxaOnboarding"
 
     var selectedTab: Tab = .today
     var sessions: [SessionSummary] = []
@@ -199,6 +205,7 @@ final class AppModel {
     var insightBySession: [UUID: CoachingInsight] = [:]
     var isGeneratingInsight = false
     var coachingAPIState: CoachingAPIState
+    var onboardingPresentation: OnboardingPresentation?
     var hapticPreferences: HapticPreferences {
         didSet { persistHapticPreferences() }
     }
@@ -219,6 +226,9 @@ final class AppModel {
         self.apiClient = apiClient
         self.demoMode = demoMode
         self.preferences = preferences
+        self.onboardingPresentation = preferences.bool(forKey: Self.onboardingCompletionPreferenceKey)
+            ? nil
+            : .firstRun
         self.proEntitlementStore = ProEntitlementStore(
             preferences: preferences,
             productID: ProEntitlementStore.monthlyProductID,
@@ -344,6 +354,24 @@ final class AppModel {
 
     func restoreDefaultHaptics() {
         hapticPreferences = .defaultsV1()
+    }
+
+    func presentOnboarding() {
+        onboardingPresentation = .replay
+    }
+
+    func skipOnboarding() {
+        persistOnboardingCompletion()
+        onboardingPresentation = nil
+    }
+
+    func completeOnboarding(openSessionSetup: Bool) {
+        persistOnboardingCompletion()
+        if openSessionSetup {
+            selectedTab = .today
+            setupPresented = true
+        }
+        onboardingPresentation = nil
     }
 
     func beginSession(configuration: SessionConfiguration) {
@@ -637,6 +665,10 @@ final class AppModel {
     private func persistHapticPreferences() {
         guard let encoded = try? JSONEncoder().encode(hapticPreferences) else { return }
         preferences.set(encoded, forKey: Self.hapticPreferencesKey)
+    }
+
+    private func persistOnboardingCompletion() {
+        preferences.set(true, forKey: Self.onboardingCompletionPreferenceKey)
     }
 
     private func scheduleDeviceLabTimeout(sequence: UInt16) {
