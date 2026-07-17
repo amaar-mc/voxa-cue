@@ -1,0 +1,117 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "Local StoreKit prototype configuration. No real charge is made.",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "8E854C77-AE37-41E7-AF03-8DE6BA45F7C9",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1000000001",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "1000000002",
+      "localizations" : [
+        {
+          "description" : "Long-term delivery analytics and optional transcript coaching.",
+          "displayName" : "Voxa Cue Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Voxa Cue Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "1000000003",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Long-term pace, filler, pause, timing, and intonation trends.",
+              "displayName" : "Voxa Cue Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.amaarmc.voxacue.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Voxa Cue Pro Monthly",
+          "subscriptionGroupID" : "1000000002",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

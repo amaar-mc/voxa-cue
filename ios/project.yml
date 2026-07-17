@@ -87,5 +87,6 @@ schemes:
         - VoxaCueTests
     run:
       config: Debug
+      storeKitConfiguration: StoreKit/VoxaCue.storekit
     archive:
       config: Release
