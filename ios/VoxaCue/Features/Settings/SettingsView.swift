@@ -469,7 +469,7 @@ struct SettingsView: View {
     private var connectionDetail: String {
         switch model.connectionState {
         case let .ready(firmware):
-            "Firmware \(firmware) • BLE protocol v1"
+            "Firmware \(firmware) · BLE protocol v1"
         case .idle:
             "Nearby band required for live vibration cues"
         case .bluetoothUnavailable:
