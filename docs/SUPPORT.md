@@ -1,12 +1,12 @@
 # Voxa Cue Support
 
-Voxa Cue is currently a closed M&TSI prototype. Support is provided through the TestFlight invitation or M&TSI project channel used to distribute the build. The prototype has no account, billing, subscription, or purchase support because those systems do not exist.
+Voxa Cue is currently a closed M&TSI prototype. Support is provided through the TestFlight invitation or M&TSI project channel used to distribute the build. The prototype has no account or production billing support. Internal Debug builds include a local StoreKit test and Demo Pro switch; neither can make a real charge, and Release builds expose no unlock path.
 
 ## Supported prototype configuration
 
 - iPhone running iOS 26.0 or later
 - Voxa Cue iPhone app version 1.0.0 (build 1)
-- Arduino Nano 33 IoT running Voxa Cue firmware 1.0; Nano ESP32 remains supported
+- Arduino Nano 33 IoT running Voxa Cue firmware 1.1; Nano ESP32 remains supported
 - DRV2605L haptic driver and a 3 V LRA motor
 - Optional HTTPS access to the deployed Voxa Cue API for post-session insights
 
@@ -23,7 +23,7 @@ If permission was denied, Voxa Cue stops before recording. It never silently upl
 
 ## Cue Band will not connect or vibrate
 
-1. Confirm the Nano is powered and the serial monitor printed `Voxa Cue firmware 1.0 ready`.
+1. Confirm the Nano is powered and the serial monitor printed `Voxa Cue firmware 1.1 ready`.
 2. Open **Settings → Device Lab**, disconnect and reconnect the band. The advertised peripheral name is `Voxa Cue`.
 3. If the band is missing, power-cycle the Nano and retry nearby with Bluetooth enabled.
 4. If BLE connects but the motor does not run, inspect the DRV2605L wiring and startup output. A missing or faulted driver rejects commands instead of pretending they completed.

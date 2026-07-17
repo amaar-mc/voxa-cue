@@ -86,9 +86,45 @@ uvx --with pip platformio device list
 uvx --with pip platformio run -e nano_33_iot --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
 ```
 
-Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.0 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send each of the six active test commands before presenting.
+Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.1 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting.
 
-## 5. Optional AI coaching API
+## 5. Test the standalone IMU lab
+
+The IMU experiment is deliberately separate from the iPhone app and production
+haptic firmware. Wire `VCC → 3V3`, `GND → GND`, `SDA → A4/SDA`, and
+`SCL → A5/SCL`, then find the connected USB port and temporarily flash the lab:
+
+```sh
+uvx --with pip platformio device list
+uvx --with pip platformio run -e nano_33_iot -d firmware/imu-diagnostic \
+  --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
+tools/imu-debug/serve.sh
+```
+
+Desktop Chrome opens `http://127.0.0.1:4174`. Choose **Connect IMU**, select
+**Voxa IMU Lab**, and move the sensor like a presenting wrist. After a four-second
+window, the page shows acceleration and rotation on all three axes, a 0–100
+heuristic movement score, an editable too-little/balanced/too-much classification,
+and CSV export. Chrome Web Bluetooth is required; Safari and iPhone browsers do
+not support this test.
+
+Flashing the lab replaces the haptic sketch. Restore production firmware after
+the test:
+
+```sh
+uvx --with pip platformio run -e nano_33_iot -d firmware/voxa-wearable \
+  --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
+```
+
+## 6. Preview the Pro gate without a charge
+
+Debug builds expose two internal-only paths: **Settings → Demo Pro** and the
+local Xcode StoreKit product attached to the `VoxaCue` scheme. Both unlock the
+prototype Insights gate on that iPhone and are labeled as non-charging tests.
+Release builds ignore and remove the Demo Pro preference and expose no prototype
+purchase path.
+
+## 7. Optional AI coaching API
 
 This service is not in the live haptic loop. It is used only for a post-session practice plan after the user explicitly confirms transcript upload.
 
@@ -162,7 +198,7 @@ Regenerate the project, run the Debug build, then open **Settings → Check AI c
 | Component | Prototype cost |
 | --- | --- |
 | Apple on-device speech, DSP, analytics, and BLE | No per-minute API charge |
-| OpenAI `gpt-5.6-luna` | $1 per 1M input tokens and $6 per 1M output tokens ([official pricing](https://developers.openai.com/api/docs/models)) |
+| OpenAI `gpt-5.6-luna` | $1 per 1M input tokens and $6 per 1M output tokens ([official model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna)) |
 | OpenAI free tier | Not supported for `gpt-5.6-luna`; API billing must be enabled |
 | Example OpenAI request | 10,000 input + 2,000 output tokens costs about $0.022 |
 | Vercel Hobby | $0/month for personal, non-commercial use; usage caps apply ([official pricing](https://vercel.com/pricing)) |
