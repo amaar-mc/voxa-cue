@@ -6,7 +6,7 @@ These terms apply to the closed Voxa Cue prototype distributed by the student pr
 
 ## Prototype scope
 
-Voxa Cue provides real-time presentation metrics, optional haptic reminders, local session history, and optional AI-generated coaching. It is experimental software, may be changed or withdrawn, and is not a finished commercial service. No account, subscription, purchase, or in-app payment is offered.
+Voxa Cue provides real-time presentation metrics, optional haptic reminders, local session history, and optional AI-generated coaching. It is experimental software, may be changed or withdrawn, and is not a finished commercial service. No production account, subscription, purchase, or in-app payment is offered. Internal Debug builds may include a local StoreKit test and Demo Pro switch; they cannot make a real charge and are not present as unlock paths in Release builds.
 
 The app is licensed for personal evaluation during the M&TSI project. You may not reverse engineer the hardware or software except where applicable law expressly permits it, interfere with the service, attempt to obtain server credentials, or use the prototype to violate another person's rights.
 
