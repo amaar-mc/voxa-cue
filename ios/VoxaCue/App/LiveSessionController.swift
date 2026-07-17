@@ -51,6 +51,7 @@ final class LiveSessionController: Identifiable {
     var currentCheckpointLabel: String?
     var checkpointProgress: Double = 0
     var microphoneLevel: Double = 0
+    var prosodySnapshot: ProsodySnapshot?
     var latestBandFailure: String?
     var hasStarted: Bool { startedAt != nil }
     var isPaused: Bool {
@@ -68,11 +69,14 @@ final class LiveSessionController: Identifiable {
     private var failureTask: Task<Void, Never>?
     private var cueDeadlineTask: Task<Void, Never>?
     private var transcriptAccumulator = TranscriptAccumulator(segments: [])
+    private var volatileFillerSegment: FinalTranscriptSegment?
     private var timedWords: [TimedWord] = []
     private var recentFillerOffsets: [TimeInterval] = []
     private var voicedSeconds: TimeInterval = 0
     private var energyValues: [Double] = []
     private var pitchValues: [Double] = []
+    private var prosodySnapshots: [ProsodySnapshot] = []
+    private var speechActivityIntervals: [SpeechActivityInterval] = []
     private var metricSamples: [LiveMetrics] = []
     private var cueEngineState = CueEngineState.initial()
     private var currentCheckpointIndex = 0
@@ -408,11 +412,18 @@ final class LiveSessionController: Identifiable {
         }
     }
 
-    private func handleSpeechEvent(_ event: LiveSpeechEvent) {
+    func handleSpeechEvent(_ event: LiveSpeechEvent) {
         switch event {
-        case let .volatileTranscript(text, _, _):
+        case let .volatileTranscript(text, startSeconds, endSeconds):
             guard phase == .recording else { return }
             volatileTranscript = text
+            volatileFillerSegment = FinalTranscriptSegment(
+                id: UUID(),
+                startSeconds: startSeconds,
+                endSeconds: endSeconds,
+                text: text
+            )
+            rebuildRecentFillerOffsets()
         case let .finalizedTranscript(text, startSeconds, endSeconds):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
             let segment = FinalTranscriptSegment(
@@ -424,16 +435,51 @@ final class LiveSessionController: Identifiable {
             transcriptAccumulator = transcriptAccumulator.inserting(segment)
             liveTranscript = transcriptAccumulator.transcript
             volatileTranscript = ""
+            volatileFillerSegment = nil
             rebuildTranscriptMetrics()
             updateDeckAlignment()
-        case let .voiceActivity(isSpeech, durationSeconds):
+        case let .voiceActivity(isSpeech, startSeconds, endSeconds):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
+            let durationSeconds = max(0, endSeconds - startSeconds)
             if isSpeech { voicedSeconds += durationSeconds }
-        case let .vocalSample(energyDBFS, pitchHertz):
+            metrics = LiveMetrics(
+                elapsedSeconds: metrics.elapsedSeconds,
+                rollingWPM: metrics.rollingWPM,
+                finalizedWordCount: metrics.finalizedWordCount,
+                fillerCount: metrics.fillerCount,
+                voicedSeconds: voicedSeconds,
+                talkRatio: computedTalkRatio(
+                    voicedSeconds: voicedSeconds,
+                    elapsedSeconds: metrics.elapsedSeconds
+                ),
+                energyDBFS: metrics.energyDBFS,
+                pitchHertz: metrics.pitchHertz
+            )
+            let interval = SpeechActivityInterval(
+                isSpeech: isSpeech,
+                startSeconds: startSeconds,
+                endSeconds: endSeconds
+            )
+            if let last = speechActivityIntervals.last,
+               last.isSpeech == interval.isSpeech,
+               interval.startSeconds <= last.endSeconds + 0.03 {
+                speechActivityIntervals[speechActivityIntervals.count - 1] = SpeechActivityInterval(
+                    isSpeech: last.isSpeech,
+                    startSeconds: last.startSeconds,
+                    endSeconds: max(last.endSeconds, interval.endSeconds)
+                )
+            } else {
+                speechActivityIntervals.append(interval)
+            }
+        case let .prosodySnapshot(snapshot):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
-            energyValues.append(energyDBFS)
-            if let pitchHertz { pitchValues.append(pitchHertz) }
-            microphoneLevel = min(1, max(0, (energyDBFS + 60) / 50))
+            prosodySnapshot = snapshot
+            prosodySnapshots.append(snapshot)
+            if let pitchHertz = snapshot.currentPitchHertz {
+                pitchValues.append(pitchHertz)
+                energyValues.append(snapshot.decibels)
+            }
+            microphoneLevel = min(1, max(0, (snapshot.decibels + 60) / 50))
         case let .failure(message):
             guard phase == .recording || isPaused else { return }
             let stopReference = Date().timeIntervalSinceReferenceDate
@@ -464,18 +510,32 @@ final class LiveSessionController: Identifiable {
                 return TimedWord(text: word, endSeconds: segment.startSeconds + duration * fraction)
             }
         }
-        recentFillerOffsets = timedFillerOffsets(
-            segments: transcriptAccumulator.segments,
-            fillers: configuration.profile.highConfidenceFillers
+        rebuildRecentFillerOffsets()
+    }
+
+    private func rebuildRecentFillerOffsets() {
+        var segments = transcriptAccumulator.segments
+        if let volatileFillerSegment {
+            segments.removeAll { finalized in
+                finalized.startSeconds < volatileFillerSegment.endSeconds
+                    && volatileFillerSegment.startSeconds < finalized.endSeconds
+            }
+            segments.append(volatileFillerSegment)
+        }
+        recentFillerOffsets = timedPresentationFillerOffsets(
+            segments: segments,
+            highConfidenceFillers: configuration.profile.highConfidenceFillers,
+            contextualFillers: configuration.profile.optionalFillers
         )
     }
 
     private func updateMetrics() {
         guard let presentationClock else { return }
         let elapsed = presentationClock.elapsed(atReferenceSeconds: Date().timeIntervalSinceReferenceDate)
-        let transcriptAnalysis = analyzeTranscript(
+        let transcriptAnalysis = analyzePresentationTranscript(
             transcriptAccumulator.transcript,
-            fillers: configuration.profile.highConfidenceFillers
+            highConfidenceFillers: configuration.profile.highConfidenceFillers,
+            contextualFillers: configuration.profile.optionalFillers
         )
         metrics = LiveMetrics(
             elapsedSeconds: elapsed,
@@ -555,7 +615,7 @@ final class LiveSessionController: Identifiable {
             : "Deck complete"
     }
 
-    private func evaluateLiveCue() {
+    func evaluateLiveCue() {
         let deckProgress: DeckProgress?
         if let checkpoints = configuration.deckPlan?.checkpoints,
            currentCheckpointIndex < checkpoints.count {
@@ -580,9 +640,10 @@ final class LiveSessionController: Identifiable {
         let result = evaluateCue(input: input, state: cueEngineState, configuration: .version1())
         cueEngineState = result.state
         guard let decision = result.decision else { return }
+        guard let pattern = configuration.profile.patternByCue[decision.kind] else { return }
         let sequence = allocateCueSequence()
         let intensity = configuration.profile.intensityByCue[decision.kind] ?? .medium
-        let command = CueCommand(sequence: sequence, kind: decision.kind, intensity: intensity, repeatCount: 1)
+        let command = CueCommand(sequence: sequence, pattern: pattern, intensity: intensity, repeatCount: 1)
         var deliveryStatus = CueDeliveryStatus.pending
         do {
             try sendCue(command)
@@ -608,12 +669,37 @@ final class LiveSessionController: Identifiable {
         let wordCount = demoMode ? metrics.finalizedWordCount : normalizedSpeechWords(liveTranscript).count
         let fillers = demoMode
             ? metrics.fillerCount
-            : analyzeTranscript(liveTranscript, fillers: configuration.profile.highConfidenceFillers).fillerCount
+            : analyzePresentationTranscript(
+                liveTranscript,
+                highConfidenceFillers: configuration.profile.highConfidenceFillers,
+                contextualFillers: configuration.profile.optionalFillers
+            ).fillerCount
         let paceSamples = metricSamples.filter { $0.rollingWPM > 0 }
         let inRange = paceSamples.filter {
             $0.rollingWPM >= configuration.profile.minimumWPM && $0.rollingWPM <= configuration.profile.maximumWPM
         }.count
         let speakingSeconds = min(duration, max(0, metrics.voicedSeconds))
+        let measuredPitchRanges = prosodySnapshots
+            .filter { $0.voicedFrameCount >= 20 }
+            .map(\.pitchRangeSemitones)
+        let rollingPitchRange = measuredPitchRanges.isEmpty
+            ? nil
+            : measuredPitchRanges.reduce(0, +) / Double(measuredPitchRanges.count)
+        let pauseDurations = demoMode
+            ? [0.8, 1.1, 0.7]
+            : internalPauseDurations(
+                intervals: speechActivityIntervals,
+                minimumDurationSeconds: 0.5
+            )
+        let paceDeviation = paceSamples.count >= 15
+            ? paceStandardDeviation(wpmSamples: paceSamples.map(\.rollingWPM))
+            : nil
+        let activityCoverage = min(
+            duration,
+            speechActivityCoverageSeconds(intervals: speechActivityIntervals)
+        ) / duration
+        let pauseMeasurementAvailable = demoMode
+            || (duration >= 30 && activityCoverage >= 0.9)
         return SessionSummary(
             sessionID: id,
             name: configuration.name,
@@ -628,8 +714,16 @@ final class LiveSessionController: Identifiable {
             fillerCount: fillers,
             fillersPerSpeakingMinute: speakingSeconds > 0 ? Double(fillers) * 60 / speakingSeconds : 0,
             talkRatio: computedTalkRatio(voicedSeconds: speakingSeconds, elapsedSeconds: duration),
-            pitchRangeSemitones: demoMode ? 7.2 : pitchRangeSemitones(pitches: pitchValues),
-            energyRangeDB: demoMode ? 13.1 : energyRangeDB(values: energyValues),
+            paceStandardDeviationWPM: paceDeviation,
+            pauseCount: pauseMeasurementAvailable ? pauseDurations.count : nil,
+            averagePauseSeconds: !pauseMeasurementAvailable || pauseDurations.isEmpty
+                ? nil
+                : pauseDurations.reduce(0, +) / Double(pauseDurations.count),
+            longestPauseSeconds: pauseMeasurementAvailable ? pauseDurations.max() : nil,
+            pitchRangeSemitones: demoMode
+                ? 7.2
+                : (rollingPitchRange ?? pitchRangeSemitones(pitches: pitchValues)),
+            energyRangeDB: demoMode ? 13.1 : robustEnergyRangeDB(values: energyValues),
             cueCount: cueLogs.filter { $0.deliveryStatus == .completed || $0.deliveryStatus == .accepted }.count,
             transcript: liveTranscript
         )

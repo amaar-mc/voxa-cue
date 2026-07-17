@@ -383,6 +383,49 @@ func bandAcknowledgementsConfirmDelivery() throws {
 }
 
 @MainActor
+@Test("Measured voice activity unlocks a persisted live pace cue")
+func voiceActivityUnlocksLivePaceCue() throws {
+    let controller = try makeSessionControllerForBehaviorTests()
+    controller.phase = .recording
+    controller.metrics = LiveMetrics(
+        elapsedSeconds: 20,
+        rollingWPM: 180,
+        finalizedWordCount: 30,
+        fillerCount: 0,
+        voicedSeconds: 0,
+        talkRatio: 0,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+
+    controller.handleSpeechEvent(
+        .voiceActivity(isSpeech: true, startSeconds: 0, endSeconds: 12)
+    )
+    controller.evaluateLiveCue()
+
+    #expect(controller.metrics.voicedSeconds == 12)
+    #expect(controller.cueLogs.isEmpty)
+
+    controller.metrics = LiveMetrics(
+        elapsedSeconds: 24,
+        rollingWPM: 180,
+        finalizedWordCount: 36,
+        fillerCount: 0,
+        voicedSeconds: controller.metrics.voicedSeconds,
+        talkRatio: controller.metrics.talkRatio,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+    controller.handleSpeechEvent(
+        .voiceActivity(isSpeech: true, startSeconds: 12, endSeconds: 16)
+    )
+    controller.evaluateLiveCue()
+
+    #expect(controller.metrics.voicedSeconds == 16)
+    #expect(controller.cueLogs.last?.decision.kind == .tooFast)
+}
+
+@MainActor
 @Test("Live delivery fails closed on premature or erroneous completion")
 func liveDeliveryRejectsInvalidCompletion() throws {
     let prematureController = try makeSessionControllerForBehaviorTests()
