@@ -73,9 +73,11 @@ cue but are never persisted or included in the final summary.
 
 `CueEngine` evaluates those metrics against a `CoachingProfile`. Slow-down,
 filler-burst, 50%, and 100% cues are enabled by default; too-slow, 75%, and 90%
-are opt-in. Three fillers inside 20 seconds create one filler-burst candidate,
-then a 30-second per-rule cooldown prevents per-word buzzing. Persistence,
-transcript freshness, three-second pace evaluation cadence, 5 WPM hysteresis,
+are opt-in. Filler-cluster configuration is snapshotted into the session
+profile. It defaults to two detected fillers inside five seconds; the app lets
+the presenter require two to six fillers and choose a five- to 30-second
+lookback window. A 30-second per-rule cooldown prevents per-word buzzing.
+Persistence, transcript freshness, three-second pace evaluation cadence, 5 WPM hysteresis,
 global cooldown, enablement, intensity, pattern mapping, and priority suppress
 noisy or conflicting feedback. The app maps the highest-priority semantic cue
 to a physical BLE pattern.
