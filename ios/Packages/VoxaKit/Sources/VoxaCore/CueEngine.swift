@@ -9,8 +9,6 @@ public struct CueEngineConfiguration: Equatable, Sendable {
     public let paceEvaluationIntervalSeconds: TimeInterval
     public let fastPersistenceSeconds: TimeInterval
     public let slowPersistenceSeconds: TimeInterval
-    public let fillerWindowSeconds: TimeInterval
-    public let fillerBurstCount: Int
     public let perRuleCooldownSeconds: TimeInterval
     public let deckCooldownSeconds: TimeInterval
     public let globalCooldownSeconds: TimeInterval
@@ -26,8 +24,6 @@ public struct CueEngineConfiguration: Equatable, Sendable {
         paceEvaluationIntervalSeconds: TimeInterval,
         fastPersistenceSeconds: TimeInterval,
         slowPersistenceSeconds: TimeInterval,
-        fillerWindowSeconds: TimeInterval,
-        fillerBurstCount: Int,
         perRuleCooldownSeconds: TimeInterval,
         deckCooldownSeconds: TimeInterval,
         globalCooldownSeconds: TimeInterval,
@@ -42,8 +38,6 @@ public struct CueEngineConfiguration: Equatable, Sendable {
         self.paceEvaluationIntervalSeconds = paceEvaluationIntervalSeconds
         self.fastPersistenceSeconds = fastPersistenceSeconds
         self.slowPersistenceSeconds = slowPersistenceSeconds
-        self.fillerWindowSeconds = fillerWindowSeconds
-        self.fillerBurstCount = fillerBurstCount
         self.perRuleCooldownSeconds = perRuleCooldownSeconds
         self.deckCooldownSeconds = deckCooldownSeconds
         self.globalCooldownSeconds = globalCooldownSeconds
@@ -61,8 +55,6 @@ public struct CueEngineConfiguration: Equatable, Sendable {
             paceEvaluationIntervalSeconds: 3,
             fastPersistenceSeconds: 4,
             slowPersistenceSeconds: 5,
-            fillerWindowSeconds: 20,
-            fillerBurstCount: 3,
             perRuleCooldownSeconds: 30,
             deckCooldownSeconds: 45,
             globalCooldownSeconds: 12,
@@ -357,11 +349,17 @@ private func orderedCandidates(
         decisions.append(CueDecision(kind: .deckBehind, reason: "Presentation content is behind its checkpoint"))
     }
 
+    let clusterConfiguration = input.profile.fillerClusterConfiguration
     let recentFillers = input.recentFillerOffsets.filter {
-        $0 > elapsed - configuration.fillerWindowSeconds && $0 <= elapsed
+        $0 > elapsed - TimeInterval(clusterConfiguration.windowSeconds) && $0 <= elapsed
     }
-    if recentFillers.count >= configuration.fillerBurstCount {
-        decisions.append(CueDecision(kind: .fillerBurst, reason: "Multiple filler words in the last 20 seconds"))
+    if recentFillers.count >= clusterConfiguration.requiredFillerCount {
+        decisions.append(
+            CueDecision(
+                kind: .fillerBurst,
+                reason: "Multiple filler words in the last \(clusterConfiguration.windowSeconds) seconds"
+            )
+        )
     }
 
     let enoughSpeech = paceEvidenceIsUsable(input: input, configuration: configuration)

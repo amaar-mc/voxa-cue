@@ -92,6 +92,55 @@ public enum CueIntensity: UInt8, Codable, CaseIterable, Hashable, Sendable {
     }
 }
 
+public struct FillerClusterConfiguration: Codable, Equatable, Hashable, Sendable {
+    public static let requiredCountRange = 2...6
+    public static let windowSecondsRange = 5...30
+    public static let windowStepSeconds = 5
+
+    public let requiredFillerCount: Int
+    public let windowSeconds: Int
+
+    public init(requiredFillerCount: Int, windowSeconds: Int) {
+        precondition(Self.requiredCountRange.contains(requiredFillerCount))
+        precondition(Self.windowSecondsRange.contains(windowSeconds))
+        precondition((windowSeconds - Self.windowSecondsRange.lowerBound).isMultiple(of: Self.windowStepSeconds))
+        self.requiredFillerCount = requiredFillerCount
+        self.windowSeconds = windowSeconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case requiredFillerCount
+        case windowSeconds
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let requiredFillerCount = try container.decode(Int.self, forKey: .requiredFillerCount)
+        let windowSeconds = try container.decode(Int.self, forKey: .windowSeconds)
+        guard Self.requiredCountRange.contains(requiredFillerCount) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .requiredFillerCount,
+                in: container,
+                debugDescription: "Filler cluster count is outside the supported range."
+            )
+        }
+        guard Self.windowSecondsRange.contains(windowSeconds),
+              (windowSeconds - Self.windowSecondsRange.lowerBound).isMultiple(of: Self.windowStepSeconds) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .windowSeconds,
+                in: container,
+                debugDescription: "Filler lookback window is outside the supported range."
+            )
+        }
+        self.requiredFillerCount = requiredFillerCount
+        self.windowSeconds = windowSeconds
+    }
+
+    public static func responsiveDefault() -> FillerClusterConfiguration {
+        FillerClusterConfiguration(requiredFillerCount: 2, windowSeconds: 5)
+    }
+}
+
 public enum SessionMode: String, Codable, CaseIterable, Hashable, Sendable {
     case freeSpeaking
     case powerPoint
@@ -122,15 +171,43 @@ public struct HapticPreferences: Codable, Equatable, Sendable {
     public let enabledCues: Set<CueKind>
     public let patternByCue: [CueKind: HapticPattern]
     public let intensityByCue: [CueKind: CueIntensity]
+    public let fillerClusterConfiguration: FillerClusterConfiguration
 
     public init(
         enabledCues: Set<CueKind>,
         patternByCue: [CueKind: HapticPattern],
-        intensityByCue: [CueKind: CueIntensity]
+        intensityByCue: [CueKind: CueIntensity],
+        fillerClusterConfiguration: FillerClusterConfiguration
     ) {
         self.enabledCues = enabledCues
         self.patternByCue = patternByCue
         self.intensityByCue = intensityByCue
+        self.fillerClusterConfiguration = fillerClusterConfiguration
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabledCues
+        case patternByCue
+        case intensityByCue
+        case fillerClusterConfiguration
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabledCues = try container.decode(Set<CueKind>.self, forKey: .enabledCues)
+        patternByCue = try container.decode([CueKind: HapticPattern].self, forKey: .patternByCue)
+        intensityByCue = try container.decode([CueKind: CueIntensity].self, forKey: .intensityByCue)
+        fillerClusterConfiguration = (
+            try? container.decode(FillerClusterConfiguration.self, forKey: .fillerClusterConfiguration)
+        ) ?? .responsiveDefault()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabledCues, forKey: .enabledCues)
+        try container.encode(patternByCue, forKey: .patternByCue)
+        try container.encode(intensityByCue, forKey: .intensityByCue)
+        try container.encode(fillerClusterConfiguration, forKey: .fillerClusterConfiguration)
     }
 
     public static func defaultsV1() -> HapticPreferences {
@@ -153,7 +230,8 @@ public struct HapticPreferences: Codable, Equatable, Sendable {
                 .tooSlow: .medium,
                 .time75: .medium,
                 .time90: .medium,
-            ]
+            ],
+            fillerClusterConfiguration: .responsiveDefault()
         )
     }
 }
@@ -164,6 +242,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
     public let enabledCues: Set<CueKind>
     public let patternByCue: [CueKind: HapticPattern]
     public let intensityByCue: [CueKind: CueIntensity]
+    public let fillerClusterConfiguration: FillerClusterConfiguration
     public let highConfidenceFillers: [String]
     public let optionalFillers: [String]
 
@@ -173,6 +252,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
         enabledCues: Set<CueKind>,
         patternByCue: [CueKind: HapticPattern],
         intensityByCue: [CueKind: CueIntensity],
+        fillerClusterConfiguration: FillerClusterConfiguration,
         highConfidenceFillers: [String],
         optionalFillers: [String]
     ) {
@@ -181,6 +261,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
         self.enabledCues = enabledCues
         self.patternByCue = patternByCue
         self.intensityByCue = intensityByCue
+        self.fillerClusterConfiguration = fillerClusterConfiguration
         self.highConfidenceFillers = highConfidenceFillers
         self.optionalFillers = optionalFillers
     }
@@ -193,6 +274,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
             enabledCues: haptics.enabledCues,
             patternByCue: haptics.patternByCue,
             intensityByCue: haptics.intensityByCue,
+            fillerClusterConfiguration: haptics.fillerClusterConfiguration,
             highConfidenceFillers: ["um", "umm", "uh", "uhh", "uhm", "er", "erm"],
             optionalFillers: ["like", "you know", "i mean"]
         )
