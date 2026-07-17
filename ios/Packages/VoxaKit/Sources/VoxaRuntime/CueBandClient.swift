@@ -25,6 +25,7 @@ public final class CueBandClient: NSObject {
     private var peripheral: CBPeripheral?
     private var commandCharacteristic: CBCharacteristic?
     private var statusCharacteristic: CBCharacteristic?
+    private var firmwareVersion: (major: UInt8, minor: UInt8)?
     private var shouldReconnect = false
     private var failedPeripheralID: UUID?
     private var stateHandler: StateHandler?
@@ -69,7 +70,13 @@ public final class CueBandClient: NSObject {
               let commandCharacteristic else {
             throw CueBLEError.notConnected
         }
-        let data = try CueBLE.encode(command: command)
+        guard let firmwareVersion else { throw CueBLEError.firmwareVersionUnavailable }
+        let compatibleCommand = CueBLE.command(
+            command,
+            compatibleWithFirmwareMajor: firmwareVersion.major,
+            minor: firmwareVersion.minor
+        )
+        let data = try CueBLE.encode(command: compatibleCommand)
         packetHandler?(CueBandPacket(direction: .writeRequested, data: data))
         peripheral.writeValue(data, for: commandCharacteristic, type: .withResponse)
     }
@@ -92,6 +99,7 @@ public final class CueBandClient: NSObject {
         peripheral = nil
         commandCharacteristic = nil
         statusCharacteristic = nil
+        firmwareVersion = nil
     }
 
     private func failConnection(_ message: String) {
@@ -250,6 +258,7 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
             failConnection("Cue returned an incompatible status packet")
             return
         }
+        firmwareVersion = (major: status.firmwareMajor, minor: status.firmwareMinor)
         stateHandler?(.ready(firmware: "\(status.firmwareMajor).\(status.firmwareMinor)"))
         statusHandler?(status)
     }
