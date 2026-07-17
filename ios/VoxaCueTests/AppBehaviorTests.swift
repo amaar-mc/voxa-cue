@@ -251,6 +251,32 @@ func lifecycleCancelsSessionStartup() async throws {
 }
 
 @MainActor
+@Test("Session setup dismisses before live presentation begins")
+func sessionPresentationWaitsForSetupDismissal() async throws {
+    let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.session-presentation-order"))
+    preferences.removePersistentDomain(forName: "VoxaCueTests.session-presentation-order")
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: true,
+        preferences: preferences
+    )
+    model.setupPresented = true
+
+    model.beginSession(configuration: behaviorTestSessionConfiguration())
+
+    #expect(model.setupPresented == false)
+    #expect(model.activeSession == nil)
+
+    model.presentPendingSession()
+    #expect(model.activeSession != nil)
+    model.handleSceneBecameInactive()
+    await Task.yield()
+}
+
+@MainActor
 @Test("Lost band completion becomes terminal failed evidence")
 func lostBandCompletionFailsTruthfully() throws {
     let controller = try makeSessionControllerForBehaviorTests()
@@ -288,6 +314,183 @@ func lostBandCompletionFailsTruthfully() throws {
 
     #expect(controller.cueLogs[0].deliveryStatus == .failed)
     #expect(controller.latestBandFailure == "Cue Band did not confirm vibration completion in time.")
+}
+
+@MainActor
+@Test("Band acceptance and completion confirm wrist delivery")
+func bandAcknowledgementsConfirmDelivery() throws {
+    let controller = try makeSessionControllerForBehaviorTests()
+    controller.cueLogs = [
+        LiveSessionController.CueLog(
+            id: UUID(),
+            sequence: 9,
+            decision: CueDecision(kind: .tooFast, reason: "Speaking above target pace"),
+            elapsedSeconds: 30,
+            deliveryStatus: .pending,
+            sentAtMonotonicSeconds: 99,
+            acceptedAtMonotonicSeconds: nil
+        )
+    ]
+
+    controller.handleBandStatus(
+        CueBandStatus(
+            sequence: 9,
+            state: .accepted,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    #expect(controller.cueLogs[0].deliveryStatus == .accepted)
+
+    controller.handleBandStatus(
+        CueBandStatus(
+            sequence: 9,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    #expect(controller.cueLogs[0].deliveryStatus == .completed)
+    #expect(controller.latestBandFailure == nil)
+}
+
+@MainActor
+@Test("Live delivery fails closed on premature or erroneous completion")
+func liveDeliveryRejectsInvalidCompletion() throws {
+    let prematureController = try makeSessionControllerForBehaviorTests()
+    prematureController.cueLogs = [
+        LiveSessionController.CueLog(
+            id: UUID(),
+            sequence: 21,
+            decision: CueDecision(kind: .tooFast, reason: "Speaking above target pace"),
+            elapsedSeconds: 30,
+            deliveryStatus: .pending,
+            sentAtMonotonicSeconds: 99,
+            acceptedAtMonotonicSeconds: nil
+        )
+    ]
+    prematureController.handleBandStatus(
+        CueBandStatus(
+            sequence: 21,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+
+    #expect(prematureController.cueLogs[0].deliveryStatus == .failed)
+    #expect(prematureController.latestBandFailure == "Cue completion arrived before acceptance.")
+
+    let faultController = try makeSessionControllerForBehaviorTests()
+    faultController.cueLogs = [
+        LiveSessionController.CueLog(
+            id: UUID(),
+            sequence: 22,
+            decision: CueDecision(kind: .tooFast, reason: "Speaking above target pace"),
+            elapsedSeconds: 30,
+            deliveryStatus: .accepted,
+            sentAtMonotonicSeconds: 99,
+            acceptedAtMonotonicSeconds: 100
+        )
+    ]
+    faultController.handleBandStatus(
+        CueBandStatus(
+            sequence: 22,
+            state: .completed,
+            error: .driverFault,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+
+    #expect(faultController.cueLogs[0].deliveryStatus == .failed)
+    #expect(faultController.latestBandFailure == "Haptic driver fault")
+}
+
+@Test("Device Lab requires matching acceptance before completion")
+func deviceLabCorrelatesAcknowledgements() {
+    let awaiting = DeviceLabCueDelivery.awaitingAcceptance(sequence: 42)
+    let unrelated = reduceDeviceLabCueDelivery(
+        awaiting,
+        status: CueBandStatus(
+            sequence: 41,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    let accepted = reduceDeviceLabCueDelivery(
+        awaiting,
+        status: CueBandStatus(
+            sequence: 42,
+            state: .accepted,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    let completed = reduceDeviceLabCueDelivery(
+        accepted,
+        status: CueBandStatus(
+            sequence: 42,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+    let premature = reduceDeviceLabCueDelivery(
+        awaiting,
+        status: CueBandStatus(
+            sequence: 42,
+            state: .completed,
+            error: .none,
+            firmwareMajor: 1,
+            firmwareMinor: 0
+        )
+    )
+
+    #expect(unrelated == awaiting)
+    #expect(accepted == .awaitingCompletion(sequence: 42))
+    #expect(completed == .completed(sequence: 42))
+    #expect(premature == .failed(sequence: 42, message: "Completion arrived before acceptance."))
+}
+
+@Test("Device Lab fails pending commands immediately when Bluetooth terminates")
+func deviceLabHandlesTerminalConnectionStates() {
+    let pending = DeviceLabCueDelivery.awaitingCompletion(sequence: 43)
+
+    #expect(
+        reduceDeviceLabCueDelivery(pending, connectionState: .failed("Write failed"))
+            == .failed(sequence: 43, message: "Bluetooth failed: Write failed")
+    )
+    #expect(
+        reduceDeviceLabCueDelivery(pending, connectionState: .bluetoothUnavailable)
+            == .failed(
+                sequence: 43,
+                message: "Bluetooth became unavailable before the haptic was confirmed."
+            )
+    )
+    #expect(reduceDeviceLabCueDelivery(pending, connectionState: .reconnecting) == pending)
+}
+
+@Test("Device Lab timeout copy identifies the missing acknowledgement phase")
+func deviceLabTimeoutsArePhaseSpecific() {
+    #expect(
+        failDeviceLabCueDeliveryOnTimeout(.awaitingAcceptance(sequence: 44))
+            == .failed(sequence: 44, message: "Timed out waiting for the command to be accepted.")
+    )
+    #expect(
+        failDeviceLabCueDeliveryOnTimeout(.awaitingCompletion(sequence: 45))
+            == .failed(
+                sequence: 45,
+                message: "The command was accepted, but vibration completion was not confirmed."
+            )
+    )
 }
 
 @Test("Local deck plans stay inside the persisted insight contract")
