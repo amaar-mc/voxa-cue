@@ -81,7 +81,10 @@ public final class CueBandClient: NSObject {
             return
         }
         stateHandler?(.searching)
-        central.scanForPeripherals(withServices: [CueBLE.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+        central.scanForPeripherals(
+            withServices: CueBLE.discoveryServiceUUIDs,
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+        )
     }
 
     private func resetConnection() {
@@ -129,7 +132,7 @@ extension CueBandClient: @MainActor CBCentralManagerDelegate {
         discoveryHandler?(
             CueBandIdentity(
                 identifier: peripheral.identifier,
-                name: peripheral.name ?? advertisedName ?? "Unnamed peripheral",
+                name: advertisedName ?? peripheral.name ?? "Unnamed peripheral",
                 rssi: RSSI.intValue
             )
         )
@@ -141,7 +144,7 @@ extension CueBandClient: @MainActor CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         stateHandler?(.discovering)
-        peripheral.discoverServices([CueBLE.serviceUUID])
+        peripheral.discoverServices(CueBLE.discoveryServiceUUIDs)
     }
 
     public func centralManager(

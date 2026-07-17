@@ -1,6 +1,10 @@
 # Voxa Cue BLE Protocol v1
 
-The phone is the BLE central. The Nano 33 IoT or supported Nano ESP32 advertises as `Voxa Cue` and is the peripheral. All multi-byte integers are little-endian.
+The phone is the BLE central. Production Nano 33 IoT and supported Nano ESP32
+firmware advertise as `Voxa Cue`; the temporary Nano 33 IoT direct-PWM
+diagnostic build advertises as `Voxa D2`. Centrals discover compatible devices
+by the service UUID, never by the display name. All multi-byte integers are
+little-endian.
 
 ## GATT
 
