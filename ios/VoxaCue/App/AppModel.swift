@@ -148,6 +148,7 @@ final class AppModel {
 
     let dataStore: VoxaDataStore
     let demoMode: Bool
+    let proEntitlementStore: ProEntitlementStore
     private let speechPipeline: LiveSpeechPipeline
     private let cueBandClient: CueBandClient
     private let apiClient: VoxaAPIClient?
@@ -160,6 +161,7 @@ final class AppModel {
     private var pendingSession: LiveSessionController?
 
     private static let cueSequencePreferenceKey = "voxaCueNextCommandSequence"
+    private static let hapticPreferencesKey = "voxaCueHapticPreferencesV1"
 
     var selectedTab: Tab = .today
     var sessions: [SessionSummary] = []
@@ -176,6 +178,9 @@ final class AppModel {
     var insightBySession: [UUID: CoachingInsight] = [:]
     var isGeneratingInsight = false
     var coachingAPIState: CoachingAPIState
+    var hapticPreferences: HapticPreferences {
+        didSet { persistHapticPreferences() }
+    }
     var lastError: String?
     var usesTemporaryRecoveryStorage: Bool { dataStore.isInMemory && !demoMode }
 
@@ -193,12 +198,28 @@ final class AppModel {
         self.apiClient = apiClient
         self.demoMode = demoMode
         self.preferences = preferences
+        self.proEntitlementStore = ProEntitlementStore(
+            preferences: preferences,
+            productID: ProEntitlementStore.monthlyProductID,
+            allowsDemoAccess: Self.prototypeProAccessIsEnabled
+        )
         self.coachingAPIState = apiClient == nil ? .localOnly : .configured
+        self.hapticPreferences = preferences.data(forKey: Self.hapticPreferencesKey)
+            .flatMap { try? JSONDecoder().decode(HapticPreferences.self, from: $0) }
+            ?? .defaultsV1()
         let storedSequence = preferences.integer(forKey: Self.cueSequencePreferenceKey)
         self.nextCueSequenceValue = (1...Int(UInt16.max)).contains(storedSequence)
             ? UInt16(storedSequence)
             : 1
         reloadSessions()
+    }
+
+    private static var prototypeProAccessIsEnabled: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
     }
 
     func connectCueBand() {
@@ -226,7 +247,7 @@ final class AppModel {
         clearDeviceLabTelemetry()
     }
 
-    func sendDebugCue(kind: CueKind, intensity: CueIntensity, repeatCount: UInt8) {
+    func sendDebugCue(pattern: HapticPattern, intensity: CueIntensity, repeatCount: UInt8) {
         clearDeviceLabTelemetry()
         let sequence = allocateCueSequence()
         deviceLabCueDelivery = .awaitingAcceptance(sequence: sequence)
@@ -235,7 +256,7 @@ final class AppModel {
             try cueBandClient.send(
                 command: CueCommand(
                     sequence: sequence,
-                    kind: kind,
+                    pattern: pattern,
                     intensity: intensity,
                     repeatCount: repeatCount
                 )
@@ -246,6 +267,44 @@ final class AppModel {
             deviceLabCueDelivery = .failed(sequence: sequence, message: "The command could not be written.")
             lastError = "The debug command was not sent. Connect the Cue Band and use a repeat count from 1 to 3."
         }
+    }
+
+    func setCueEnabled(_ cue: CueKind, enabled: Bool) {
+        var enabledCues = hapticPreferences.enabledCues
+        if enabled {
+            enabledCues.insert(cue)
+        } else {
+            enabledCues.remove(cue)
+        }
+        hapticPreferences = HapticPreferences(
+            enabledCues: enabledCues,
+            patternByCue: hapticPreferences.patternByCue,
+            intensityByCue: hapticPreferences.intensityByCue
+        )
+    }
+
+    func setCuePattern(_ cue: CueKind, pattern: HapticPattern) {
+        var patterns = hapticPreferences.patternByCue
+        patterns[cue] = pattern
+        hapticPreferences = HapticPreferences(
+            enabledCues: hapticPreferences.enabledCues,
+            patternByCue: patterns,
+            intensityByCue: hapticPreferences.intensityByCue
+        )
+    }
+
+    func setCueIntensity(_ cue: CueKind, intensity: CueIntensity) {
+        var intensities = hapticPreferences.intensityByCue
+        intensities[cue] = intensity
+        hapticPreferences = HapticPreferences(
+            enabledCues: hapticPreferences.enabledCues,
+            patternByCue: hapticPreferences.patternByCue,
+            intensityByCue: intensities
+        )
+    }
+
+    func restoreDefaultHaptics() {
+        hapticPreferences = .defaultsV1()
     }
 
     func beginSession(configuration: SessionConfiguration) {
@@ -521,6 +580,11 @@ final class AppModel {
         lastBandStatus = nil
         lastWriteRequestPacket = nil
         lastReceivedBandPacket = nil
+    }
+
+    private func persistHapticPreferences() {
+        guard let encoded = try? JSONEncoder().encode(hapticPreferences) else { return }
+        preferences.set(encoded, forKey: Self.hapticPreferencesKey)
     }
 
     private func scheduleDeviceLabTimeout(sequence: UInt16) {
