@@ -61,6 +61,17 @@ func contextualMatcherRejectsLexicalLike() {
     #expect(result.fillerCount == 0)
 }
 
+@Test("Contextual matcher counts parenthetical like after a pronoun")
+func contextualMatcherCountsParentheticalLike() {
+    let result = analyzePresentationTranscript(
+        "I, like, don't really know.",
+        highConfidenceFillers: ["um", "uh"],
+        contextualFillers: ["like"]
+    )
+
+    #expect(result.matchedFillers == ["like"])
+}
+
 @Test("Contextual matcher distinguishes discourse phrases from literal statements")
 func contextualMatcherClassifiesDiscoursePhrases() {
     let result = analyzePresentationTranscript(

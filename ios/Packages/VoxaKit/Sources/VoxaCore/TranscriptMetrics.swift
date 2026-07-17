@@ -382,10 +382,13 @@ private func contextualOccurrenceIsFiller(
 
     let index = occurrence.lowerBound
     let token = tokens[index]
+    if punctuationMarksExist(token.separatorBefore) {
+        return true
+    }
     if isLexicalLike(tokens: tokens, index: index) {
         return false
     }
-    if punctuationMarksExist(token.separatorBefore) || punctuationMarksExist(token.separatorAfter) {
+    if punctuationMarksExist(token.separatorAfter) {
         return true
     }
     return occurrenceCount >= 3
