@@ -122,6 +122,41 @@ func appModelHydratesSavedInsights() throws {
 }
 
 @MainActor
+@Test("App model repairs missing legacy haptic mappings without replacing custom choices")
+func appModelNormalizesLegacyHapticPreferences() throws {
+    let suiteName = "VoxaCueTests.legacy-haptic-preferences"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let legacy = HapticPreferences(
+        enabledCues: Set(CueKind.essentialDefaults),
+        patternByCue: [.tooFast: .singlePulse],
+        intensityByCue: [.tooFast: .strong]
+    )
+    preferences.set(
+        try JSONEncoder().encode(legacy),
+        forKey: "voxaCueHapticPreferencesV1"
+    )
+
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    #expect(model.hapticPreferences.enabledCues == legacy.enabledCues)
+    #expect(model.hapticPreferences.patternByCue[.tooFast] == .singlePulse)
+    #expect(model.hapticPreferences.intensityByCue[.tooFast] == .strong)
+    #expect(model.hapticPreferences.patternByCue[.fillerBurst] == .calmWave)
+    #expect(model.hapticPreferences.intensityByCue[.time100] == .strong)
+    let migratedData = try #require(preferences.data(forKey: "voxaCueHapticPreferencesV1"))
+    let migrated = try JSONDecoder().decode(HapticPreferences.self, from: migratedData)
+    #expect(migrated == model.hapticPreferences)
+}
+
+@MainActor
 @Test("Demo mode never contacts the coaching API")
 func demoModeAvoidsCoachingAPI() async throws {
     let configuration = URLSessionConfiguration.ephemeral

@@ -29,6 +29,26 @@ enum CoachingAPIState: Equatable {
     case unavailable(message: String)
 }
 
+func normalizedHapticPreferences(
+    _ stored: HapticPreferences,
+    defaults: HapticPreferences
+) -> HapticPreferences {
+    let patterns = defaults.patternByCue.merging(stored.patternByCue) { _, storedPattern in
+        storedPattern
+    }
+    let intensities = defaults.intensityByCue.merging(stored.intensityByCue) { _, storedIntensity in
+        storedIntensity
+    }
+    let enabledCues = stored.enabledCues.filter { cue in
+        patterns[cue] != nil && intensities[cue] != nil
+    }
+    return HapticPreferences(
+        enabledCues: enabledCues,
+        patternByCue: patterns,
+        intensityByCue: intensities
+    )
+}
+
 enum DeviceLabCueDelivery: Equatable {
     case idle
     case awaitingAcceptance(sequence: UInt16)
@@ -204,13 +224,19 @@ final class AppModel {
             allowsDemoAccess: Self.prototypeProAccessIsEnabled
         )
         self.coachingAPIState = apiClient == nil ? .localOnly : .configured
-        self.hapticPreferences = preferences.data(forKey: Self.hapticPreferencesKey)
+        let defaultHaptics = HapticPreferences.defaultsV1()
+        let storedHaptics = preferences.data(forKey: Self.hapticPreferencesKey)
             .flatMap { try? JSONDecoder().decode(HapticPreferences.self, from: $0) }
-            ?? .defaultsV1()
+            ?? defaultHaptics
+        self.hapticPreferences = normalizedHapticPreferences(
+            storedHaptics,
+            defaults: defaultHaptics
+        )
         let storedSequence = preferences.integer(forKey: Self.cueSequencePreferenceKey)
         self.nextCueSequenceValue = (1...Int(UInt16.max)).contains(storedSequence)
             ? UInt16(storedSequence)
             : 1
+        persistHapticPreferences()
         reloadSessions()
     }
 
