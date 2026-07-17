@@ -221,7 +221,7 @@ uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
-The serial monitor should print `Voxa Cue firmware 1.2 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command. During a timed session, the RGB light moves from green through yellow and orange to red, then flashes red overtime.
+The serial monitor should print `Voxa Cue firmware 1.3 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command. During a timed session, the RGB light moves from green through yellow and orange to red, then flashes red overtime. If a 3.3 V-compatible active buzzer is wired to D9, the opt-in emergency-buzzer setting produces one two-second tone at 30 seconds overtime.
 
 </details>
 
