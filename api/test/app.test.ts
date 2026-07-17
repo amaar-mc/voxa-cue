@@ -382,6 +382,10 @@ describe("Voxa Cue API", () => {
       ...validInsightRequest,
       metrics: {
         ...validInsightRequest.metrics,
+        paceStandardDeviationWpm: null,
+        pauseCount: null,
+        averagePauseSeconds: null,
+        longestPauseSeconds: null,
         pitchRangeSemitones: null,
         energyRangeDb: null,
       },
