@@ -3,7 +3,10 @@ import Foundation
 public struct CueEngineConfiguration: Equatable, Sendable {
     public let paceWindowSeconds: TimeInterval
     public let minimumVoicedSeconds: TimeInterval
-    public let minimumFinalizedWords: Int
+    public let minimumRecognizedWords: Int
+    public let paceTranscriptFreshnessSeconds: TimeInterval
+    public let paceHysteresisWPM: Double
+    public let paceEvaluationIntervalSeconds: TimeInterval
     public let fastPersistenceSeconds: TimeInterval
     public let slowPersistenceSeconds: TimeInterval
     public let fillerWindowSeconds: TimeInterval
@@ -17,7 +20,10 @@ public struct CueEngineConfiguration: Equatable, Sendable {
     public init(
         paceWindowSeconds: TimeInterval,
         minimumVoicedSeconds: TimeInterval,
-        minimumFinalizedWords: Int,
+        minimumRecognizedWords: Int,
+        paceTranscriptFreshnessSeconds: TimeInterval,
+        paceHysteresisWPM: Double,
+        paceEvaluationIntervalSeconds: TimeInterval,
         fastPersistenceSeconds: TimeInterval,
         slowPersistenceSeconds: TimeInterval,
         fillerWindowSeconds: TimeInterval,
@@ -30,7 +36,10 @@ public struct CueEngineConfiguration: Equatable, Sendable {
     ) {
         self.paceWindowSeconds = paceWindowSeconds
         self.minimumVoicedSeconds = minimumVoicedSeconds
-        self.minimumFinalizedWords = minimumFinalizedWords
+        self.minimumRecognizedWords = minimumRecognizedWords
+        self.paceTranscriptFreshnessSeconds = paceTranscriptFreshnessSeconds
+        self.paceHysteresisWPM = paceHysteresisWPM
+        self.paceEvaluationIntervalSeconds = paceEvaluationIntervalSeconds
         self.fastPersistenceSeconds = fastPersistenceSeconds
         self.slowPersistenceSeconds = slowPersistenceSeconds
         self.fillerWindowSeconds = fillerWindowSeconds
@@ -44,9 +53,12 @@ public struct CueEngineConfiguration: Equatable, Sendable {
 
     public static func version1() -> CueEngineConfiguration {
         CueEngineConfiguration(
-            paceWindowSeconds: 20,
-            minimumVoicedSeconds: 8,
-            minimumFinalizedWords: 20,
+            paceWindowSeconds: 8,
+            minimumVoicedSeconds: 2,
+            minimumRecognizedWords: 4,
+            paceTranscriptFreshnessSeconds: 4,
+            paceHysteresisWPM: 5,
+            paceEvaluationIntervalSeconds: 3,
             fastPersistenceSeconds: 4,
             slowPersistenceSeconds: 5,
             fillerWindowSeconds: 20,
@@ -57,6 +69,16 @@ public struct CueEngineConfiguration: Equatable, Sendable {
             deckGraceSeconds: 15,
             deckMinimumConfidence: 0.70
         )
+    }
+}
+
+public struct PaceEvidence: Equatable, Sendable {
+    public let recognizedWordCount: Int
+    public let latestTranscriptEndSeconds: TimeInterval?
+
+    public init(recognizedWordCount: Int, latestTranscriptEndSeconds: TimeInterval?) {
+        self.recognizedWordCount = recognizedWordCount
+        self.latestTranscriptEndSeconds = latestTranscriptEndSeconds
     }
 }
 
@@ -76,6 +98,7 @@ public struct DeckProgress: Equatable, Sendable {
 
 public struct CueEvaluationInput: Equatable, Sendable {
     public let metrics: LiveMetrics
+    public let paceEvidence: PaceEvidence
     public let targetDurationSeconds: TimeInterval
     public let recentFillerOffsets: [TimeInterval]
     public let deckProgress: DeckProgress?
@@ -84,6 +107,7 @@ public struct CueEvaluationInput: Equatable, Sendable {
 
     public init(
         metrics: LiveMetrics,
+        paceEvidence: PaceEvidence,
         targetDurationSeconds: TimeInterval,
         recentFillerOffsets: [TimeInterval],
         deckProgress: DeckProgress?,
@@ -91,6 +115,7 @@ public struct CueEvaluationInput: Equatable, Sendable {
         isPaused: Bool
     ) {
         self.metrics = metrics
+        self.paceEvidence = paceEvidence
         self.targetDurationSeconds = targetDurationSeconds
         self.recentFillerOffsets = recentFillerOffsets
         self.deckProgress = deckProgress
@@ -102,6 +127,9 @@ public struct CueEvaluationInput: Equatable, Sendable {
 public struct CueEngineState: Equatable, Sendable {
     public let fastConditionStartedAt: TimeInterval?
     public let slowConditionStartedAt: TimeInterval?
+    public let fastConditionArmed: Bool
+    public let slowConditionArmed: Bool
+    public let lastPaceEvaluationAt: TimeInterval?
     public let lastGlobalCueAt: TimeInterval?
     public let lastCueAtByKind: [CueKind: TimeInterval]
     public let deliveredMilestones: Set<CueKind>
@@ -110,6 +138,9 @@ public struct CueEngineState: Equatable, Sendable {
     public init(
         fastConditionStartedAt: TimeInterval?,
         slowConditionStartedAt: TimeInterval?,
+        fastConditionArmed: Bool,
+        slowConditionArmed: Bool,
+        lastPaceEvaluationAt: TimeInterval?,
         lastGlobalCueAt: TimeInterval?,
         lastCueAtByKind: [CueKind: TimeInterval],
         deliveredMilestones: Set<CueKind>,
@@ -117,6 +148,9 @@ public struct CueEngineState: Equatable, Sendable {
     ) {
         self.fastConditionStartedAt = fastConditionStartedAt
         self.slowConditionStartedAt = slowConditionStartedAt
+        self.fastConditionArmed = fastConditionArmed
+        self.slowConditionArmed = slowConditionArmed
+        self.lastPaceEvaluationAt = lastPaceEvaluationAt
         self.lastGlobalCueAt = lastGlobalCueAt
         self.lastCueAtByKind = lastCueAtByKind
         self.deliveredMilestones = deliveredMilestones
@@ -127,6 +161,9 @@ public struct CueEngineState: Equatable, Sendable {
         CueEngineState(
             fastConditionStartedAt: nil,
             slowConditionStartedAt: nil,
+            fastConditionArmed: true,
+            slowConditionArmed: true,
+            lastPaceEvaluationAt: nil,
             lastGlobalCueAt: nil,
             lastCueAtByKind: [:],
             deliveredMilestones: [],
@@ -161,24 +198,64 @@ public func evaluateCue(
     configuration: CueEngineConfiguration
 ) -> CueEvaluationResult {
     let elapsed = input.metrics.elapsedSeconds
-    guard !input.isPaused else { return CueEvaluationResult(state: state, decision: nil) }
+    guard !input.isPaused else {
+        return CueEvaluationResult(
+            state: suspendPaceCuePersistence(state: state),
+            decision: nil
+        )
+    }
 
-    let fastStart = input.metrics.rollingWPM > input.profile.maximumWPM
-        ? (state.fastConditionStartedAt ?? elapsed)
-        : nil
-    let slowStart = input.metrics.rollingWPM > 0 && input.metrics.rollingWPM < input.profile.minimumWPM
-        ? (state.slowConditionStartedAt ?? elapsed)
-        : nil
+    let paceEvidenceIsUsable = paceEvidenceIsUsable(
+        input: input,
+        configuration: configuration
+    )
+    var fastStart = paceEvidenceIsUsable ? state.fastConditionStartedAt : nil
+    var slowStart = paceEvidenceIsUsable ? state.slowConditionStartedAt : nil
+    var fastArmed = state.fastConditionArmed
+    var slowArmed = state.slowConditionArmed
+    let paceEvaluationIsDue = state.lastPaceEvaluationAt.map {
+        (elapsed - $0) >= configuration.paceEvaluationIntervalSeconds
+    } ?? (elapsed >= configuration.paceEvaluationIntervalSeconds)
+    let lastPaceEvaluationAt = paceEvaluationIsDue ? elapsed : state.lastPaceEvaluationAt
+
+    if paceEvaluationIsDue, paceEvidenceIsUsable {
+        if input.metrics.rollingWPM > input.profile.maximumWPM, fastArmed {
+            fastStart = fastStart ?? elapsed
+        } else if input.metrics.rollingWPM < input.profile.maximumWPM - configuration.paceHysteresisWPM {
+            fastStart = nil
+            fastArmed = true
+        }
+
+        if input.metrics.rollingWPM > 0,
+           input.metrics.rollingWPM < input.profile.minimumWPM,
+           slowArmed {
+            slowStart = slowStart ?? elapsed
+        } else if input.metrics.rollingWPM > input.profile.minimumWPM + configuration.paceHysteresisWPM {
+            slowStart = nil
+            slowArmed = true
+        }
+    } else if paceEvaluationIsDue {
+        fastStart = nil
+        slowStart = nil
+    }
     let conditionedState = CueEngineState(
         fastConditionStartedAt: fastStart,
         slowConditionStartedAt: slowStart,
+        fastConditionArmed: fastArmed,
+        slowConditionArmed: slowArmed,
+        lastPaceEvaluationAt: lastPaceEvaluationAt,
         lastGlobalCueAt: state.lastGlobalCueAt,
         lastCueAtByKind: state.lastCueAtByKind,
         deliveredMilestones: state.deliveredMilestones,
         deliveredDeckCheckpoints: state.deliveredDeckCheckpoints
     )
 
-    let candidates = orderedCandidates(input: input, state: conditionedState, configuration: configuration)
+    let candidates = orderedCandidates(
+        input: input,
+        state: conditionedState,
+        configuration: configuration,
+        paceEvaluationIsDue: paceEvaluationIsDue
+    )
     guard let decision = candidates.first(where: { candidate in
         input.profile.enabledCues.contains(candidate.kind)
             && ruleCooldownPassed(
@@ -222,12 +299,29 @@ public func evaluateCue(
     let nextState = CueEngineState(
         fastConditionStartedAt: decision.kind == .tooFast ? nil : fastStart,
         slowConditionStartedAt: decision.kind == .tooSlow ? nil : slowStart,
+        fastConditionArmed: decision.kind == .tooFast ? false : fastArmed,
+        slowConditionArmed: decision.kind == .tooSlow ? false : slowArmed,
+        lastPaceEvaluationAt: lastPaceEvaluationAt,
         lastGlobalCueAt: elapsed,
         lastCueAtByKind: lastByKind,
         deliveredMilestones: milestones,
         deliveredDeckCheckpoints: deckCheckpoints
     )
     return CueEvaluationResult(state: nextState, decision: decision)
+}
+
+public func suspendPaceCuePersistence(state: CueEngineState) -> CueEngineState {
+    CueEngineState(
+        fastConditionStartedAt: nil,
+        slowConditionStartedAt: nil,
+        fastConditionArmed: state.fastConditionArmed,
+        slowConditionArmed: state.slowConditionArmed,
+        lastPaceEvaluationAt: nil,
+        lastGlobalCueAt: state.lastGlobalCueAt,
+        lastCueAtByKind: state.lastCueAtByKind,
+        deliveredMilestones: state.deliveredMilestones,
+        deliveredDeckCheckpoints: state.deliveredDeckCheckpoints
+    )
 }
 
 private func isTimeMilestone(_ kind: CueKind) -> Bool {
@@ -237,7 +331,8 @@ private func isTimeMilestone(_ kind: CueKind) -> Bool {
 private func orderedCandidates(
     input: CueEvaluationInput,
     state: CueEngineState,
-    configuration: CueEngineConfiguration
+    configuration: CueEngineConfiguration,
+    paceEvaluationIsDue: Bool
 ) -> [CueDecision] {
     let elapsed = input.metrics.elapsedSeconds
     var decisions: [CueDecision] = []
@@ -269,19 +364,34 @@ private func orderedCandidates(
         decisions.append(CueDecision(kind: .fillerBurst, reason: "Multiple filler words in the last 20 seconds"))
     }
 
-    let enoughSpeech = input.metrics.voicedSeconds >= configuration.minimumVoicedSeconds
-        && input.metrics.finalizedWordCount >= configuration.minimumFinalizedWords
-    if enoughSpeech,
+    let enoughSpeech = paceEvidenceIsUsable(input: input, configuration: configuration)
+    if paceEvaluationIsDue,
+       enoughSpeech,
        let fastStart = state.fastConditionStartedAt,
        elapsed - fastStart >= configuration.fastPersistenceSeconds {
         decisions.append(CueDecision(kind: .tooFast, reason: "Speaking above target pace"))
     }
-    if enoughSpeech,
+    if paceEvaluationIsDue,
+       enoughSpeech,
        let slowStart = state.slowConditionStartedAt,
        elapsed - slowStart >= configuration.slowPersistenceSeconds {
         decisions.append(CueDecision(kind: .tooSlow, reason: "Speaking below target pace"))
     }
     return decisions
+}
+
+private func paceEvidenceIsUsable(
+    input: CueEvaluationInput,
+    configuration: CueEngineConfiguration
+) -> Bool {
+    guard input.metrics.voicedSeconds >= configuration.minimumVoicedSeconds,
+          input.paceEvidence.recognizedWordCount >= configuration.minimumRecognizedWords,
+          let latestTranscriptEndSeconds = input.paceEvidence.latestTranscriptEndSeconds,
+          latestTranscriptEndSeconds.isFinite else {
+        return false
+    }
+    let evidenceAge = input.metrics.elapsedSeconds - latestTranscriptEndSeconds
+    return evidenceAge >= -1 && evidenceAge <= configuration.paceTranscriptFreshnessSeconds
 }
 
 private func globalCooldownPassed(elapsed: TimeInterval, state: CueEngineState, seconds: TimeInterval) -> Bool {
