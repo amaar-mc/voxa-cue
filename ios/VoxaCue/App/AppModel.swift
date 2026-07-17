@@ -29,6 +29,113 @@ enum CoachingAPIState: Equatable {
     case unavailable(message: String)
 }
 
+enum DeviceLabCueDelivery: Equatable {
+    case idle
+    case awaitingAcceptance(sequence: UInt16)
+    case awaitingCompletion(sequence: UInt16)
+    case completed(sequence: UInt16)
+    case rejected(sequence: UInt16, error: CueBandCommandError)
+    case failed(sequence: UInt16, message: String)
+
+    var isPending: Bool {
+        switch self {
+        case .awaitingAcceptance, .awaitingCompletion: true
+        case .idle, .completed, .rejected, .failed: false
+        }
+    }
+
+    var pendingSequence: UInt16? {
+        switch self {
+        case let .awaitingAcceptance(sequence), let .awaitingCompletion(sequence): sequence
+        case .idle, .completed, .rejected, .failed: nil
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .idle: "No test sent"
+        case .awaitingAcceptance: "Sending"
+        case .awaitingCompletion: "Accepted"
+        case .completed: "Completed"
+        case .rejected: "Rejected"
+        case .failed: "Failed"
+        }
+    }
+
+    var failureMessage: String? {
+        if case let .failed(_, message) = self { return message }
+        return nil
+    }
+}
+
+func reduceDeviceLabCueDelivery(
+    _ delivery: DeviceLabCueDelivery,
+    status: CueBandStatus
+) -> DeviceLabCueDelivery {
+    guard delivery.pendingSequence == status.sequence else { return delivery }
+    let phase: CueBandAcknowledgementPhase
+    switch delivery {
+    case .awaitingAcceptance:
+        phase = .awaitingAcceptance
+    case .awaitingCompletion:
+        phase = .awaitingCompletion
+    case .idle, .completed, .rejected, .failed:
+        return delivery
+    }
+    switch advanceCueBandAcknowledgement(phase, with: status) {
+    case .awaitingAcceptance:
+        return delivery
+    case .awaitingCompletion:
+        return .awaitingCompletion(sequence: status.sequence)
+    case .completed:
+        return .completed(sequence: status.sequence)
+    case let .failed(failure):
+        switch failure {
+        case .completionBeforeAcceptance:
+            return .failed(sequence: status.sequence, message: "Completion arrived before acceptance.")
+        case let .rejected(error), let .statusError(error):
+            return .rejected(sequence: status.sequence, error: error)
+        }
+    }
+}
+
+func reduceDeviceLabCueDelivery(
+    _ delivery: DeviceLabCueDelivery,
+    connectionState: CueBandConnectionState
+) -> DeviceLabCueDelivery {
+    guard let sequence = delivery.pendingSequence else { return delivery }
+    switch connectionState {
+    case let .failed(message):
+        return .failed(sequence: sequence, message: "Bluetooth failed: \(message)")
+    case .bluetoothUnavailable:
+        return .failed(
+            sequence: sequence,
+            message: "Bluetooth became unavailable before the haptic was confirmed."
+        )
+    case .idle:
+        return .failed(
+            sequence: sequence,
+            message: "The Cue Band disconnected before the haptic was confirmed."
+        )
+    case .searching, .connecting, .discovering, .ready, .reconnecting:
+        return delivery
+    }
+}
+
+func failDeviceLabCueDeliveryOnTimeout(_ delivery: DeviceLabCueDelivery) -> DeviceLabCueDelivery {
+    switch delivery {
+    case let .awaitingAcceptance(sequence):
+        return .failed(sequence: sequence, message: "Timed out waiting for the command to be accepted.")
+    case let .awaitingCompletion(sequence):
+        return .failed(
+            sequence: sequence,
+            message: "The command was accepted, but vibration completion was not confirmed."
+        )
+    case .idle, .completed, .rejected, .failed:
+        return delivery
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -49,6 +156,8 @@ final class AppModel {
     private var includesDemoFixtures = true
     private var sessionStartTask: Task<Void, Never>?
     private var startingSessionID: UUID?
+    private var deviceLabTimeoutTask: Task<Void, Never>?
+    private var pendingSession: LiveSessionController?
 
     private static let cueSequencePreferenceKey = "voxaCueNextCommandSequence"
 
@@ -59,6 +168,7 @@ final class AppModel {
     var lastBandStatus: CueBandStatus?
     var lastWriteRequestPacket: Data?
     var lastReceivedBandPacket: Data?
+    var deviceLabCueDelivery = DeviceLabCueDelivery.idle
     var setupPresented = false
     var activeSession: LiveSessionController?
     var completedSummary: SessionSummary?
@@ -96,7 +206,7 @@ final class AppModel {
         discoveredBand = nil
         cueBandClient.connect(
             stateHandler: { [weak self] state in
-                self?.connectionState = state
+                self?.handleCueBandConnectionState(state)
             },
             statusHandler: { [weak self] status in
                 self?.handleBandStatus(status)
@@ -118,16 +228,22 @@ final class AppModel {
 
     func sendDebugCue(kind: CueKind, intensity: CueIntensity, repeatCount: UInt8) {
         clearDeviceLabTelemetry()
+        let sequence = allocateCueSequence()
+        deviceLabCueDelivery = .awaitingAcceptance(sequence: sequence)
+        scheduleDeviceLabTimeout(sequence: sequence)
         do {
             try cueBandClient.send(
                 command: CueCommand(
-                    sequence: allocateCueSequence(),
+                    sequence: sequence,
                     kind: kind,
                     intensity: intensity,
                     repeatCount: repeatCount
                 )
             )
         } catch {
+            deviceLabTimeoutTask?.cancel()
+            deviceLabTimeoutTask = nil
+            deviceLabCueDelivery = .failed(sequence: sequence, message: "The command could not be written.")
             lastError = "The debug command was not sent. Connect the Cue Band and use a repeat count from 1 to 3."
         }
     }
@@ -136,6 +252,8 @@ final class AppModel {
         if let activeSession, !activeSession.hasStarted {
             activeSession.cancelPreparationForLifecycle()
         }
+        pendingSession?.cancelPreparationForLifecycle()
+        pendingSession = nil
         cancelSessionStartWork()
         let controller = LiveSessionController(
             configuration: configuration,
@@ -161,12 +279,27 @@ final class AppModel {
                 self.reloadSessions()
             }
         )
+        if setupPresented {
+            pendingSession = controller
+            setupPresented = false
+        } else {
+            activateSession(controller)
+        }
+    }
+
+    func presentPendingSession() {
+        guard let pendingSession else { return }
+        self.pendingSession = nil
+        activateSession(pendingSession)
+    }
+
+    private func activateSession(_ controller: LiveSessionController) {
         activeSession = controller
-        setupPresented = false
-        startingSessionID = controller.id
+        let sessionID = controller.id
+        startingSessionID = sessionID
         sessionStartTask = Task { [weak self, weak controller] in
             await controller?.start()
-            self?.clearSessionStartWork(for: configuration.id)
+            self?.clearSessionStartWork(for: sessionID)
         }
     }
 
@@ -333,12 +466,26 @@ final class AppModel {
         startingSessionID = nil
     }
 
+    private func handleCueBandConnectionState(_ state: CueBandConnectionState) {
+        connectionState = state
+        let reduced = reduceDeviceLabCueDelivery(deviceLabCueDelivery, connectionState: state)
+        guard reduced != deviceLabCueDelivery else { return }
+        deviceLabCueDelivery = reduced
+        deviceLabTimeoutTask?.cancel()
+        deviceLabTimeoutTask = nil
+    }
+
     private func handleBandStatus(_ status: CueBandStatus) {
         lastBandStatus = status
         synchronizeCueSequence(after: status)
         if let activeSession {
             activeSession.handleBandStatus(status)
             return
+        }
+        deviceLabCueDelivery = reduceDeviceLabCueDelivery(deviceLabCueDelivery, status: status)
+        if !deviceLabCueDelivery.isPending {
+            deviceLabTimeoutTask?.cancel()
+            deviceLabTimeoutTask = nil
         }
         guard status.state == .rejected || status.error != .none else { return }
         switch status.error {
@@ -363,9 +510,29 @@ final class AppModel {
     }
 
     private func clearDeviceLabTelemetry() {
+        deviceLabTimeoutTask?.cancel()
+        deviceLabTimeoutTask = nil
+        deviceLabCueDelivery = .idle
         lastBandStatus = nil
         lastWriteRequestPacket = nil
         lastReceivedBandPacket = nil
+    }
+
+    private func scheduleDeviceLabTimeout(sequence: UInt16) {
+        deviceLabTimeoutTask?.cancel()
+        deviceLabTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(8))
+            } catch {
+                return
+            }
+            guard let self,
+                  self.deviceLabCueDelivery.pendingSequence == sequence else {
+                return
+            }
+            self.deviceLabCueDelivery = failDeviceLabCueDeliveryOnTimeout(self.deviceLabCueDelivery)
+            self.deviceLabTimeoutTask = nil
+        }
     }
 
     private func synchronizeCueSequence(after status: CueBandStatus) {
