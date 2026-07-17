@@ -44,7 +44,7 @@ The SwiftUI app is generated from `ios/project.yml` and targets iPhone on iOS 26
 
 ### Capture and speech
 
-`LiveSpeechPipeline` configures `AVAudioSession` for built-in-microphone recording in measurement mode, requests a 48 kHz sample rate and 20 ms I/O buffer, and feeds copied buffers to an asynchronous pipeline. Audio is converted to the best format supported by `SpeechAnalyzer` modules with converter priming disabled. Empty conversion output is discarded, and each analyzer input uses the framework's contiguous sequence timing instead of reconstructed floating-point timestamps. Pausing a session gates microphone buffers and freezes the active presentation clock, so Q&A does not enter transcription, metrics, or cue decisions. `SpeechTranscriber` emits progressive time-indexed results; only finalized ranges enter session metrics. `SpeechDetector` remains an internal analyzer module with result reporting disabled; Voxa Cue does not use it as a voice-activity data source.
+`LiveSpeechPipeline` configures `AVAudioSession` for built-in-microphone recording in measurement mode, requests a 48 kHz sample rate and 20 ms I/O buffer, and feeds copied buffers to an asynchronous pipeline. Audio is converted to the best format supported by `SpeechAnalyzer` modules with converter priming disabled. Empty conversion output is discarded, and each analyzer input uses the framework's contiguous sequence timing instead of reconstructed floating-point timestamps. Pausing a session gates microphone buffers and freezes the active presentation clock, so Q&A does not enter transcription, metrics, or cue decisions. `SpeechTranscriber` emits progressive time-indexed results. The current volatile range can feed the live pace and filler snapshot, while only finalized ranges enter durable session metrics. `SpeechDetector` remains an internal analyzer module with result reporting disabled; Voxa Cue does not use it as a voice-activity data source.
 
 The DSP path converts the built-in microphone stream to mono 16 kHz audio. A
 calibrated RMS detector classifies 20 ms frames with attack/release hysteresis
@@ -61,20 +61,24 @@ or audio upload path exists.
 
 `TranscriptAccumulator` deduplicates finalized transcript ranges.
 `TranscriptMetrics` derives normalized words, exact filled pauses, conservative
-contextual uses of “like,” “you know,” and “I mean,” a 20-second rolling
-words-per-minute value, and talk ratio. Presentation pace includes pauses;
-filler rate is separately normalized by speaking time. App-owned RMS activity
-ranges provide internal pauses of at least 500 ms only when a 30-second session has at
-least 90% activity-timeline coverage. Volatile transcript ranges may trigger a
+contextual uses of “like,” “you know,” and “I mean,” an eight-second rolling
+words-per-minute value, and talk ratio. The pace window proportionally counts
+segments that cross its boundary, starts its opening denominator at the first
+recognized speech, and includes the current volatile transcript revision without
+adding it to durable totals. Presentation pace includes pauses; filler rate is
+separately normalized by speaking time. App-owned RMS activity ranges provide
+internal pauses of at least 500 ms only when a 30-second session has at least 90%
+activity-timeline coverage. Volatile transcript ranges may contribute to a live
 cue but are never persisted or included in the final summary.
 
 `CueEngine` evaluates those metrics against a `CoachingProfile`. Slow-down,
 filler-burst, 50%, and 100% cues are enabled by default; too-slow, 75%, and 90%
 are opt-in. Three fillers inside 20 seconds create one filler-burst candidate,
 then a 30-second per-rule cooldown prevents per-word buzzing. Persistence,
+transcript freshness, three-second pace evaluation cadence, 5 WPM hysteresis,
 global cooldown, enablement, intensity, pattern mapping, and priority suppress
-noisy or conflicting feedback. The app maps the highest-priority semantic cue to
-a physical BLE pattern.
+noisy or conflicting feedback. The app maps the highest-priority semantic cue
+to a physical BLE pattern.
 
 ### Deferred presentation-plan code
 
