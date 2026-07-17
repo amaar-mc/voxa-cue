@@ -26,6 +26,17 @@ func builtInMicrophoneRouteIsValid(inputKinds: [LiveAudioInputKind]) -> Bool {
     inputKinds == [.builtInMicrophone]
 }
 
+func liveAudioTapBufferSize(sampleRate: Double) throws -> AVAudioFrameCount {
+    guard sampleRate.isFinite, sampleRate > 0 else {
+        throw LiveSpeechPipelineError.invalidInputFormat
+    }
+    let frameCount = ceil(sampleRate * 0.1)
+    guard frameCount <= Double(AVAudioFrameCount.max) else {
+        throw LiveSpeechPipelineError.invalidInputFormat
+    }
+    return AVAudioFrameCount(frameCount)
+}
+
 public enum LiveSpeechEvent: Sendable {
     case volatileTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
     case finalizedTranscript(text: String, startSeconds: TimeInterval, endSeconds: TimeInterval)
@@ -67,7 +78,7 @@ public final class LiveSpeechPipeline {
         routeChangeTask?.cancel()
     }
 
-    public static func requestPermissions() async -> Bool {
+    public nonisolated static func requestPermissions() async -> Bool {
         let microphoneGranted = await withCheckedContinuation { continuation in
             AVAudioApplication.requestRecordPermission { granted in
                 continuation.resume(returning: granted)
@@ -222,11 +233,28 @@ public final class LiveSpeechPipeline {
             }
 
             captureGate.start()
-            audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1_024, format: naturalFormat) { buffer, _ in
+            let tapHandler: AVAudioNodeTapBlock = { buffer, _ in
                 guard let captureGeneration = captureGate.generationForCapture() else { return }
                 guard let copy = copiedBuffer(buffer) else { return }
                 bufferPair.continuation.yield(
                     SendableAudioBuffer(buffer: copy, captureGeneration: captureGeneration)
+                )
+            }
+            let tapBufferSize = try liveAudioTapBufferSize(sampleRate: naturalFormat.sampleRate)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                try audioEngine.inputNode.__installTap(
+                    onBus: 0,
+                    bufferSize: tapBufferSize,
+                    format: naturalFormat,
+                    error: (),
+                    block: tapHandler
+                )
+            } else {
+                audioEngine.inputNode.installTap(
+                    onBus: 0,
+                    bufferSize: tapBufferSize,
+                    format: naturalFormat,
+                    block: tapHandler
                 )
             }
             tapInstalled = true
