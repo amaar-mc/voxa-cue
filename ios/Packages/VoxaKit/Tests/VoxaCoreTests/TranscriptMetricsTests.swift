@@ -95,24 +95,107 @@ func fillerMatcherCountsFilledPauseVariants() {
     #expect(result.matchedFillers.sorted() == ["uhh", "uhm", "umm"])
 }
 
-@Test("Rolling pace uses only words in the configured window")
-func rollingPaceUsesWindow() {
-    let words = [
-        TimedWord(text: "old", endSeconds: 1),
-        TimedWord(text: "one", endSeconds: 11),
-        TimedWord(text: "two", endSeconds: 20)
-    ]
-
-    #expect(rollingWordsPerMinute(words: words, nowSeconds: 20, windowSeconds: 10) == 12)
+@Test("Speech word normalization preserves contractions")
+func speechWordNormalizationPreservesContractions() {
+    #expect(
+        normalizedSpeechWords("Hello, don't split this—please.")
+            == ["hello", "don't", "split", "this", "please"]
+    )
 }
 
-@Test("Rolling pace uses elapsed session time before the window is full")
-func rollingPaceUsesPartialOpeningWindow() {
-    let words = (1...20).map { index in
-        TimedWord(text: "word", endSeconds: Double(index) / 2)
-    }
+@Test("Volatile transcript improves live pace without changing durable totals")
+func volatileTranscriptPreviewsLivePace() {
+    let finalized = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000020")!,
+        startSeconds: 0,
+        endSeconds: 4,
+        text: "one two three four"
+    )
+    let volatile = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000021")!,
+        startSeconds: 4,
+        endSeconds: 6,
+        text: "five six"
+    )
 
-    #expect(rollingWordsPerMinute(words: words, nowSeconds: 10, windowSeconds: 20) == 120)
+    let preview = transcriptPaceSnapshot(
+        finalizedSegments: [finalized],
+        volatileSegment: volatile,
+        nowSeconds: 6,
+        windowSeconds: 8
+    )
+    let durable = transcriptPaceSnapshot(
+        finalizedSegments: [finalized],
+        volatileSegment: nil,
+        nowSeconds: 6,
+        windowSeconds: 8
+    )
+
+    #expect(abs(preview.rollingWPM - 60) < 0.001)
+    #expect(preview.recognizedWordCount == 6)
+    #expect(preview.finalizedWordCount == 4)
+    #expect(preview.latestTranscriptEndSeconds == 6)
+    #expect(abs(durable.rollingWPM - 40) < 0.001)
+    #expect(durable.recognizedWordCount == 4)
+}
+
+@Test("Timestamped transcript pace falls as fast speech leaves the window")
+func timestampedTranscriptPaceRespondsToSlowdown() {
+    let fast = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000022")!,
+        startSeconds: 0,
+        endSeconds: 8,
+        text: Array(repeating: "fast", count: 24).joined(separator: " ")
+    )
+    let earlySlow = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000023")!,
+        startSeconds: 8,
+        endSeconds: 10,
+        text: "slow slow"
+    )
+    let laterSlow = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000024")!,
+        startSeconds: 8,
+        endSeconds: 14,
+        text: "slow slow slow slow slow slow"
+    )
+
+    let early = transcriptPaceSnapshot(
+        finalizedSegments: [fast],
+        volatileSegment: earlySlow,
+        nowSeconds: 10,
+        windowSeconds: 8
+    )
+    let later = transcriptPaceSnapshot(
+        finalizedSegments: [fast],
+        volatileSegment: laterSlow,
+        nowSeconds: 14,
+        windowSeconds: 8
+    )
+
+    #expect(abs(early.rollingWPM - 150) < 0.001)
+    #expect(abs(later.rollingWPM - 90) < 0.001)
+    #expect(later.rollingWPM < early.rollingWPM)
+}
+
+@Test("Stale volatile transcript ages out of live pace")
+func staleVolatileTranscriptAgesOut() {
+    let stale = FinalTranscriptSegment(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000025")!,
+        startSeconds: 0,
+        endSeconds: 4,
+        text: "one two three four"
+    )
+
+    let snapshot = transcriptPaceSnapshot(
+        finalizedSegments: [],
+        volatileSegment: stale,
+        nowSeconds: 13,
+        windowSeconds: 8
+    )
+
+    #expect(snapshot.rollingWPM == 0)
+    #expect(snapshot.latestTranscriptEndSeconds == 4)
 }
 
 @Test("Pitch range is represented in semitones")

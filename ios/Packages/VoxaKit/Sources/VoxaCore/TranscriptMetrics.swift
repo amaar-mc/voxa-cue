@@ -33,8 +33,128 @@ public struct TranscriptAnalysis: Equatable, Sendable {
 
 public func normalizedSpeechWords(_ text: String) -> [String] {
     text.lowercased()
-        .components(separatedBy: CharacterSet.alphanumerics.inverted)
-        .filter { !$0.isEmpty }
+        .replacingOccurrences(of: "’", with: "'")
+        .split { character in
+            !character.isLetter && !character.isNumber && character != "'"
+        }
+        .map(String.init)
+        .filter { token in
+            token.contains { $0.isLetter || $0.isNumber }
+        }
+}
+
+public struct TranscriptPaceSnapshot: Equatable, Sendable {
+    public let rollingWPM: Double
+    public let finalizedWordCount: Int
+    public let recognizedWordCount: Int
+    public let latestTranscriptEndSeconds: TimeInterval?
+
+    public init(
+        rollingWPM: Double,
+        finalizedWordCount: Int,
+        recognizedWordCount: Int,
+        latestTranscriptEndSeconds: TimeInterval?
+    ) {
+        self.rollingWPM = rollingWPM
+        self.finalizedWordCount = finalizedWordCount
+        self.recognizedWordCount = recognizedWordCount
+        self.latestTranscriptEndSeconds = latestTranscriptEndSeconds
+    }
+}
+
+public func transcriptPaceSnapshot(
+    finalizedSegments: [FinalTranscriptSegment],
+    volatileSegment: FinalTranscriptSegment?,
+    nowSeconds: TimeInterval,
+    windowSeconds: TimeInterval
+) -> TranscriptPaceSnapshot {
+    let finalizedSamples = finalizedSegments.compactMap(transcriptPaceSample)
+    let finalizedWordCount = finalizedSamples.reduce(0) { $0 + $1.wordCount }
+    var liveSamples = finalizedSamples
+
+    if let volatileSample = volatileSegment.flatMap(transcriptPaceSample) {
+        liveSamples.removeAll { finalizedSample in
+            finalizedSample.startSeconds < volatileSample.endSeconds
+                && volatileSample.startSeconds < finalizedSample.endSeconds
+        }
+        liveSamples.append(volatileSample)
+    }
+
+    let recognizedWordCount = liveSamples.reduce(0) { $0 + $1.wordCount }
+    let latestTranscriptEndSeconds = liveSamples.map(\.endSeconds).max()
+    guard nowSeconds.isFinite, windowSeconds.isFinite, nowSeconds > 0, windowSeconds > 0 else {
+        return TranscriptPaceSnapshot(
+            rollingWPM: 0,
+            finalizedWordCount: finalizedWordCount,
+            recognizedWordCount: recognizedWordCount,
+            latestTranscriptEndSeconds: latestTranscriptEndSeconds
+        )
+    }
+
+    let windowStart = max(0, nowSeconds - windowSeconds)
+    let estimatedWords = liveSamples.reduce(0.0) { partial, sample in
+        partial + transcriptWordContribution(
+            sample: sample,
+            windowStart: windowStart,
+            windowEnd: nowSeconds
+        )
+    }
+    guard estimatedWords > 0, let firstSpeechSeconds = liveSamples.map(\.startSeconds).min() else {
+        return TranscriptPaceSnapshot(
+            rollingWPM: 0,
+            finalizedWordCount: finalizedWordCount,
+            recognizedWordCount: recognizedWordCount,
+            latestTranscriptEndSeconds: latestTranscriptEndSeconds
+        )
+    }
+
+    let measurementStart = max(windowStart, firstSpeechSeconds)
+    let measurementDuration = max(1, nowSeconds - measurementStart)
+    return TranscriptPaceSnapshot(
+        rollingWPM: estimatedWords * 60 / measurementDuration,
+        finalizedWordCount: finalizedWordCount,
+        recognizedWordCount: recognizedWordCount,
+        latestTranscriptEndSeconds: latestTranscriptEndSeconds
+    )
+}
+
+private struct TranscriptPaceSample {
+    let startSeconds: TimeInterval
+    let endSeconds: TimeInterval
+    let wordCount: Int
+}
+
+private func transcriptPaceSample(segment: FinalTranscriptSegment) -> TranscriptPaceSample? {
+    guard segment.startSeconds.isFinite,
+          segment.endSeconds.isFinite,
+          segment.startSeconds >= 0,
+          segment.endSeconds >= segment.startSeconds else {
+        return nil
+    }
+    let wordCount = normalizedSpeechWords(segment.text).count
+    guard wordCount > 0 else { return nil }
+    return TranscriptPaceSample(
+        startSeconds: segment.startSeconds,
+        endSeconds: segment.endSeconds,
+        wordCount: wordCount
+    )
+}
+
+private func transcriptWordContribution(
+    sample: TranscriptPaceSample,
+    windowStart: TimeInterval,
+    windowEnd: TimeInterval
+) -> Double {
+    let sampleDuration = sample.endSeconds - sample.startSeconds
+    guard sampleDuration > 0 else {
+        return sample.endSeconds >= windowStart && sample.endSeconds <= windowEnd
+            ? Double(sample.wordCount)
+            : 0
+    }
+    let overlapStart = max(sample.startSeconds, windowStart)
+    let overlapEnd = min(sample.endSeconds, windowEnd)
+    let overlap = max(0, overlapEnd - overlapStart)
+    return Double(sample.wordCount) * overlap / sampleDuration
 }
 
 public func analyzeTranscript(_ text: String, fillers: [String]) -> TranscriptAnalysis {
@@ -301,15 +421,6 @@ private func isLexicalLike(tokens: [IndexedSpeechToken], index: Int) -> Bool {
         return true
     }
     return false
-}
-
-public func rollingWordsPerMinute(words: [TimedWord], nowSeconds: TimeInterval, windowSeconds: TimeInterval) -> Double {
-    guard windowSeconds > 0 else { return 0 }
-    let effectiveWindowSeconds = min(windowSeconds, max(0, nowSeconds))
-    guard effectiveWindowSeconds > 0 else { return 0 }
-    let lowerBound = max(0, nowSeconds - effectiveWindowSeconds)
-    let count = words.filter { $0.endSeconds > lowerBound && $0.endSeconds <= nowSeconds }.count
-    return Double(count) * 60 / effectiveWindowSeconds
 }
 
 public func computedTalkRatio(voicedSeconds: TimeInterval, elapsedSeconds: TimeInterval) -> Double {
