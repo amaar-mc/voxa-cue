@@ -13,7 +13,7 @@ Voxa Cue is a presentation coaching app. It uses the iPhone microphone for on-de
 
 ## Access
 
-No sign-in, user account, subscription, purchase, or in-app payment exists. Reviewers do not need credentials. The Cue Band is optional; all recording, live metrics, session history, and local analytics can be reviewed without hardware. Features that require the optional API are clearly initiated by the user.
+No sign-in, user account, production subscription, purchase, or in-app payment exists in the submitted Release build. The local StoreKit configuration and Demo Pro switch are Debug-only test paths and are absent from Release. Reviewers do not need credentials. The Cue Band is optional; all recording, live metrics, session history, and local analytics can be reviewed without hardware. Features that require the optional API are clearly initiated by the user.
 
 ## Reviewer walkthrough without hardware
 
@@ -33,7 +33,7 @@ Without a band, haptic delivery cannot complete, but the session remains functio
 - Speech Recognition: produces an on-device, time-indexed transcript for metrics.
 - Bluetooth: discovers the optional Cue Band, writes haptic commands, and receives acknowledgements.
 
-Raw audio is processed transiently and is never saved or uploaded. The wearable receives only a six-byte semantic cue command; it never receives audio or transcript text.
+Raw audio is processed transiently and is never saved or uploaded. The wearable receives only a six-byte physical haptic-pattern command; it never receives audio or transcript text.
 
 ## Network and AI behavior
 
