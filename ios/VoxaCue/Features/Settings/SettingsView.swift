@@ -17,6 +17,10 @@ struct SettingsView: View {
                     subtitle: "Band, haptics, privacy, and local data."
                 )
                 bandCard
+                hapticCard
+#if DEBUG
+                DemoProSettingsCard(entitlementStore: model.proEntitlementStore)
+#endif
                 processingCard
                 apiCard
                 dataCard
@@ -88,6 +92,34 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var hapticCard: some View {
+        NavigationLink {
+            HapticCueSettingsView()
+        } label: {
+            PremiumCard(padding: 20) {
+                HStack(spacing: 15) {
+                    Image(systemName: "waveform.path")
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(CueTheme.signal)
+                        .frame(width: 46, height: 46)
+                        .background(CueTheme.signalSoft)
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        CueSectionLabel(text: "Haptic signals", color: CueTheme.signal)
+                        Text("Choose what each pulse means.")
+                            .font(.cueBody)
+                            .foregroundStyle(CueTheme.secondaryInk)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CueTheme.secondaryInk)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var apiCard: some View {
