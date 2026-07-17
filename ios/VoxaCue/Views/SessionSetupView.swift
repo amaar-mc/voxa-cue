@@ -4,12 +4,12 @@ import VoxaCore
 struct SessionSetupView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var name = "Practice Session"
     @State private var targetMinutes = 5.0
     @State private var minimumWPM = 130.0
     @State private var maximumWPM = 160.0
-    @State private var intensity = CueIntensity.medium
-    @State private var enabledCues = Set(CueKind.liveMVP)
+    @State private var advancedCuesExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -71,19 +71,30 @@ struct SessionSetupView: View {
                     .submitLabel(.done)
 
                 Stepper(value: $targetMinutes, in: 1...30, step: 1) {
-                    HStack(spacing: 12) {
+                    if dynamicTypeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Target duration")
                                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
-                            Text("Drives private timing reminders")
-                                .font(.cueCaption)
-                                .foregroundStyle(CueTheme.secondaryInk)
+                            Text("\(Int(targetMinutes)) minutes")
+                                .font(.cueCaption.monospacedDigit())
+                                .foregroundStyle(CueTheme.signal)
                         }
-                        Spacer(minLength: 8)
-                        Text("\(Int(targetMinutes)) min")
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(CueTheme.signal)
+                    } else {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Target duration")
+                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(CueTheme.ink)
+                                Text("Drives private timing reminders")
+                                    .font(.cueCaption)
+                                    .foregroundStyle(CueTheme.secondaryInk)
+                            }
+                            Spacer(minLength: 8)
+                            Text("\(Int(targetMinutes)) min")
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(CueTheme.signal)
+                        }
                     }
                 }
             }
@@ -136,38 +147,48 @@ struct SessionSetupView: View {
     private var cueCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) {
-                        CueSectionLabel(text: "Haptic cues", color: CueTheme.signal)
-                        Spacer(minLength: 8)
-                        intensityPicker
-                    }
-                    VStack(alignment: .leading, spacing: 10) {
-                        CueSectionLabel(text: "Haptic cues", color: CueTheme.signal)
-                        intensityPicker
-                    }
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    CueSectionLabel(text: "Haptic cues", color: CueTheme.signal)
+                    Spacer(minLength: 8)
+                    Text("Essentials")
+                        .font(.cueCaption.weight(.semibold))
+                        .foregroundStyle(CueTheme.signal)
                 }
-                ForEach(CueKind.liveMVP, id: \.self) { cue in
-                    Toggle(isOn: cueBinding(cue)) {
-                        HStack(spacing: 12) {
-                            Image(systemName: symbol(for: cue))
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(CueTheme.signal)
-                                .frame(width: 32, height: 32)
-                                .background(CueTheme.signalSoft)
-                                .clipShape(Circle())
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(cue.label)
-                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                    .foregroundStyle(CueTheme.ink)
-                                Text(patternDescription(for: cue))
-                                    .font(.cueCaption)
-                                    .foregroundStyle(CueTheme.secondaryInk)
-                            }
+
+                ForEach(CueKind.essentialDefaults, id: \.self) { cue in
+                    cueToggle(cue)
+                }
+
+                DisclosureGroup(isExpanded: $advancedCuesExpanded) {
+                    VStack(spacing: 14) {
+                        ForEach(CueKind.advanced, id: \.self) { cue in
+                            cueToggle(cue)
                         }
                     }
-                    .tint(CueTheme.signal)
+                    .padding(.top, 14)
+                } label: {
+                    Text("Advanced cues")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(CueTheme.ink)
                 }
+                .tint(CueTheme.signal)
+
+                NavigationLink {
+                    HapticCueSettingsView()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "waveform.path")
+                        Text("Customize pulse patterns")
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(CueTheme.signal)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+
                 if enabledCues.isEmpty {
                     Label("Analytics will continue without wrist cues.", systemImage: "chart.xyaxis.line")
                         .font(.cueCaption)
@@ -177,18 +198,27 @@ struct SessionSetupView: View {
         }
     }
 
-    private var intensityPicker: some View {
-        HStack(spacing: 8) {
-            Text("Intensity")
-                .font(.cueCaption)
-                .foregroundStyle(CueTheme.secondaryInk)
-            Picker("Haptic intensity", selection: $intensity) {
-                ForEach(CueIntensity.allCases, id: \.self) { value in
-                    Text(value.label).tag(value)
+    private func cueToggle(_ cue: CueKind) -> some View {
+        Toggle(isOn: cueBinding(cue)) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol(for: cue))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(CueTheme.signal)
+                    .frame(width: 32, height: 32)
+                    .background(CueTheme.signalSoft)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cue.label)
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(CueTheme.ink)
+                    Text(patternDescription(for: cue))
+                        .font(.cueCaption)
+                        .foregroundStyle(CueTheme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .pickerStyle(.menu)
         }
+        .tint(CueTheme.signal)
     }
 
     private var preflightCard: some View {
@@ -292,9 +322,13 @@ struct SessionSetupView: View {
         Binding(
             get: { enabledCues.contains(cue) },
             set: { enabled in
-                if enabled { enabledCues.insert(cue) } else { enabledCues.remove(cue) }
+                model.setCueEnabled(cue, enabled: enabled)
             }
         )
+    }
+
+    private var enabledCues: Set<CueKind> {
+        model.hapticPreferences.enabledCues
     }
 
     private func symbol(for cue: CueKind) -> String {
@@ -303,30 +337,25 @@ struct SessionSetupView: View {
         case .tooSlow: "tortoise"
         case .fillerBurst: "ellipsis.bubble"
         case .deckBehind: "rectangle.stack.badge.play"
-        case .time75, .time90, .time100: "timer"
+        case .time50, .time75, .time90, .time100: "timer"
         }
     }
 
     private func patternDescription(for cue: CueKind) -> String {
-        switch cue {
-        case .tooFast: "Two short pulses · ease your pace"
-        case .tooSlow: "One long pulse · add energy"
-        case .fillerBurst: "Three short pulses · reset with a pause"
-        case .deckBehind: "Reserved for a future presentation mode"
-        case .time75: "One pronounced pulse · 75% elapsed"
-        case .time90: "Two pronounced pulses · 90% elapsed"
-        case .time100: "Three pronounced pulses · target reached"
-        }
+        let pattern = model.hapticPreferences.patternByCue[cue] ?? .doubleTap
+        let intensity = model.hapticPreferences.intensityByCue[cue] ?? .medium
+        return "\(pattern.label) · \(intensity.label)"
     }
 
     private func begin() {
-        let intensityMap = Dictionary(uniqueKeysWithValues: CueKind.liveMVP.map { ($0, intensity) })
         let baseProfile = CoachingProfile.rehearsalV1()
+        let haptics = model.hapticPreferences
         let profile = CoachingProfile(
             minimumWPM: minimumWPM,
             maximumWPM: maximumWPM,
-            enabledCues: enabledCues,
-            intensityByCue: intensityMap,
+            enabledCues: haptics.enabledCues,
+            patternByCue: haptics.patternByCue,
+            intensityByCue: haptics.intensityByCue,
             highConfidenceFillers: baseProfile.highConfidenceFillers,
             optionalFillers: baseProfile.optionalFillers
         )
