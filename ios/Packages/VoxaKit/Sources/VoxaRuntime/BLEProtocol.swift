@@ -7,6 +7,7 @@ public enum CueBLE {
     public static let serviceUUID = CBUUID(string: "6F2A0001-7C93-4A58-A9D4-3C52BBD1F110")
     public static let commandUUID = CBUUID(string: "6F2A0002-7C93-4A58-A9D4-3C52BBD1F110")
     public static let statusUUID = CBUUID(string: "6F2A0003-7C93-4A58-A9D4-3C52BBD1F110")
+    public static let sessionLightUUID = CBUUID(string: "6F2A0004-7C93-4A58-A9D4-3C52BBD1F110")
     public static let discoveryServiceUUIDs: [CBUUID] = [serviceUUID]
     public static let knownPeripheralNames: [String] = ["Voxa Cue", "Voxa D2"]
 
@@ -19,6 +20,17 @@ public enum CueBLE {
             command.pattern.rawValue,
             command.intensity.rawValue,
             command.repeatCount
+        ])
+    }
+
+    public static func encode(sessionLight: CueSessionLight) throws -> Data {
+        guard sessionLight.progressPercent <= 100 else {
+            throw CueBLEError.invalidSessionProgress
+        }
+        return Data([
+            protocolVersion,
+            sessionLight.mode.rawValue,
+            sessionLight.progressPercent
         ])
     }
 
@@ -69,11 +81,58 @@ public enum CueBLE {
 
 public enum CueBLEError: Error, Equatable {
     case invalidRepeatCount
+    case invalidSessionProgress
     case invalidPacketLength
     case incompatibleProtocol(UInt8)
     case invalidStatus
     case notConnected
+    case sessionLightUnavailable
     case firmwareVersionUnavailable
+}
+
+public enum CueSessionLightMode: UInt8, Equatable, Sendable {
+    case off = 0
+    case active = 1
+    case paused = 2
+    case overtime = 3
+}
+
+public struct CueSessionLight: Equatable, Sendable {
+    public let mode: CueSessionLightMode
+    public let progressPercent: UInt8
+
+    public init(mode: CueSessionLightMode, progressPercent: UInt8) {
+        self.mode = mode
+        self.progressPercent = progressPercent
+    }
+}
+
+public enum CueSessionPresentationState: Equatable, Sendable {
+    case off
+    case active
+    case paused
+}
+
+public func cueSessionLight(
+    elapsedSeconds: TimeInterval,
+    targetDurationSeconds: TimeInterval,
+    presentationState: CueSessionPresentationState
+) -> CueSessionLight {
+    guard presentationState != .off,
+          elapsedSeconds.isFinite,
+          targetDurationSeconds.isFinite,
+          targetDurationSeconds > 0 else {
+        return CueSessionLight(mode: .off, progressPercent: 0)
+    }
+    let boundedElapsedSeconds = max(0, elapsedSeconds)
+    if boundedElapsedSeconds > targetDurationSeconds {
+        return CueSessionLight(mode: .overtime, progressPercent: 100)
+    }
+    let progressPercent = UInt8(
+        Int((boundedElapsedSeconds / targetDurationSeconds) * 100)
+    )
+    let mode: CueSessionLightMode = presentationState == .paused ? .paused : .active
+    return CueSessionLight(mode: mode, progressPercent: progressPercent)
 }
 
 public enum CueBandCommandState: UInt8, Codable, Sendable {

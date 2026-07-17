@@ -3,6 +3,71 @@ import Testing
 import VoxaCore
 @testable import VoxaRuntime
 
+@Test("Session light UUID and active progress encode exactly")
+func sessionLightEncodesExactly() throws {
+    #expect(CueBLE.sessionLightUUID.uuidString == "6F2A0004-7C93-4A58-A9D4-3C52BBD1F110")
+    let data = try CueBLE.encode(
+        sessionLight: CueSessionLight(mode: .active, progressPercent: 42)
+    )
+
+    #expect([UInt8](data) == [1, 1, 42])
+}
+
+@Test("Session light rejects out-of-range progress")
+func sessionLightRejectsInvalidProgress() {
+    #expect(throws: CueBLEError.invalidSessionProgress) {
+        try CueBLE.encode(
+            sessionLight: CueSessionLight(mode: .active, progressPercent: 101)
+        )
+    }
+}
+
+@Test("Session timing maps to active, paused, overtime, and off light states")
+func sessionTimingMapsToLightStates() {
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: 0,
+            targetDurationSeconds: 120,
+            presentationState: .active
+        ) == CueSessionLight(mode: .active, progressPercent: 0)
+    )
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: 60,
+            targetDurationSeconds: 120,
+            presentationState: .paused
+        ) == CueSessionLight(mode: .paused, progressPercent: 50)
+    )
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: 120,
+            targetDurationSeconds: 120,
+            presentationState: .active
+        ) == CueSessionLight(mode: .active, progressPercent: 100)
+    )
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: 120.01,
+            targetDurationSeconds: 120,
+            presentationState: .active
+        ) == CueSessionLight(mode: .overtime, progressPercent: 100)
+    )
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: 42,
+            targetDurationSeconds: 120,
+            presentationState: .off
+        ) == CueSessionLight(mode: .off, progressPercent: 0)
+    )
+    #expect(
+        cueSessionLight(
+            elapsedSeconds: .nan,
+            targetDurationSeconds: 120,
+            presentationState: .active
+        ) == CueSessionLight(mode: .off, progressPercent: 0)
+    )
+}
+
 @Test("BLE discovery is service-based and recognizes diagnostic firmware")
 func discoveryContractIncludesD2Diagnostic() {
     #expect(CueBLE.discoveryServiceUUIDs == [CueBLE.serviceUUID])
