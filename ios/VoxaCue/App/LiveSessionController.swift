@@ -41,6 +41,7 @@ final class LiveSessionController: Identifiable {
     private let sendCue: @MainActor (CueCommand) throws -> Void
     private let monotonicNow: @MainActor () -> TimeInterval
     private let cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration
+    private let cueEngineConfiguration = CueEngineConfiguration.version1()
     private let onFinish: @MainActor (SessionSummary) -> Void
 
     var phase: Phase = .preparing
@@ -69,8 +70,11 @@ final class LiveSessionController: Identifiable {
     private var failureTask: Task<Void, Never>?
     private var cueDeadlineTask: Task<Void, Never>?
     private var transcriptAccumulator = TranscriptAccumulator(segments: [])
-    private var volatileFillerSegment: FinalTranscriptSegment?
-    private var timedWords: [TimedWord] = []
+    private var volatileTranscriptSegment: FinalTranscriptSegment?
+    private var paceEvidence = PaceEvidence(
+        recognizedWordCount: 0,
+        latestTranscriptEndSeconds: nil
+    )
     private var recentFillerOffsets: [TimeInterval] = []
     private var voicedSeconds: TimeInterval = 0
     private var energyValues: [Double] = []
@@ -341,6 +345,9 @@ final class LiveSessionController: Identifiable {
         if reason == .appInactive { UIApplication.shared.isIdleTimerDisabled = false }
         phase = .paused(reason)
         volatileTranscript = ""
+        volatileTranscriptSegment = nil
+        rebuildRecentFillerOffsets()
+        cueEngineState = suspendPaceCuePersistence(state: cueEngineState)
     }
 
     private func failOutstandingCueDeliveries(message: String) {
@@ -417,13 +424,14 @@ final class LiveSessionController: Identifiable {
         case let .volatileTranscript(text, startSeconds, endSeconds):
             guard phase == .recording else { return }
             volatileTranscript = text
-            volatileFillerSegment = FinalTranscriptSegment(
+            volatileTranscriptSegment = FinalTranscriptSegment(
                 id: UUID(),
                 startSeconds: startSeconds,
                 endSeconds: endSeconds,
                 text: text
             )
             rebuildRecentFillerOffsets()
+            updateMetrics()
         case let .finalizedTranscript(text, startSeconds, endSeconds):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
             let segment = FinalTranscriptSegment(
@@ -435,8 +443,9 @@ final class LiveSessionController: Identifiable {
             transcriptAccumulator = transcriptAccumulator.inserting(segment)
             liveTranscript = transcriptAccumulator.transcript
             volatileTranscript = ""
-            volatileFillerSegment = nil
-            rebuildTranscriptMetrics()
+            volatileTranscriptSegment = nil
+            rebuildRecentFillerOffsets()
+            updateMetrics()
             updateDeckAlignment()
         case let .voiceActivity(isSpeech, startSeconds, endSeconds):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
@@ -500,27 +509,14 @@ final class LiveSessionController: Identifiable {
         }
     }
 
-    private func rebuildTranscriptMetrics() {
-        timedWords = transcriptAccumulator.segments.flatMap { segment in
-            let words = normalizedSpeechWords(segment.text)
-            guard !words.isEmpty else { return [TimedWord]() }
-            let duration = max(0.01, segment.endSeconds - segment.startSeconds)
-            return words.enumerated().map { index, word in
-                let fraction = Double(index + 1) / Double(words.count)
-                return TimedWord(text: word, endSeconds: segment.startSeconds + duration * fraction)
-            }
-        }
-        rebuildRecentFillerOffsets()
-    }
-
     private func rebuildRecentFillerOffsets() {
         var segments = transcriptAccumulator.segments
-        if let volatileFillerSegment {
+        if let volatileTranscriptSegment {
             segments.removeAll { finalized in
-                finalized.startSeconds < volatileFillerSegment.endSeconds
-                    && volatileFillerSegment.startSeconds < finalized.endSeconds
+                finalized.startSeconds < volatileTranscriptSegment.endSeconds
+                    && volatileTranscriptSegment.startSeconds < finalized.endSeconds
             }
-            segments.append(volatileFillerSegment)
+            segments.append(volatileTranscriptSegment)
         }
         recentFillerOffsets = timedPresentationFillerOffsets(
             segments: segments,
@@ -532,6 +528,16 @@ final class LiveSessionController: Identifiable {
     private func updateMetrics() {
         guard let presentationClock else { return }
         let elapsed = presentationClock.elapsed(atReferenceSeconds: Date().timeIntervalSinceReferenceDate)
+        let paceSnapshot = transcriptPaceSnapshot(
+            finalizedSegments: transcriptAccumulator.segments,
+            volatileSegment: volatileTranscriptSegment,
+            nowSeconds: elapsed,
+            windowSeconds: cueEngineConfiguration.paceWindowSeconds
+        )
+        paceEvidence = PaceEvidence(
+            recognizedWordCount: paceSnapshot.recognizedWordCount,
+            latestTranscriptEndSeconds: paceSnapshot.latestTranscriptEndSeconds
+        )
         let transcriptAnalysis = analyzePresentationTranscript(
             transcriptAccumulator.transcript,
             highConfidenceFillers: configuration.profile.highConfidenceFillers,
@@ -539,8 +545,8 @@ final class LiveSessionController: Identifiable {
         )
         metrics = LiveMetrics(
             elapsedSeconds: elapsed,
-            rollingWPM: rollingWordsPerMinute(words: timedWords, nowSeconds: elapsed, windowSeconds: 20),
-            finalizedWordCount: transcriptAnalysis.words.count,
+            rollingWPM: paceSnapshot.rollingWPM,
+            finalizedWordCount: paceSnapshot.finalizedWordCount,
             fillerCount: transcriptAnalysis.fillerCount,
             voicedSeconds: voicedSeconds,
             talkRatio: computedTalkRatio(voicedSeconds: voicedSeconds, elapsedSeconds: elapsed),
@@ -562,6 +568,10 @@ final class LiveSessionController: Identifiable {
             talkRatio: 0.78,
             energyDBFS: -24 + sin(elapsed / 4) * 3,
             pitchHertz: 178 + sin(elapsed / 3) * 18
+        )
+        paceEvidence = PaceEvidence(
+            recognizedWordCount: wordCount,
+            latestTranscriptEndSeconds: elapsed
         )
         recentFillerOffsets = fillerCount == 2 ? [max(0, elapsed - 6), max(0, elapsed - 2)] : []
         microphoneLevel = 0.58 + sin(elapsed * 2) * 0.12
@@ -616,6 +626,21 @@ final class LiveSessionController: Identifiable {
     }
 
     func evaluateLiveCue() {
+        let cuePaceEvidence: PaceEvidence
+        if demoMode {
+            cuePaceEvidence = paceEvidence
+        } else {
+            let snapshot = transcriptPaceSnapshot(
+                finalizedSegments: transcriptAccumulator.segments,
+                volatileSegment: volatileTranscriptSegment,
+                nowSeconds: metrics.elapsedSeconds,
+                windowSeconds: cueEngineConfiguration.paceWindowSeconds
+            )
+            cuePaceEvidence = PaceEvidence(
+                recognizedWordCount: snapshot.recognizedWordCount,
+                latestTranscriptEndSeconds: snapshot.latestTranscriptEndSeconds
+            )
+        }
         let deckProgress: DeckProgress?
         if let checkpoints = configuration.deckPlan?.checkpoints,
            currentCheckpointIndex < checkpoints.count {
@@ -631,13 +656,18 @@ final class LiveSessionController: Identifiable {
         }
         let input = CueEvaluationInput(
             metrics: metrics,
+            paceEvidence: cuePaceEvidence,
             targetDurationSeconds: configuration.targetDurationSeconds,
             recentFillerOffsets: recentFillerOffsets,
             deckProgress: deckProgress,
             profile: configuration.profile,
             isPaused: isPaused
         )
-        let result = evaluateCue(input: input, state: cueEngineState, configuration: .version1())
+        let result = evaluateCue(
+            input: input,
+            state: cueEngineState,
+            configuration: cueEngineConfiguration
+        )
         cueEngineState = result.state
         guard let decision = result.decision else { return }
         guard let pattern = configuration.profile.patternByCue[decision.kind] else { return }

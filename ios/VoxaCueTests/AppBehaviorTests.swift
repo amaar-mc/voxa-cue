@@ -249,7 +249,7 @@ func liveCueDeliveryPresentationIsTruthful() {
 @MainActor
 @Test("Leaving the foreground pauses coaching until the presenter explicitly resumes")
 func lifecyclePauseRequiresExplicitResume() throws {
-    let controller = try makeSessionControllerForBehaviorTests()
+    let controller = try makeSessionControllerForBehaviorTests(demoMode: true)
     controller.phase = .recording
 
     controller.pauseForLifecycle()
@@ -340,7 +340,7 @@ func sessionPresentationWaitsForSetupDismissal() async throws {
 @MainActor
 @Test("Lost band completion becomes terminal failed evidence")
 func lostBandCompletionFailsTruthfully() throws {
-    let controller = try makeSessionControllerForBehaviorTests()
+    let controller = try makeSessionControllerForBehaviorTests(demoMode: true)
     controller.cueLogs = [
         LiveSessionController.CueLog(
             id: UUID(),
@@ -380,7 +380,7 @@ func lostBandCompletionFailsTruthfully() throws {
 @MainActor
 @Test("Band acceptance and completion confirm wrist delivery")
 func bandAcknowledgementsConfirmDelivery() throws {
-    let controller = try makeSessionControllerForBehaviorTests()
+    let controller = try makeSessionControllerForBehaviorTests(demoMode: true)
     controller.cueLogs = [
         LiveSessionController.CueLog(
             id: UUID(),
@@ -420,7 +420,7 @@ func bandAcknowledgementsConfirmDelivery() throws {
 @MainActor
 @Test("Measured voice activity unlocks a persisted live pace cue")
 func voiceActivityUnlocksLivePaceCue() throws {
-    let controller = try makeSessionControllerForBehaviorTests()
+    let controller = try makeSessionControllerForBehaviorTests(demoMode: false)
     controller.phase = .recording
     controller.metrics = LiveMetrics(
         elapsedSeconds: 20,
@@ -431,6 +431,13 @@ func voiceActivityUnlocksLivePaceCue() throws {
         talkRatio: 0,
         energyDBFS: nil,
         pitchHertz: nil
+    )
+    controller.handleSpeechEvent(
+        .finalizedTranscript(
+            text: Array(repeating: "word", count: 30).joined(separator: " "),
+            startSeconds: 0,
+            endSeconds: 20
+        )
     )
 
     controller.handleSpeechEvent(
@@ -452,6 +459,13 @@ func voiceActivityUnlocksLivePaceCue() throws {
         pitchHertz: nil
     )
     controller.handleSpeechEvent(
+        .finalizedTranscript(
+            text: Array(repeating: "word", count: 6).joined(separator: " "),
+            startSeconds: 20,
+            endSeconds: 24
+        )
+    )
+    controller.handleSpeechEvent(
         .voiceActivity(isSpeech: true, startSeconds: 12, endSeconds: 16)
     )
     controller.evaluateLiveCue()
@@ -463,7 +477,7 @@ func voiceActivityUnlocksLivePaceCue() throws {
 @MainActor
 @Test("Live delivery fails closed on premature or erroneous completion")
 func liveDeliveryRejectsInvalidCompletion() throws {
-    let prematureController = try makeSessionControllerForBehaviorTests()
+    let prematureController = try makeSessionControllerForBehaviorTests(demoMode: true)
     prematureController.cueLogs = [
         LiveSessionController.CueLog(
             id: UUID(),
@@ -488,7 +502,7 @@ func liveDeliveryRejectsInvalidCompletion() throws {
     #expect(prematureController.cueLogs[0].deliveryStatus == .failed)
     #expect(prematureController.latestBandFailure == "Cue completion arrived before acceptance.")
 
-    let faultController = try makeSessionControllerForBehaviorTests()
+    let faultController = try makeSessionControllerForBehaviorTests(demoMode: true)
     faultController.cueLogs = [
         LiveSessionController.CueLog(
             id: UUID(),
@@ -642,13 +656,13 @@ private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendab
 }
 
 @MainActor
-private func makeSessionControllerForBehaviorTests() throws -> LiveSessionController {
+private func makeSessionControllerForBehaviorTests(demoMode: Bool) throws -> LiveSessionController {
     LiveSessionController(
         configuration: behaviorTestSessionConfiguration(),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
         semanticMatcher: SemanticMatcher(),
-        demoMode: true,
+        demoMode: demoMode,
         allocateCueSequence: { 1 },
         sendCue: { _ in },
         monotonicNow: { 100 },
