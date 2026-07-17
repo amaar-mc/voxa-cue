@@ -26,7 +26,23 @@ Exactly six bytes:
 | 4 | `uint8` | Intensity: `0` soft, `1` medium, `2` strong |
 | 5 | `uint8` | Repeat count, `1...3` |
 
-Pattern IDs: `1` too fast, `2` too slow, `3` filler burst, `4` reserved deck-behind pattern, `5` time 75%, `6` time 90%, `7` time 100%. Pattern `4` remains valid for protocol compatibility but is not emitted by the current MVP app.
+Pattern IDs describe physical pulse signatures, not coaching meaning. The app maps
+each enabled cue to one of these signatures:
+
+| ID | Signature |
+| --- | --- |
+| `1` | Two short pulses |
+| `2` | One long pulse |
+| `3` | Three quick pulses |
+| `4` | Long-short-long |
+| `5` | One firm pulse |
+| `6` | Two firm pulses |
+| `7` | Three firm pulses |
+| `8` | One symmetric ramp up/down calm wave |
+| `9` | One 1.2-second deadline hold |
+
+IDs `1...7` retain their v1.0 waveforms. Firmware `1.1` adds IDs `8` and `9`
+without changing the packet layout or protocol version.
 
 ## Status packet
 
