@@ -7,10 +7,10 @@
 
 namespace voxa {
 
-constexpr std::size_t kMaximumPatternSegments = 5U;
+constexpr std::size_t kMaximumPatternSegments = 9U;
 
 struct PatternSegment {
-  bool motorEnabled;
+  std::uint8_t amplitudePercent;
   std::uint16_t durationMilliseconds;
 };
 
@@ -24,8 +24,10 @@ bool buildPatternProgram(PatternId patternId, PatternProgram* output);
 
 std::uint8_t amplitudeForIntensity(Intensity intensity);
 
+std::uint8_t scaledAmplitudeForIntensity(Intensity intensity,
+                                         std::uint8_t amplitudePercent);
+
 std::uint32_t durationForProgram(const PatternProgram& program,
                                  std::uint8_t repeatCount);
 
 }  // namespace voxa
-
