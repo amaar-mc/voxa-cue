@@ -237,7 +237,8 @@ struct HapticCueSettingsView: View {
 
     private var fillerClusterDescription: String {
         let cluster = model.hapticPreferences.fillerClusterConfiguration
-        return "Cue after \(cluster.requiredFillerCount) fillers within \(cluster.windowSeconds) seconds · 30-second reset. Lower count or longer window cues sooner."
+        let fillerLabel = cluster.requiredFillerCount == 1 ? "filler" : "fillers"
+        return "Cue after \(cluster.requiredFillerCount) \(fillerLabel) within \(cluster.windowSeconds) seconds · 30-second reset. Lower count or longer window cues sooner."
     }
 
     @ViewBuilder
