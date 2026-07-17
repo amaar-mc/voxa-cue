@@ -40,7 +40,7 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 1. The iPhone listens during a presentation.
 2. On-device speech and signal processing measure delivery in real time.
 3. A deterministic cue engine decides whether feedback is warranted.
-4. The phone sends a semantic command over Bluetooth Low Energy.
+4. The phone maps that decision to a physical pulse and sends it over Bluetooth Low Energy.
 5. The Cue Band delivers a distinct, discreet vibration.
 6. The app saves the session and turns it into an actionable practice plan.
 
@@ -56,30 +56,34 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 
 | Live coaching | Post-session improvement |
 | --- | --- |
-| Speaking pace and persistence | Session score and delivery summary |
-| High-confidence filler bursts | Pace, filler, timing, and talk-ratio analytics |
-| 75%, 90%, and 100% time milestones | Pitch and energy-range trends |
+| Speaking pace and persistence | Evidence-based session summary |
+| Contextual filler bursts | Pace, filler, pause, timing, and talk-ratio analytics |
+| 50% and target-time defaults; optional 75% and 90% cues | Descriptive intonation and energy trends |
 | Private haptic delivery acknowledgements | Longitudinal session history |
 
-### The six-cue haptic language
+### A configurable haptic language
 
 | Cue | Meaning |
 | --- | --- |
 | Slow down | Pace has remained above the personalized range |
 | Pick up the pace | Pace has remained below the personalized range |
-| Reset fillers | A high-confidence filler burst was detected |
+| Filler cluster | A contextual filler burst was detected |
+| Halfway point | Half of the target time has elapsed |
 | 75% used | Three quarters of the target time has elapsed |
 | 90% used | The presentation is entering its closing window |
 | Target reached | The configured presentation time has elapsed |
 
-Each cue has a fixed pulse shape and a user-selected soft, medium, or strong intensity. Cooldowns, persistence thresholds, and cue priority prevent noisy or conflicting feedback.
+Slow down, filler cluster, halfway, and target reached are enabled by default. The
+other cues are opt-in under Advanced. Every cue can use any pulse preset and a
+soft, medium, or strong intensity. Cooldowns, persistence thresholds, and cue
+priority prevent noisy or conflicting feedback.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     MIC["Built-in iPhone<br/>microphone"] --> SPEECH["SpeechAnalyzer<br/>+ local DSP"]
-    SPEECH --> METRICS["Transcript, pace,<br/>fillers, pitch, energy"]
+    SPEECH --> METRICS["Transcript, pace,<br/>fillers, pauses, intonation"]
     METRICS --> ENGINE["Deterministic<br/>CueEngine"]
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
     BLE --> NANO["Nano 33 IoT"]
@@ -102,7 +106,7 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | Boundary | What crosses it | What never crosses it |
 | --- | --- | --- |
 | Microphone → app memory | PCM buffers during an active session | Retained audio files |
-| iPhone → Cue Band | Cue ID, intensity, repeat count, sequence | Audio, transcript, identity |
+| iPhone → Cue Band | Physical pattern ID, intensity, repeat count, sequence | Audio, transcript, identity |
 | iPhone → insight API | Confirmed transcript, aggregate metrics, and cue summaries | Raw audio |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
@@ -140,12 +144,14 @@ voxa-cue/
 ├── contracts/                   JSON schemas and normative BLE v1 contract
 ├── design/brand/                Complete Concept 3 brand toolkit
 ├── docs/                        Architecture, privacy, support, and release gates
-├── firmware/voxa-wearable/      Nano 33 IoT / Nano ESP32 firmware and native tests
+├── firmware/voxa-wearable/      Nano 33 IoT / Nano ESP32 haptic firmware
+├── firmware/imu-diagnostic/     Standalone Nano 33 IoT IMU lab firmware
 ├── ios/
 │   ├── Packages/VoxaKit/        Reusable VoxaCore and VoxaRuntime modules
 │   ├── VoxaCue/                 SwiftUI application
 │   ├── VoxaCueTests/            App coordination behavior tests
 │   └── project.yml              XcodeGen project definition
+├── tools/                       BLE and IMU browser diagnostics
 └── package.json                 Unified build and verification commands
 ```
 
@@ -191,7 +197,7 @@ pnpm api:dev
 Set:
 
 - `OPENAI_API_KEY` to a server-side key
-- `OPENAI_MODEL` to the configured structured-output model
+- `OPENAI_MODEL=gpt-5.6-luna` for the current cost-sensitive structured coaching model
 - `VOXA_BUILD_ID` to the deployment commit SHA or release identifier
 - `VOXA_DEMO_API_TOKEN` to a random bearer token of at least 32 characters
 
@@ -212,14 +218,14 @@ uvx --with pip platformio run -e nano_33_iot --target upload
 uvx --with pip platformio device monitor --baud 115200
 ```
 
-The serial monitor should print `Voxa Cue firmware 1.0 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command.
+The serial monitor should print `Voxa Cue firmware 1.1 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command.
 
 </details>
 
 ## Demonstration flow
 
 1. Launch with `-demoScenario` for a software-only walkthrough, or connect the physical Cue Band.
-2. Verify the six active haptic patterns in Device Lab.
+2. Verify all nine physical haptic patterns in Device Lab.
 3. Start a session using the iPhone microphone.
 4. Set target time, pace range, enabled cues, and intensity.
 5. Present while Voxa Cue measures delivery and acknowledges any haptic commands.
@@ -234,7 +240,8 @@ The current implementation is exercised across all three layers:
 | API | Strict TypeScript plus contract and failure-path tests |
 | VoxaCore + VoxaRuntime | Swift behavior tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
 | iPhone application | Simulator behavior tests plus unsigned Debug and Release generic-device builds |
-| Firmware | 15 native Unity tests plus successful Nano 33 IoT and Nano ESP32 builds |
+| Firmware | Native protocol and pattern tests plus successful Nano 33 IoT and Nano ESP32 builds |
+| IMU lab | Native packet/sensor tests, browser classifier tests, and a Nano 33 IoT build |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
 Physical BLE, motor calibration, microphone placement, and wear testing are intentionally tracked as hardware gates in the release checklist.
