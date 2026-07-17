@@ -17,6 +17,14 @@ enum class SessionLightMode : std::uint8_t {
 
 constexpr std::uint32_t kEmergencyBuzzerDurationMilliseconds = 2000U;
 
+struct RgbPinAssignment {
+  std::uint8_t red;
+  std::uint8_t green;
+  std::uint8_t blue;
+};
+
+constexpr RgbPinAssignment kNanoSessionLightPins{6U, 7U, 8U};
+
 struct SessionLightCommand {
   std::uint8_t protocolVersion;
   SessionLightMode mode;

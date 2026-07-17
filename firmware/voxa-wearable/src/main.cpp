@@ -17,9 +17,6 @@
 namespace {
 
 constexpr std::uint32_t kDriverProbeIntervalMilliseconds = 250U;
-constexpr std::uint8_t kSessionLightRedPin = 6U;
-constexpr std::uint8_t kSessionLightBluePin = 7U;
-constexpr std::uint8_t kSessionLightGreenPin = 8U;
 constexpr std::uint8_t kEmergencyBuzzerPin = 9U;
 constexpr std::uint8_t kSessionLightPwmSteps = 32U;
 constexpr std::uint32_t kSessionLightPwmStepMicroseconds = 250U;
@@ -84,13 +81,13 @@ void writeSessionLightPin(std::uint8_t pin, bool enabled) {
 }
 
 void initializeSessionLight() {
-  pinMode(kSessionLightRedPin, OUTPUT);
-  pinMode(kSessionLightBluePin, OUTPUT);
-  pinMode(kSessionLightGreenPin, OUTPUT);
+  pinMode(voxa::kNanoSessionLightPins.red, OUTPUT);
+  pinMode(voxa::kNanoSessionLightPins.green, OUTPUT);
+  pinMode(voxa::kNanoSessionLightPins.blue, OUTPUT);
   pinMode(kEmergencyBuzzerPin, OUTPUT);
-  writeSessionLightPin(kSessionLightRedPin, false);
-  writeSessionLightPin(kSessionLightBluePin, false);
-  writeSessionLightPin(kSessionLightGreenPin, false);
+  writeSessionLightPin(voxa::kNanoSessionLightPins.red, false);
+  writeSessionLightPin(voxa::kNanoSessionLightPins.green, false);
+  writeSessionLightPin(voxa::kNanoSessionLightPins.blue, false);
   digitalWrite(kEmergencyBuzzerPin, LOW);
   voxa::resetEmergencyBuzzerState(&emergencyBuzzer);
   sessionLight.command = voxa::SessionLightCommand{
@@ -149,12 +146,12 @@ void updateSessionLightOutput(std::uint32_t nowMilliseconds,
       (sessionLight.pwmPhase + elapsedSteps) % kSessionLightPwmSteps);
 
   const voxa::RgbColor color = currentSessionLightColor(nowMilliseconds);
-  writeSessionLightPin(kSessionLightRedPin,
+  writeSessionLightPin(voxa::kNanoSessionLightPins.red,
                        sessionLight.pwmPhase < pwmDutySteps(color.red));
-  writeSessionLightPin(kSessionLightBluePin,
-                       sessionLight.pwmPhase < pwmDutySteps(color.blue));
-  writeSessionLightPin(kSessionLightGreenPin,
+  writeSessionLightPin(voxa::kNanoSessionLightPins.green,
                        sessionLight.pwmPhase < pwmDutySteps(color.green));
+  writeSessionLightPin(voxa::kNanoSessionLightPins.blue,
+                       sessionLight.pwmPhase < pwmDutySteps(color.blue));
 }
 
 void handleSessionLightFrame(
