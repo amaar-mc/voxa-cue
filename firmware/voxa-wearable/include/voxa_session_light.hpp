@@ -12,7 +12,10 @@ enum class SessionLightMode : std::uint8_t {
   kActive = 1U,
   kPaused = 2U,
   kOvertime = 3U,
+  kOvertimeEmergency = 4U,
 };
+
+constexpr std::uint32_t kEmergencyBuzzerDurationMilliseconds = 2000U;
 
 struct SessionLightCommand {
   std::uint8_t protocolVersion;
@@ -31,6 +34,14 @@ struct RgbColor {
   std::uint8_t blue;
 };
 
+struct EmergencyBuzzerState {
+  bool sounding;
+  bool deliveredForSession;
+  bool hasMode;
+  SessionLightMode lastMode;
+  std::uint32_t stopAtMilliseconds;
+};
+
 ParseSessionLightResult parseSessionLight(const std::uint8_t* bytes,
                                           std::size_t length);
 
@@ -38,5 +49,13 @@ RgbColor activeSessionColor(std::uint8_t progressPercent);
 
 RgbColor resolvedSessionColor(const SessionLightCommand& command,
                               std::uint32_t modeElapsedMilliseconds);
+
+void resetEmergencyBuzzerState(EmergencyBuzzerState* state);
+
+void silenceEmergencyBuzzerState(EmergencyBuzzerState* state);
+
+bool updateEmergencyBuzzerState(SessionLightMode mode,
+                                std::uint32_t nowMilliseconds,
+                                EmergencyBuzzerState* state);
 
 }  // namespace voxa

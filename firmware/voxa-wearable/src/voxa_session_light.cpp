@@ -10,7 +10,14 @@ constexpr RgbColor kOrangeColor{255U, 128U, 0U};
 constexpr RgbColor kRedColor{255U, 0U, 0U};
 
 bool isSessionLightModeValid(std::uint8_t value) {
-  return value <= static_cast<std::uint8_t>(SessionLightMode::kOvertime);
+  return value <=
+         static_cast<std::uint8_t>(SessionLightMode::kOvertimeEmergency);
+}
+
+bool timeReached(std::uint32_t nowMilliseconds,
+                 std::uint32_t deadlineMilliseconds) {
+  return static_cast<std::int32_t>(nowMilliseconds - deadlineMilliseconds) >=
+         0;
 }
 
 std::uint8_t interpolateChannel(std::uint8_t start, std::uint8_t end,
@@ -75,9 +82,62 @@ RgbColor resolvedSessionColor(const SessionLightCommand& command,
     case SessionLightMode::kPaused:
       return activeSessionColor(command.progressPercent);
     case SessionLightMode::kOvertime:
+    case SessionLightMode::kOvertimeEmergency:
       return modeElapsedMilliseconds % 1000U < 500U ? kRedColor : kOffColor;
   }
   return kOffColor;
+}
+
+void resetEmergencyBuzzerState(EmergencyBuzzerState* state) {
+  if (state == nullptr) {
+    return;
+  }
+  *state = EmergencyBuzzerState{
+      false, false, false, SessionLightMode::kOff, 0U};
+}
+
+void silenceEmergencyBuzzerState(EmergencyBuzzerState* state) {
+  if (state == nullptr) {
+    return;
+  }
+  state->sounding = false;
+}
+
+bool updateEmergencyBuzzerState(SessionLightMode mode,
+                                std::uint32_t nowMilliseconds,
+                                EmergencyBuzzerState* state) {
+  if (state == nullptr) {
+    return false;
+  }
+
+  if (mode == SessionLightMode::kOff) {
+    resetEmergencyBuzzerState(state);
+    state->hasMode = true;
+    return false;
+  }
+
+  if (mode == SessionLightMode::kActive &&
+      (!state->hasMode || state->lastMode != SessionLightMode::kActive)) {
+    state->sounding = false;
+    state->deliveredForSession = false;
+  }
+
+  if (mode == SessionLightMode::kOvertimeEmergency &&
+      !state->deliveredForSession) {
+    state->sounding = true;
+    state->deliveredForSession = true;
+    state->stopAtMilliseconds =
+        nowMilliseconds + kEmergencyBuzzerDurationMilliseconds;
+  }
+
+  if (state->sounding &&
+      timeReached(nowMilliseconds, state->stopAtMilliseconds)) {
+    state->sounding = false;
+  }
+
+  state->hasMode = true;
+  state->lastMode = mode;
+  return state->sounding;
 }
 
 }  // namespace voxa
