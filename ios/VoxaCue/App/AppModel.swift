@@ -304,13 +304,18 @@ final class AppModel {
     }
 
     func handleSceneBecameInactive() {
+        guard let activeSession, activeSession.hasStarted else { return }
+        activeSession.pauseForLifecycle()
+    }
+
+    func handleSceneEnteredBackground() {
         guard let activeSession else { return }
         if activeSession.hasStarted {
             activeSession.pauseForLifecycle()
-        } else {
-            cancelSessionStartWork(for: activeSession.id)
-            activeSession.cancelPreparationForLifecycle()
+            return
         }
+        cancelSessionStartWork(for: activeSession.id)
+        activeSession.cancelPreparationForLifecycle()
     }
 
     func dismissCompletedSummary() {

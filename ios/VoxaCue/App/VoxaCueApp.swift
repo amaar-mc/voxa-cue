@@ -42,12 +42,14 @@ struct VoxaCueApp: App {
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
-            case .inactive, .background:
+            case .inactive:
                 model.handleSceneBecameInactive()
+            case .background:
+                model.handleSceneEnteredBackground()
             case .active:
                 break
             @unknown default:
-                model.handleSceneBecameInactive()
+                model.handleSceneEnteredBackground()
             }
         }
     }
