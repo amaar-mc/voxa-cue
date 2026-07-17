@@ -8,22 +8,30 @@ public enum CueKind: UInt8, Codable, CaseIterable, Hashable, Sendable {
     case time75 = 5
     case time90 = 6
     case time100 = 7
+    case time50 = 8
 
-    public static let liveMVP: [CueKind] = [
+    public static let essentialDefaults: [CueKind] = [
         .tooFast,
-        .tooSlow,
         .fillerBurst,
-        .time75,
-        .time90,
+        .time50,
         .time100,
     ]
+
+    public static let advanced: [CueKind] = [
+        .tooSlow,
+        .time75,
+        .time90,
+    ]
+
+    public static let liveMVP = essentialDefaults + advanced
 
     public var label: String {
         switch self {
         case .tooFast: "Slow down"
         case .tooSlow: "Pick up the pace"
-        case .fillerBurst: "Reset fillers"
+        case .fillerBurst: "Filler cluster"
         case .deckBehind: "Move to the next idea"
+        case .time50: "Halfway point"
         case .time75: "75% of time used"
         case .time90: "90% of time used"
         case .time100: "Target time reached"
@@ -36,9 +44,36 @@ public enum CueKind: UInt8, Codable, CaseIterable, Hashable, Sendable {
         case .tooSlow: "tooSlow"
         case .fillerBurst: "fillerBurst"
         case .deckBehind: "deckBehind"
+        case .time50: "time50"
         case .time75: "time75"
         case .time90: "time90"
         case .time100: "time100"
+        }
+    }
+}
+
+public enum HapticPattern: UInt8, Codable, CaseIterable, Hashable, Sendable {
+    case doubleTap = 1
+    case longPulse = 2
+    case tripleTap = 3
+    case longShortLong = 4
+    case singlePulse = 5
+    case doublePulse = 6
+    case triplePulse = 7
+    case calmWave = 8
+    case deadlineHold = 9
+
+    public var label: String {
+        switch self {
+        case .doubleTap: "Two short"
+        case .longPulse: "One long"
+        case .tripleTap: "Three quick"
+        case .longShortLong: "Long–short–long"
+        case .singlePulse: "One firm"
+        case .doublePulse: "Two firm"
+        case .triplePulse: "Three firm"
+        case .calmWave: "Calm wave"
+        case .deadlineHold: "Deadline hold"
         }
     }
 }
@@ -71,15 +106,55 @@ public enum SessionMode: String, Codable, CaseIterable, Hashable, Sendable {
 
 public struct CueCommand: Codable, Equatable, Sendable {
     public let sequence: UInt16
-    public let kind: CueKind
+    public let pattern: HapticPattern
     public let intensity: CueIntensity
     public let repeatCount: UInt8
 
-    public init(sequence: UInt16, kind: CueKind, intensity: CueIntensity, repeatCount: UInt8) {
+    public init(sequence: UInt16, pattern: HapticPattern, intensity: CueIntensity, repeatCount: UInt8) {
         self.sequence = sequence
-        self.kind = kind
+        self.pattern = pattern
         self.intensity = intensity
         self.repeatCount = repeatCount
+    }
+}
+
+public struct HapticPreferences: Codable, Equatable, Sendable {
+    public let enabledCues: Set<CueKind>
+    public let patternByCue: [CueKind: HapticPattern]
+    public let intensityByCue: [CueKind: CueIntensity]
+
+    public init(
+        enabledCues: Set<CueKind>,
+        patternByCue: [CueKind: HapticPattern],
+        intensityByCue: [CueKind: CueIntensity]
+    ) {
+        self.enabledCues = enabledCues
+        self.patternByCue = patternByCue
+        self.intensityByCue = intensityByCue
+    }
+
+    public static func defaultsV1() -> HapticPreferences {
+        HapticPreferences(
+            enabledCues: Set(CueKind.essentialDefaults),
+            patternByCue: [
+                .tooFast: .doubleTap,
+                .fillerBurst: .calmWave,
+                .time50: .tripleTap,
+                .time100: .deadlineHold,
+                .tooSlow: .longPulse,
+                .time75: .singlePulse,
+                .time90: .doublePulse,
+            ],
+            intensityByCue: [
+                .tooFast: .medium,
+                .fillerBurst: .medium,
+                .time50: .medium,
+                .time100: .strong,
+                .tooSlow: .medium,
+                .time75: .medium,
+                .time90: .medium,
+            ]
+        )
     }
 }
 
@@ -87,6 +162,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
     public let minimumWPM: Double
     public let maximumWPM: Double
     public let enabledCues: Set<CueKind>
+    public let patternByCue: [CueKind: HapticPattern]
     public let intensityByCue: [CueKind: CueIntensity]
     public let highConfidenceFillers: [String]
     public let optionalFillers: [String]
@@ -95,6 +171,7 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
         minimumWPM: Double,
         maximumWPM: Double,
         enabledCues: Set<CueKind>,
+        patternByCue: [CueKind: HapticPattern],
         intensityByCue: [CueKind: CueIntensity],
         highConfidenceFillers: [String],
         optionalFillers: [String]
@@ -102,19 +179,22 @@ public struct CoachingProfile: Codable, Equatable, Sendable {
         self.minimumWPM = minimumWPM
         self.maximumWPM = maximumWPM
         self.enabledCues = enabledCues
+        self.patternByCue = patternByCue
         self.intensityByCue = intensityByCue
         self.highConfidenceFillers = highConfidenceFillers
         self.optionalFillers = optionalFillers
     }
 
     public static func rehearsalV1() -> CoachingProfile {
-        CoachingProfile(
+        let haptics = HapticPreferences.defaultsV1()
+        return CoachingProfile(
             minimumWPM: 130,
             maximumWPM: 160,
-            enabledCues: Set(CueKind.liveMVP),
-            intensityByCue: Dictionary(uniqueKeysWithValues: CueKind.liveMVP.map { ($0, .medium) }),
-            highConfidenceFillers: ["um", "uh", "er", "erm", "you know"],
-            optionalFillers: ["like", "actually", "basically", "literally", "i mean", "sort of", "kind of"]
+            enabledCues: haptics.enabledCues,
+            patternByCue: haptics.patternByCue,
+            intensityByCue: haptics.intensityByCue,
+            highConfidenceFillers: ["um", "umm", "uh", "uhh", "uhm", "er", "erm"],
+            optionalFillers: ["like", "you know", "i mean"]
         )
     }
 }
@@ -164,6 +244,18 @@ public struct TimedWord: Codable, Equatable, Sendable {
 
     public init(text: String, endSeconds: TimeInterval) {
         self.text = text
+        self.endSeconds = endSeconds
+    }
+}
+
+public struct SpeechActivityInterval: Codable, Equatable, Sendable {
+    public let isSpeech: Bool
+    public let startSeconds: TimeInterval
+    public let endSeconds: TimeInterval
+
+    public init(isSpeech: Bool, startSeconds: TimeInterval, endSeconds: TimeInterval) {
+        self.isSpeech = isSpeech
+        self.startSeconds = startSeconds
         self.endSeconds = endSeconds
     }
 }
@@ -279,6 +371,10 @@ public struct SessionSummary: Codable, Equatable, Sendable {
     public let fillerCount: Int
     public let fillersPerSpeakingMinute: Double
     public let talkRatio: Double
+    public let paceStandardDeviationWPM: Double?
+    public let pauseCount: Int?
+    public let averagePauseSeconds: Double?
+    public let longestPauseSeconds: Double?
     public let pitchRangeSemitones: Double?
     public let energyRangeDB: Double?
     public let cueCount: Int
@@ -298,6 +394,10 @@ public struct SessionSummary: Codable, Equatable, Sendable {
         fillerCount: Int,
         fillersPerSpeakingMinute: Double,
         talkRatio: Double,
+        paceStandardDeviationWPM: Double?,
+        pauseCount: Int?,
+        averagePauseSeconds: Double?,
+        longestPauseSeconds: Double?,
         pitchRangeSemitones: Double?,
         energyRangeDB: Double?,
         cueCount: Int,
@@ -316,6 +416,10 @@ public struct SessionSummary: Codable, Equatable, Sendable {
         self.fillerCount = fillerCount
         self.fillersPerSpeakingMinute = fillersPerSpeakingMinute
         self.talkRatio = talkRatio
+        self.paceStandardDeviationWPM = paceStandardDeviationWPM
+        self.pauseCount = pauseCount
+        self.averagePauseSeconds = averagePauseSeconds
+        self.longestPauseSeconds = longestPauseSeconds
         self.pitchRangeSemitones = pitchRangeSemitones
         self.energyRangeDB = energyRangeDB
         self.cueCount = cueCount
