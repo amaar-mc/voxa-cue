@@ -12,6 +12,11 @@ struct ReceivedCommandFrame {
   std::size_t reportedLength;
 };
 
+struct ReceivedSessionLightFrame {
+  std::uint8_t bytes[kSessionLightPacketSize];
+  std::size_t reportedLength;
+};
+
 bool initialize();
 
 void poll();
@@ -19,5 +24,9 @@ void poll();
 bool publishStatus(const std::uint8_t* bytes, std::size_t length);
 
 bool dequeueCommand(ReceivedCommandFrame* output);
+
+bool dequeueSessionLight(ReceivedSessionLightFrame* output);
+
+bool isCentralConnected();
 
 }  // namespace voxa::ble_transport

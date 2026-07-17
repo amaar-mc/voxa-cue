@@ -33,7 +33,12 @@ BLECharacteristic statusCharacteristic(kStatusCharacteristicUuid,
                                        BLERead | BLENotify,
                                        static_cast<int>(kStatusPacketSize),
                                        true);
+BLECharacteristic sessionLightCharacteristic(
+    kSessionLightCharacteristicUuid, BLEWrite,
+    static_cast<int>(kSessionLightPacketSize), true);
 CommandMailbox commandMailbox{};
+ReceivedSessionLightFrame pendingSessionLight{};
+bool hasPendingSessionLight = false;
 bool initialized = false;
 
 bool enqueueCommand(const std::uint8_t* bytes, std::size_t length) {
@@ -82,6 +87,21 @@ void commandWritten(BLEDevice central, BLECharacteristic characteristic) {
   }
 }
 
+void sessionLightWritten(BLEDevice central, BLECharacteristic characteristic) {
+  (void)central;
+  const int receivedLength = characteristic.valueLength();
+  const std::uint8_t* receivedBytes = characteristic.value();
+  for (std::size_t index = 0U; index < kSessionLightPacketSize; ++index) {
+    pendingSessionLight.bytes[index] =
+        receivedLength > 0 && index < static_cast<std::size_t>(receivedLength)
+            ? receivedBytes[index]
+            : 0U;
+  }
+  pendingSessionLight.reportedLength =
+      receivedLength > 0 ? static_cast<std::size_t>(receivedLength) : 0U;
+  hasPendingSessionLight = true;
+}
+
 }  // namespace
 
 bool initialize() {
@@ -94,9 +114,11 @@ bool initialize() {
   BLE.setAdvertisedService(cueService);
   cueService.addCharacteristic(commandCharacteristic);
   cueService.addCharacteristic(statusCharacteristic);
+  cueService.addCharacteristic(sessionLightCharacteristic);
   BLE.addService(cueService);
 
   commandCharacteristic.setEventHandler(BLEWritten, commandWritten);
+  sessionLightCharacteristic.setEventHandler(BLEWritten, sessionLightWritten);
 
   initialized = BLE.advertise() != 0;
   return initialized;
@@ -127,6 +149,19 @@ bool dequeueCommand(ReceivedCommandFrame* output) {
       (commandMailbox.readIndex + 1U) % kMailboxCapacity;
   --commandMailbox.count;
   return true;
+}
+
+bool dequeueSessionLight(ReceivedSessionLightFrame* output) {
+  if (output == nullptr || !hasPendingSessionLight) {
+    return false;
+  }
+  *output = pendingSessionLight;
+  hasPendingSessionLight = false;
+  return true;
+}
+
+bool isCentralConnected() {
+  return initialized && BLE.connected();
 }
 
 }  // namespace voxa::ble_transport
