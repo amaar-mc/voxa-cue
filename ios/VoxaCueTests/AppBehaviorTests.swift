@@ -226,8 +226,8 @@ func lifecyclePauseRequiresExplicitResume() throws {
 }
 
 @MainActor
-@Test("Leaving during preparation cancels session startup")
-func lifecycleCancelsSessionStartup() async throws {
+@Test("Entering the background during preparation cancels session startup")
+func backgroundingCancelsSessionStartup() async throws {
     let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.lifecycle-start-cancellation"))
     preferences.removePersistentDomain(forName: "VoxaCueTests.lifecycle-start-cancellation")
     let model = AppModel(
@@ -240,7 +240,7 @@ func lifecycleCancelsSessionStartup() async throws {
     )
     model.beginSession(configuration: behaviorTestSessionConfiguration())
 
-    model.handleSceneBecameInactive()
+    model.handleSceneEnteredBackground()
     await Task.yield()
 
     let controller = try #require(model.activeSession)
@@ -248,6 +248,32 @@ func lifecycleCancelsSessionStartup() async throws {
         Issue.record("Cancelled startup must remain failed, not restart in the background")
         return
     }
+}
+
+@MainActor
+@Test("Permission-sheet inactivity does not cancel session startup")
+func temporaryInactivityPreservesSessionStartup() async throws {
+    let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.permission-inactivity"))
+    preferences.removePersistentDomain(forName: "VoxaCueTests.permission-inactivity")
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: true,
+        preferences: preferences
+    )
+    model.beginSession(configuration: behaviorTestSessionConfiguration())
+    let controller = try #require(model.activeSession)
+
+    model.handleSceneBecameInactive()
+    await Task.yield()
+
+    guard case .failed = controller.phase else {
+        model.handleSceneEnteredBackground()
+        return
+    }
+    Issue.record("Temporary inactivity must not cancel permission or countdown preparation")
 }
 
 @MainActor
@@ -272,7 +298,7 @@ func sessionPresentationWaitsForSetupDismissal() async throws {
 
     model.presentPendingSession()
     #expect(model.activeSession != nil)
-    model.handleSceneBecameInactive()
+    model.handleSceneEnteredBackground()
     await Task.yield()
 }
 
