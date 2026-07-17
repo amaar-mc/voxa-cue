@@ -339,6 +339,63 @@ func lifecyclePauseRequiresExplicitResume() throws {
 }
 
 @MainActor
+@Test("Live session light follows progress, pause, overtime, and finish")
+func liveSessionLightFollowsSessionLifecycle() async throws {
+    var sentLights: [CueSessionLight] = []
+    let controller = LiveSessionController(
+        configuration: behaviorTestSessionConfiguration(),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        dataStore: try VoxaDataStore(inMemory: true),
+        semanticMatcher: SemanticMatcher(),
+        demoMode: true,
+        allocateCueSequence: { 1 },
+        sendCue: { _ in },
+        sendSessionLight: { sentLights.append($0) },
+        monotonicNow: { 100 },
+        cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration(
+            acceptanceTimeoutSeconds: 2,
+            completionTimeoutSeconds: 4
+        ),
+        onFinish: { _ in }
+    )
+    controller.phase = .recording
+    controller.metrics = LiveMetrics(
+        elapsedSeconds: 60,
+        rollingWPM: 145,
+        finalizedWordCount: 145,
+        fillerCount: 0,
+        voicedSeconds: 45,
+        talkRatio: 0.75,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+
+    controller.resendSessionLight()
+    controller.togglePause()
+    controller.togglePause()
+    controller.metrics = LiveMetrics(
+        elapsedSeconds: 120.1,
+        rollingWPM: 145,
+        finalizedWordCount: 290,
+        fillerCount: 0,
+        voicedSeconds: 90,
+        talkRatio: 0.75,
+        energyDBFS: nil,
+        pitchHertz: nil
+    )
+    controller.resendSessionLight()
+    await controller.finish()
+
+    #expect(sentLights == [
+        CueSessionLight(mode: .active, progressPercent: 50),
+        CueSessionLight(mode: .paused, progressPercent: 50),
+        CueSessionLight(mode: .active, progressPercent: 50),
+        CueSessionLight(mode: .overtime, progressPercent: 100),
+        CueSessionLight(mode: .off, progressPercent: 0),
+    ])
+}
+
+@MainActor
 @Test("Entering the background during preparation cancels session startup")
 func backgroundingCancelsSessionStartup() async throws {
     let preferences = try #require(UserDefaults(suiteName: "VoxaCueTests.lifecycle-start-cancellation"))
@@ -743,6 +800,7 @@ private func makeSessionControllerForBehaviorTests(demoMode: Bool) throws -> Liv
         demoMode: demoMode,
         allocateCueSequence: { 1 },
         sendCue: { _ in },
+        sendSessionLight: { _ in },
         monotonicNow: { 100 },
         cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration(
             acceptanceTimeoutSeconds: 2,
