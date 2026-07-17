@@ -59,10 +59,16 @@ struct DeviceLabView: View {
                         repeatCount: UInt8(repeatCount)
                     )
                 }
-                .disabled(!bandIsReady)
+                .disabled(!bandIsReady || model.deviceLabCueDelivery.isPending)
             }
 
-            Section("Last status") {
+            Section("Delivery") {
+                LabeledContent("Result", value: model.deviceLabCueDelivery.label)
+                if let message = model.deviceLabCueDelivery.failureMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
                 if let status = model.lastBandStatus {
                     LabeledContent("Sequence", value: String(status.sequence))
                     LabeledContent("State", value: statusLabel(status.state))
@@ -81,7 +87,7 @@ struct DeviceLabView: View {
             Section("Expected firmware") {
                 LabeledContent("Board", value: "Arduino Nano 33 IoT")
                 LabeledContent("Protocol", value: "BLE v\(CueBLE.protocolVersion)")
-                LabeledContent("Device name", value: "Voxa Cue")
+                LabeledContent("Expected names", value: CueBLE.knownPeripheralNames.joined(separator: " · "))
                 Text(CueBLE.serviceUUID.uuidString)
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
