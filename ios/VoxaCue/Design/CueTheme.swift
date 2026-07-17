@@ -186,12 +186,15 @@ struct VoxaButton: View {
             HStack(spacing: 12) {
                 Text(title)
                     .font(.system(.body, design: .rounded, weight: .semibold))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Image(systemName: symbol)
                     .font(.system(size: 14, weight: .semibold))
                     .frame(width: 36, height: 36)
                     .background(foreground.opacity(0.12))
                     .clipShape(Circle())
+                    .accessibilityHidden(true)
             }
             .foregroundStyle(foreground)
             .padding(.leading, 21)
@@ -215,6 +218,7 @@ struct VoxaButton: View {
         .buttonStyle(SpringPressStyle())
         .disabled(disabled)
         .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: feedbackTrigger)
+        .accessibilityLabel(title)
     }
 
     private var background: AnyShapeStyle {
@@ -249,9 +253,12 @@ struct VoxaAsyncButton: View {
                         .tint(.white)
                 } else {
                     Image(systemName: symbol)
+                        .accessibilityHidden(true)
                 }
                 Text(isLoading ? loadingTitle : title)
                     .font(.system(.body, design: .rounded, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 54)
@@ -296,7 +303,8 @@ struct StatusPill: View {
             RoundedRectangle(cornerRadius: dynamicTypeSize.isAccessibilitySize ? 14 : CueTheme.Radius.pill)
                 .stroke(color.opacity(0.16), lineWidth: 0.5)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
     }
 }
 
@@ -322,6 +330,8 @@ struct MetricTile: View {
                 .font(.cueMetric)
                 .foregroundStyle(CueTheme.ink)
                 .contentTransition(reduceMotion ? .identity : .numericText())
+                .lineLimit(1)
+                .allowsTightening(true)
                 .minimumScaleFactor(0.75)
             Text(detail)
                 .font(.cueCaption)
@@ -511,6 +521,7 @@ struct ScreenTitle: View {
                 .font(.cueTitle)
                 .foregroundStyle(CueTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
             Text(subtitle)
                 .font(.cueBody)
                 .foregroundStyle(CueTheme.secondaryInk)

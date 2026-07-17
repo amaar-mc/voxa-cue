@@ -3,6 +3,7 @@ import VoxaCore
 
 struct HapticCueSettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var advancedExpanded = false
 
     var body: some View {
@@ -105,15 +106,7 @@ struct HapticCueSettingsView: View {
                 .tint(CueTheme.signal)
             }
 
-            Picker("Strength for \(cue.label)", selection: intensityBinding(cue)) {
-                ForEach(CueIntensity.allCases, id: \.self) { intensity in
-                    Text(intensity.label)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .tag(intensity)
-                }
-            }
-            .pickerStyle(.segmented)
+            intensityPicker(for: cue)
 
             Button {
                 preview(cue)
@@ -147,6 +140,32 @@ struct HapticCueSettingsView: View {
             get: { model.hapticPreferences.intensityByCue[cue] ?? .medium },
             set: { model.setCueIntensity(cue, intensity: $0) }
         )
+    }
+
+    @ViewBuilder
+    private func intensityPicker(for cue: CueKind) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(spacing: 12) {
+                Text("Strength")
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                Spacer(minLength: 8)
+                Picker("Strength for \(cue.label)", selection: intensityBinding(cue)) {
+                    ForEach(CueIntensity.allCases, id: \.self) { intensity in
+                        Text(intensity.label).tag(intensity)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(CueTheme.signal)
+            }
+        } else {
+            Picker("Strength for \(cue.label)", selection: intensityBinding(cue)) {
+                ForEach(CueIntensity.allCases, id: \.self) { intensity in
+                    Text(intensity.label).tag(intensity)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     private func preview(_ cue: CueKind) {
