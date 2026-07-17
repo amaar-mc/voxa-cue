@@ -106,7 +106,7 @@ struct SessionsView: View {
                             Text(session.name)
                                 .font(.system(.body, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
-                                .lineLimit(1)
+                                .lineLimit(2)
                             Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
                                 .font(.cueCaption)
                                 .foregroundStyle(CueTheme.secondaryInk)

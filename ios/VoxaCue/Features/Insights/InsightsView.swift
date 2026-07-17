@@ -325,6 +325,7 @@ struct InsightsView: View {
                             Text(session.name)
                                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                                 .foregroundStyle(CueTheme.ink)
+                                .lineLimit(2)
                             Text(session.startedAt.formatted(date: .abbreviated, time: .omitted))
                                 .font(.cueCaption)
                                 .foregroundStyle(CueTheme.secondaryInk)
