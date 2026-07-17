@@ -48,21 +48,33 @@ without changing the packet layout or protocol version.
 ## Session-light packet
 
 Firmware `1.2` adds an optional, latest-value-wins session-light
-characteristic without changing the haptic command or status packets. It
+characteristic without changing the haptic command or status packets.
+Firmware `1.3` adds the opt-in overtime-buzzer mode to the same packet. It
 accepts exactly three bytes:
 
 | Offset | Type | Meaning |
 | --- | --- | --- |
 | 0 | `uint8` | Protocol version; must equal `1` |
-| 1 | `uint8` | Mode: `0` off, `1` active, `2` paused, `3` overtime |
+| 1 | `uint8` | Mode: `0` off, `1` active, `2` paused, `3` overtime, `4` overtime plus one-shot buzzer |
 | 2 | `uint8` | Presentation time progress, clamped to `0...100` |
 
 The app writes active `0` when recording begins, sends updated progress plus a
 heartbeat during the session, freezes the percentage in paused mode, sends
 overtime after the target is exceeded, and sends off when the session ends or
-fails. Firmware maps active and paused progress continuously from green at 0%,
+fails. When the presenter explicitly enables the emergency buzzer for that
+session, the app changes mode `3` to mode `4` at exactly 30 seconds overtime.
+Firmware maps active and paused progress continuously from green at 0%,
 through yellow at 50% and orange at 75%, to red at 100%. Overtime flashes red
 for 500 ms on and 500 ms off.
+
+The transition into mode `4` drives the D9 active-buzzer signal HIGH for
+exactly 2,000 ms. Firmware latches delivery for the current session, so
+heartbeat writes in mode `4` never restart the tone. Mode `0`, a disconnect,
+or a stale heartbeat immediately silences the buzzer. Disconnect and timeout
+preserve the per-session delivery latch, while mode `0` or the start of a new
+active session resets it. The buzzer is independent of DRV2605L readiness.
+Apps connected to firmware earlier than `1.3` must downgrade mode `4` to
+ordinary overtime mode `3`.
 
 Session-light writes are idempotent and have no status notification. The GATT
 write response confirms transport only. Malformed values are ignored. The LED

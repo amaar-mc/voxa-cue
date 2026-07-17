@@ -1,10 +1,11 @@
 # Voxa Cue wearable firmware
 
-Firmware v1.2 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
+Firmware v1.3 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
 BLE v1 peripheral. Both accept versioned, semantic haptic commands from the
 Voxa Cue iPhone app and drive a 3 V LRA through a DRV2605L in real-time
-playback mode. They also drive a session-progress RGB LED. The main loop never
-blocks for the length of a vibration.
+playback mode. They also drive a session-progress RGB LED and an optional
+one-shot overtime buzzer. The main loop never blocks for the length of a
+vibration or tone.
 
 The wire contract is defined in [`../../contracts/ble-v1.md`](../../contracts/ble-v1.md).
 The implementation rejects malformed packets, unsupported protocol versions,
@@ -18,6 +19,7 @@ the motor driver is unavailable. Every valid command reports `accepted`, then
 - DRV2605L breakout at I2C address `0x5A`
 - 3 V LRA coin vibration motor
 - Common-cathode RGB LED with one 220–330 Ω resistor per color leg
+- 3.3 V-compatible active-buzzer module or transistor-switched active buzzer
 - Data-capable USB cable matching the board (Micro-USB for Nano 33 IoT;
   USB-C for Nano ESP32)
 
@@ -39,6 +41,19 @@ Wire the session light separately:
 | `D7` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
 | `D8` | Green through 220–330 Ω | Green channel |
 | `GND` | Common cathode | Shared LED return |
+
+Wire the optional overtime buzzer separately:
+
+| Nano | Active-buzzer module | Purpose |
+| --- | --- | --- |
+| `D9` | Signal input | Active HIGH tone control |
+| `3V3` | `VCC` | Module power when rated for 3.3 V |
+| `GND` | `GND` | Shared ground |
+
+Do not power a high-current raw buzzer from D9. D9 is only for a
+3.3 V-compatible high-impedance signal input or a correctly sized transistor
+driver. Firmware 1.3 holds D9 HIGH for exactly two seconds once, 30 seconds
+after the target, only when the option was enabled in session setup.
 
 The Nano 33 IoT is a 3.3 V device with a low GPIO current limit. Never omit
 the three current-limiting resistors and never connect an LED common pin to 5 V.
@@ -104,7 +119,7 @@ If the Nano 33 IoT does not enter its bootloader for upload, double-press its
 reset button, wait for the pulsing bootloader LED, list ports again, and upload
 to the newly appeared `/dev/cu.usbmodem...` port.
 
-On startup the serial monitor prints either `Voxa Cue firmware 1.2 ready` or a
+On startup the serial monitor prints either `Voxa Cue firmware 1.3 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
 rejected with the protocol's `driver fault` error.
 
@@ -134,8 +149,8 @@ advertises as `Voxa D2` to distinguish it from production firmware. The Chrome
 BLE tester and iPhone Device Lab can then send their normal commands. A
 `completed` status means the Nano executed the PWM timing; confirm the physical
 vibration yourself because this diagnostic path has no motor-feedback signal.
-This build includes the same v1.2 RGB session-light characteristic as the
-production driver build.
+This build includes the same v1.3 RGB session-light and D9 overtime-buzzer
+behavior as the production driver build.
 
 Restore the production DRV2605L firmware after the test:
 
@@ -170,20 +185,22 @@ The write requests protocol 1, sequence 1, the two-short pattern, medium
 intensity, once. Expected notifications are:
 
 ```text
-01 01 00 00 00 01 02  # accepted
-01 01 00 01 00 01 02  # completed
+01 01 00 00 00 01 03  # accepted
+01 01 00 01 00 01 03  # completed
 ```
 
 Writing the same sequence again must not replay the motor and returns:
 
 ```text
-01 01 00 02 02 01 02  # rejected / invalid command
+01 01 00 02 02 01 03  # rejected / invalid command
 ```
 
 To test the RGB timing channel, write `01 01 32` with response to
 `6F2A0004-7C93-4A58-A9D4-3C52BBD1F110`. This requests active mode at 50% and
 should show yellow. Write `01 03 64` for flashing red overtime, then `01 00 00`
-to turn the LED off.
+to turn the LED off. With an active-buzzer module wired safely to D9, write
+`01 04 64` to start one two-second tone. Repeating that mode-4 packet must not
+restart the tone until an off packet begins a new session.
 
 ## Pattern and intensity calibration
 
