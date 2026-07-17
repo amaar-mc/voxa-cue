@@ -60,6 +60,10 @@ The response matches `contracts/deck-plan-v1.schema.json`. Checkpoints reference
     "fillerCount": 4,
     "fillersPerMinute": 1.74,
     "talkRatio": 0.783,
+    "paceStandardDeviationWpm": 11.2,
+    "pauseCount": 7,
+    "averagePauseSeconds": 0.9,
+    "longestPauseSeconds": 1.8,
     "pitchRangeSemitones": 8.4,
     "energyRangeDb": 13.2,
     "completedOnTime": true
@@ -69,7 +73,7 @@ The response matches `contracts/deck-plan-v1.schema.json`. Checkpoints reference
 }
 ```
 
-`fillersPerMinute` is normalized by speaking time. The nullable metric, checkpoint, and cue-sequence keys remain required and must be sent as JSON `null` when unavailable. Cue delivery status may be `pending`, `accepted`, `completed`, `failed`, `notConnected`, or `suppressed`.
+`fillersPerMinute` is normalized by speaking time. Pace variability and pause fields are optional for compatibility with sessions recorded before those analyzers existed; current clients send explicit JSON `null` when unavailable. The pitch, energy, checkpoint, and cue-sequence nullable keys remain required. Cue delivery status may be `pending`, `accepted`, `completed`, `failed`, `notConnected`, or `suppressed`.
 
 The response matches `contracts/insight-v1.schema.json`. Provider failures return sanitized `502` errors and request-budget expirations return a typed `504 model_request_timed_out`; neither exposes prompts, credentials, or provider error bodies.
 
