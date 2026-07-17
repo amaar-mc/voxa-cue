@@ -39,6 +39,7 @@ final class LiveSessionController: Identifiable {
     private let demoMode: Bool
     private let allocateCueSequence: @MainActor () -> UInt16
     private let sendCue: @MainActor (CueCommand) throws -> Void
+    private let sendSessionLight: @MainActor (CueSessionLight) throws -> Void
     private let monotonicNow: @MainActor () -> TimeInterval
     private let cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration
     private let cueEngineConfiguration = CueEngineConfiguration.version1()
@@ -90,6 +91,8 @@ final class LiveSessionController: Identifiable {
     private var observedCheckpointTimes: [String: TimeInterval] = [:]
     private var observedCheckpointConfidences: [String: Double] = [:]
     private var lastStoredSampleSecond = -1
+    private var lastSessionLight: CueSessionLight?
+    private var lastSessionLightSentAt: TimeInterval?
 
     init(
         configuration: SessionConfiguration,
@@ -99,6 +102,7 @@ final class LiveSessionController: Identifiable {
         demoMode: Bool,
         allocateCueSequence: @escaping @MainActor () -> UInt16,
         sendCue: @escaping @MainActor (CueCommand) throws -> Void,
+        sendSessionLight: @escaping @MainActor (CueSessionLight) throws -> Void,
         monotonicNow: @escaping @MainActor () -> TimeInterval,
         cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration,
         onFinish: @escaping @MainActor (SessionSummary) -> Void
@@ -111,6 +115,7 @@ final class LiveSessionController: Identifiable {
         self.demoMode = demoMode
         self.allocateCueSequence = allocateCueSequence
         self.sendCue = sendCue
+        self.sendSessionLight = sendSessionLight
         self.monotonicNow = monotonicNow
         self.cueDeliveryDeadlines = cueDeliveryDeadlines
         self.onFinish = onFinish
@@ -182,6 +187,7 @@ final class LiveSessionController: Identifiable {
             startedAtReferenceSeconds: startDate.timeIntervalSinceReferenceDate
         )
         phase = .recording
+        updateSessionLight(force: true)
         timerTask = Task { [weak self] in
             await self?.runTimer()
         }
@@ -197,6 +203,7 @@ final class LiveSessionController: Identifiable {
             if !demoMode { speechPipeline.resumeCapture() }
             UIApplication.shared.isIdleTimerDisabled = true
             phase = .recording
+            updateSessionLight(force: true)
         default:
             break
         }
@@ -230,6 +237,7 @@ final class LiveSessionController: Identifiable {
         let stopReference = Date().timeIntervalSinceReferenceDate
         presentationClock = presentationClock?.pausing(atReferenceSeconds: stopReference)
         phase = .finalizing
+        updateSessionLight(force: true)
         failOutstandingCueDeliveries(message: "Cue completion was not confirmed before the session ended.")
         cancelCueDeadlineWork()
         failureTask?.cancel()
@@ -344,6 +352,7 @@ final class LiveSessionController: Identifiable {
         if !demoMode { speechPipeline.pauseCapture() }
         if reason == .appInactive { UIApplication.shared.isIdleTimerDisabled = false }
         phase = .paused(reason)
+        updateSessionLight(force: true)
         volatileTranscript = ""
         volatileTranscriptSegment = nil
         rebuildRecentFillerOffsets()
@@ -415,6 +424,7 @@ final class LiveSessionController: Identifiable {
             default:
                 return
             }
+            updateSessionLight(force: false)
             try? await Task.sleep(for: .milliseconds(500))
         }
     }
@@ -498,6 +508,7 @@ final class LiveSessionController: Identifiable {
             failOutstandingCueDeliveries(message: "Cue confirmation stopped with live analysis.")
             cancelCueDeadlineWork()
             phase = .finalizing
+            updateSessionLight(force: true)
             failureTask = Task { [weak self] in
                 guard let self else { return }
                 await speechPipeline.stop()
@@ -506,6 +517,37 @@ final class LiveSessionController: Identifiable {
                 phase = .failed("Live analysis stopped: \(message) You can save the completed portion of this session.")
                 failureTask = nil
             }
+        }
+    }
+
+    func resendSessionLight() {
+        updateSessionLight(force: true)
+    }
+
+    private func updateSessionLight(force: Bool) {
+        let presentationState: CueSessionPresentationState
+        switch phase {
+        case .recording:
+            presentationState = .active
+        case .paused:
+            presentationState = .paused
+        case .preparing, .countdown, .finalizing, .failed:
+            presentationState = .off
+        }
+        let light = cueSessionLight(
+            elapsedSeconds: metrics.elapsedSeconds,
+            targetDurationSeconds: TimeInterval(configuration.targetDurationSeconds),
+            presentationState: presentationState
+        )
+        let now = monotonicNow()
+        let heartbeatDue = lastSessionLightSentAt.map { now - $0 >= 1 } ?? true
+        guard force || light != lastSessionLight || heartbeatDue else { return }
+        do {
+            try sendSessionLight(light)
+            lastSessionLight = light
+            lastSessionLightSentAt = now
+        } catch {
+            // Session lighting is optional. Live analysis and haptics keep running.
         }
     }
 

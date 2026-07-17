@@ -367,6 +367,10 @@ final class AppModel {
                 guard let self else { throw CueBLEError.notConnected }
                 try self.cueBandClient.send(command: command)
             },
+            sendSessionLight: { [weak self] sessionLight in
+                guard let self else { throw CueBLEError.notConnected }
+                try self.cueBandClient.send(sessionLight: sessionLight)
+            },
             monotonicNow: { ProcessInfo.processInfo.systemUptime },
             cueDeliveryDeadlines: .version1(),
             onFinish: { [weak self] summary in
@@ -570,7 +574,16 @@ final class AppModel {
     }
 
     private func handleCueBandConnectionState(_ state: CueBandConnectionState) {
+        let wasReady: Bool
+        if case .ready = connectionState {
+            wasReady = true
+        } else {
+            wasReady = false
+        }
         connectionState = state
+        if case .ready = state, !wasReady {
+            activeSession?.resendSessionLight()
+        }
         let reduced = reduceDeviceLabCueDelivery(deviceLabCueDelivery, connectionState: state)
         guard reduced != deviceLabCueDelivery else { return }
         deviceLabCueDelivery = reduced
