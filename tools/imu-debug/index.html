@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f2f1ec" />
+    <title>Voxa IMU Lab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Voxa IMU Lab home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Voxa IMU Lab</span>
+        </a>
+        <div class="connection-pill" data-tone="idle" id="connection-pill">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="connection-state">Not connected</span>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Wearable motion diagnostic</p>
+          <h1>See how your hands move while you speak.</h1>
+          <p class="hero-copy">
+            Stream wrist acceleration and rotation from the Nano, then turn a
+            four-second window into one transparent movement score.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button class="button button-primary" id="connect-button" type="button">
+            Connect IMU
+          </button>
+          <button class="button button-secondary" id="disconnect-button" type="button" disabled>
+            Disconnect
+          </button>
+        </div>
+      </section>
+
+      <section class="notice" id="compatibility" role="status"></section>
+
+      <section class="overview-grid" aria-label="Connection overview">
+        <article class="card device-card">
+          <div class="card-heading">
+            <div>
+              <p class="card-kicker">Device</p>
+              <h2 id="device-name">Waiting for Nano</h2>
+            </div>
+            <span class="mini-badge" id="sensor-state">No data</span>
+          </div>
+          <dl class="device-facts">
+            <div><dt>Sensor</dt><dd id="sensor-name">—</dd></div>
+            <div><dt>I2C address</dt><dd id="sensor-address">—</dd></div>
+            <div><dt>Firmware</dt><dd id="firmware">—</dd></div>
+            <div><dt>Stream</dt><dd id="sample-rate">—</dd></div>
+          </dl>
+          <p class="device-detail" id="device-detail">
+            Flash the diagnostic firmware, power the Nano, then connect in Chrome.
+          </p>
+        </article>
+
+        <article class="card score-card" id="score-card" data-state="calibrating">
+          <div class="score-copy">
+            <p class="card-kicker">Hand movement</p>
+            <h2 id="motion-label">Waiting for data</h2>
+            <p id="motion-guidance">The score needs about two seconds of live motion.</p>
+          </div>
+          <div class="score-orbit" aria-label="Motion score">
+            <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
+              <circle class="score-track" cx="60" cy="60" r="50"></circle>
+              <circle class="score-progress" id="score-progress" cx="60" cy="60" r="50"></circle>
+            </svg>
+            <div><strong id="motion-score">—</strong><span>/ 100</span></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="axis-grid" aria-label="Current IMU values">
+        <article class="card axis-card">
+          <div class="card-heading compact">
+            <div><p class="card-kicker">Acceleration</p><h2>Linear motion</h2></div>
+            <span class="unit">g</span>
+          </div>
+          <div class="axis-values">
+            <div><span class="axis-dot x"></span><small>X</small><strong id="accel-x">—</strong></div>
+            <div><span class="axis-dot y"></span><small>Y</small><strong id="accel-y">—</strong></div>
+            <div><span class="axis-dot z"></span><small>Z</small><strong id="accel-z">—</strong></div>
+          </div>
+          <div class="chart-wrap"><canvas id="accel-chart" aria-label="Acceleration over time"></canvas></div>
+        </article>
+
+        <article class="card axis-card">
+          <div class="card-heading compact">
+            <div><p class="card-kicker">Angular velocity</p><h2>Wrist rotation</h2></div>
+            <span class="unit">°/s</span>
+          </div>
+          <div class="axis-values">
+            <div><span class="axis-dot x"></span><small>X</small><strong id="gyro-x">—</strong></div>
+            <div><span class="axis-dot y"></span><small>Y</small><strong id="gyro-y">—</strong></div>
+            <div><span class="axis-dot z"></span><small>Z</small><strong id="gyro-z">—</strong></div>
+          </div>
+          <div class="chart-wrap"><canvas id="gyro-chart" aria-label="Angular velocity over time"></canvas></div>
+        </article>
+      </section>
+
+      <section class="card method-card">
+        <div class="method-heading">
+          <div>
+            <p class="card-kicker">How the rating works</p>
+            <h2>Deterministic, visible thresholds</h2>
+          </div>
+          <button class="button button-secondary" id="export-button" type="button" disabled>
+            Export CSV
+          </button>
+        </div>
+        <div class="method-layout">
+          <div class="formula">
+            <p>
+              <strong>Motion score</strong> = 40% dynamic acceleration + 40%
+              rotation speed + 20% active time, measured across the last four seconds.
+            </p>
+            <div class="diagnostic-values">
+              <span>Acceleration RMS <strong id="accel-rms">—</strong></span>
+              <span>Gyro RMS <strong id="gyro-rms">—</strong></span>
+              <span>Active time <strong id="active-fraction">—</strong></span>
+            </div>
+          </div>
+          <div class="thresholds">
+            <label>
+              <span>Too little below</span>
+              <input id="low-threshold" type="number" min="1" max="60" step="1" value="22" />
+            </label>
+            <label>
+              <span>Too much above</span>
+              <input id="high-threshold" type="number" min="30" max="99" step="1" value="62" />
+            </label>
+            <p id="threshold-copy">Balanced range: 22–62</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>
