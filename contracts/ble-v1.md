@@ -13,6 +13,7 @@ little-endian.
 | Cue service | `6F2A0001-7C93-4A58-A9D4-3C52BBD1F110` | Primary service |
 | Command | `6F2A0002-7C93-4A58-A9D4-3C52BBD1F110` | Write with response |
 | Status | `6F2A0003-7C93-4A58-A9D4-3C52BBD1F110` | Notify, read |
+| Session light | `6F2A0004-7C93-4A58-A9D4-3C52BBD1F110` | Write with response; optional on firmware 1.1 and earlier |
 
 ## Command packet
 
@@ -43,6 +44,31 @@ each enabled cue to one of these signatures:
 
 IDs `1...7` retain their v1.0 waveforms. Firmware `1.1` adds IDs `8` and `9`
 without changing the packet layout or protocol version.
+
+## Session-light packet
+
+Firmware `1.2` adds an optional, latest-value-wins session-light
+characteristic without changing the haptic command or status packets. It
+accepts exactly three bytes:
+
+| Offset | Type | Meaning |
+| --- | --- | --- |
+| 0 | `uint8` | Protocol version; must equal `1` |
+| 1 | `uint8` | Mode: `0` off, `1` active, `2` paused, `3` overtime |
+| 2 | `uint8` | Presentation time progress, clamped to `0...100` |
+
+The app writes active `0` when recording begins, sends updated progress plus a
+heartbeat during the session, freezes the percentage in paused mode, sends
+overtime after the target is exceeded, and sends off when the session ends or
+fails. Firmware maps active and paused progress continuously from green at 0%,
+through yellow at 50% and orange at 75%, to red at 100%. Overtime flashes red
+for 500 ms on and 500 ms off.
+
+Session-light writes are idempotent and have no status notification. The GATT
+write response confirms transport only. Malformed values are ignored. The LED
+turns off when the central disconnects or no valid heartbeat arrives for five
+seconds. Apps must treat the characteristic as optional so firmware 1.1 and
+earlier retain full haptic compatibility.
 
 ## Status packet
 

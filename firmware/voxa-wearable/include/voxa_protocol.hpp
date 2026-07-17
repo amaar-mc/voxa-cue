@@ -7,9 +7,10 @@ namespace voxa {
 
 constexpr std::uint8_t kProtocolVersion = 1U;
 constexpr std::uint8_t kFirmwareMajor = 1U;
-constexpr std::uint8_t kFirmwareMinor = 1U;
+constexpr std::uint8_t kFirmwareMinor = 2U;
 constexpr std::size_t kCommandPacketSize = 6U;
 constexpr std::size_t kStatusPacketSize = 7U;
+constexpr std::size_t kSessionLightPacketSize = 3U;
 
 constexpr char kDeviceName[] = "Voxa Cue";
 constexpr char kServiceUuid[] = "6F2A0001-7C93-4A58-A9D4-3C52BBD1F110";
@@ -17,6 +18,8 @@ constexpr char kCommandCharacteristicUuid[] =
     "6F2A0002-7C93-4A58-A9D4-3C52BBD1F110";
 constexpr char kStatusCharacteristicUuid[] =
     "6F2A0003-7C93-4A58-A9D4-3C52BBD1F110";
+constexpr char kSessionLightCharacteristicUuid[] =
+    "6F2A0004-7C93-4A58-A9D4-3C52BBD1F110";
 
 enum class PatternId : std::uint8_t {
   kTooFast = 1U,
