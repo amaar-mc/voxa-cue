@@ -18,6 +18,7 @@ struct SettingsView: View {
                 )
                 bandCard
                 hapticCard
+                setupGuideCard
 #if DEBUG
                 DemoProSettingsCard(entitlementStore: model.proEntitlementStore)
 #endif
@@ -120,6 +121,35 @@ struct SettingsView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var setupGuideCard: some View {
+        Button(action: model.presentOnboarding) {
+            PremiumCard(padding: 20) {
+                HStack(spacing: 15) {
+                    Image(systemName: "signpost.right.and.left.fill")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(CueTheme.haptic)
+                        .frame(width: 46, height: 46)
+                        .background(CueTheme.haptic.opacity(0.10))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        CueSectionLabel(text: "Setup guide", color: CueTheme.haptic)
+                        Text("Replay the four-step introduction.")
+                            .font(.cueBody)
+                            .foregroundStyle(CueTheme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CueTheme.secondaryInk)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open setup guide")
+        .accessibilityHint("Reviews starter cues, Cue Band pairing, and first-session defaults")
     }
 
     private var apiCard: some View {
