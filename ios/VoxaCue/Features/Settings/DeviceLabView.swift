@@ -4,7 +4,7 @@ import VoxaRuntime
 
 struct DeviceLabView: View {
     @Environment(AppModel.self) private var model
-    @State private var cueKind = CueKind.tooFast
+    @State private var pattern = HapticPattern.doubleTap
     @State private var intensity = CueIntensity.soft
     @State private var repeatCount = 1
 
@@ -41,9 +41,9 @@ struct DeviceLabView: View {
             }
 
             Section("Test command") {
-                Picker("Pattern", selection: $cueKind) {
-                    ForEach(CueKind.liveMVP, id: \.self) { cue in
-                        Text(cue.label).tag(cue)
+                Picker("Pattern", selection: $pattern) {
+                    ForEach(HapticPattern.allCases, id: \.self) { candidate in
+                        Text(candidate.label).tag(candidate)
                     }
                 }
                 Picker("Intensity", selection: $intensity) {
@@ -54,7 +54,7 @@ struct DeviceLabView: View {
                 Stepper("Repeat count: \(repeatCount)", value: $repeatCount, in: 1...3)
                 Button("Send haptic command") {
                     model.sendDebugCue(
-                        kind: cueKind,
+                        pattern: pattern,
                         intensity: intensity,
                         repeatCount: UInt8(repeatCount)
                     )
