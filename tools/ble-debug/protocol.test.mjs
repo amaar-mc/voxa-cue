@@ -15,6 +15,17 @@ test("encodes the normative medium too-fast smoke-test packet", () => {
   assert.equal(formatHex(packet), "01 01 00 01 01 01");
 });
 
+test("encodes firmware 1.1 calm-wave and deadline patterns", () => {
+  assert.deepEqual(
+    Array.from(encodeCommand({ sequence: 2, pattern: 8, intensity: 1, repeatCount: 1 })),
+    [1, 2, 0, 8, 1, 1],
+  );
+  assert.deepEqual(
+    Array.from(encodeCommand({ sequence: 3, pattern: 9, intensity: 2, repeatCount: 1 })),
+    [1, 3, 0, 9, 2, 1],
+  );
+});
+
 test("decodes accepted and completed status packets", () => {
   assert.deepEqual(decodeStatus(Uint8Array.of(1, 42, 0, 0, 0, 1, 0)), {
     sequence: 42,

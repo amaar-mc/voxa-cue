@@ -14,7 +14,7 @@ const STATUS_ERRORS = ["None", "Invalid protocol version", "Invalid command", "H
  */
 export function encodeCommand(command) {
   assertIntegerInRange("sequence", command.sequence, 1, 65_535);
-  assertIntegerInRange("pattern", command.pattern, 1, 7);
+  assertIntegerInRange("pattern", command.pattern, 1, 9);
   assertIntegerInRange("intensity", command.intensity, 0, 2);
   assertIntegerInRange("repeat count", command.repeatCount, 1, 3);
 
