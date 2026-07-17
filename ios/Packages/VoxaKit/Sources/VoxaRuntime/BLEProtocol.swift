@@ -60,6 +60,32 @@ public enum CueBLE {
         )
     }
 
+    public static func sessionLight(
+        _ sessionLight: CueSessionLight,
+        compatibleWithFirmwareMajor firmwareMajor: UInt8,
+        minor firmwareMinor: UInt8
+    ) -> CueSessionLight {
+        let firmwareSupportsEmergencyBuzzer = supportsEmergencyBuzzer(
+            firmwareMajor: firmwareMajor,
+            firmwareMinor: firmwareMinor
+        )
+        guard sessionLight.mode == .overtimeEmergency,
+              !firmwareSupportsEmergencyBuzzer else {
+            return sessionLight
+        }
+        return CueSessionLight(
+            mode: .overtime,
+            progressPercent: sessionLight.progressPercent
+        )
+    }
+
+    public static func supportsEmergencyBuzzer(
+        firmwareMajor: UInt8,
+        firmwareMinor: UInt8
+    ) -> Bool {
+        firmwareMajor > 1 || (firmwareMajor == 1 && firmwareMinor >= 3)
+    }
+
     public static func decode(status data: Data) throws -> CueBandStatus {
         guard data.count == 7 else { throw CueBLEError.invalidPacketLength }
         let bytes = [UInt8](data)
@@ -95,6 +121,7 @@ public enum CueSessionLightMode: UInt8, Equatable, Sendable {
     case active = 1
     case paused = 2
     case overtime = 3
+    case overtimeEmergency = 4
 }
 
 public struct CueSessionLight: Equatable, Sendable {
@@ -116,7 +143,8 @@ public enum CueSessionPresentationState: Equatable, Sendable {
 public func cueSessionLight(
     elapsedSeconds: TimeInterval,
     targetDurationSeconds: TimeInterval,
-    presentationState: CueSessionPresentationState
+    presentationState: CueSessionPresentationState,
+    emergencyBuzzerEnabled: Bool
 ) -> CueSessionLight {
     guard presentationState != .off,
           elapsedSeconds.isFinite,
@@ -125,6 +153,10 @@ public func cueSessionLight(
         return CueSessionLight(mode: .off, progressPercent: 0)
     }
     let boundedElapsedSeconds = max(0, elapsedSeconds)
+    if emergencyBuzzerEnabled,
+       boundedElapsedSeconds >= targetDurationSeconds + 30 {
+        return CueSessionLight(mode: .overtimeEmergency, progressPercent: 100)
+    }
     if boundedElapsedSeconds > targetDurationSeconds {
         return CueSessionLight(mode: .overtime, progressPercent: 100)
     }

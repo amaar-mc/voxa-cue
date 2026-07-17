@@ -2,6 +2,12 @@
 import Foundation
 import VoxaCore
 
+func cueBandStateAfterSessionLightWriteFailure(
+    reconnectEnabled: Bool
+) -> CueBandConnectionState? {
+    reconnectEnabled ? .reconnecting : nil
+}
+
 public struct CueBandIdentity: Equatable, Sendable {
     public let identifier: UUID
     public let name: String
@@ -90,7 +96,15 @@ public final class CueBandClient: NSObject {
         guard let sessionLightCharacteristic else {
             throw CueBLEError.sessionLightUnavailable
         }
-        let data = try CueBLE.encode(sessionLight: sessionLight)
+        guard let firmwareVersion else {
+            throw CueBLEError.firmwareVersionUnavailable
+        }
+        let compatibleSessionLight = CueBLE.sessionLight(
+            sessionLight,
+            compatibleWithFirmwareMajor: firmwareVersion.major,
+            minor: firmwareVersion.minor
+        )
+        let data = try CueBLE.encode(sessionLight: compatibleSessionLight)
         peripheral.writeValue(data, for: sessionLightCharacteristic, type: .withResponse)
     }
 
@@ -290,7 +304,22 @@ extension CueBandClient: @MainActor CBPeripheralDelegate {
     ) {
         guard let error else { return }
         if characteristic.uuid == CueBLE.sessionLightUUID {
+            guard self.peripheral?.identifier == peripheral.identifier else {
+                return
+            }
             sessionLightCharacteristic = nil
+            guard let recoveryState = cueBandStateAfterSessionLightWriteFailure(
+                reconnectEnabled: shouldReconnect
+            ) else {
+                return
+            }
+            stateHandler?(recoveryState)
+            if peripheral.state == .disconnected {
+                resetConnection()
+                beginScan()
+            } else {
+                central?.cancelPeripheralConnection(peripheral)
+            }
             return
         }
         failConnection(error.localizedDescription)
