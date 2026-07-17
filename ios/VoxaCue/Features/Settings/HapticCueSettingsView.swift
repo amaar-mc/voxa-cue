@@ -12,7 +12,7 @@ struct HapticCueSettingsView: View {
                 ScreenTitle(
                     eyebrow: "Cue language",
                     title: "Haptic signals",
-                    subtitle: "Make every wrist cue recognizable without looking down."
+                    subtitle: "Tune when cues trigger and how they feel."
                 )
 
                 cueGroup(title: "Essentials", cues: CueKind.essentialDefaults)
@@ -46,7 +46,7 @@ struct HapticCueSettingsView: View {
                     .tint(CueTheme.signal)
                 }
 
-                Button("Restore default signals") {
+                Button("Restore cue defaults") {
                     model.restoreDefaultHaptics()
                 }
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -91,6 +91,10 @@ struct HapticCueSettingsView: View {
                 }
             }
             .tint(CueTheme.signal)
+
+            if cue == .fillerBurst {
+                fillerClusterControls
+            }
 
             HStack(spacing: 12) {
                 Text("Pattern")
@@ -140,6 +144,100 @@ struct HapticCueSettingsView: View {
             get: { model.hapticPreferences.intensityByCue[cue] ?? .medium },
             set: { model.setCueIntensity(cue, intensity: $0) }
         )
+    }
+
+    private var fillerRequiredCountBinding: Binding<Int> {
+        Binding(
+            get: { model.hapticPreferences.fillerClusterConfiguration.requiredFillerCount },
+            set: { requiredFillerCount in
+                let current = model.hapticPreferences.fillerClusterConfiguration
+                model.setFillerClusterConfiguration(
+                    FillerClusterConfiguration(
+                        requiredFillerCount: requiredFillerCount,
+                        windowSeconds: current.windowSeconds
+                    )
+                )
+            }
+        )
+    }
+
+    private var fillerWindowSecondsBinding: Binding<Int> {
+        Binding(
+            get: { model.hapticPreferences.fillerClusterConfiguration.windowSeconds },
+            set: { windowSeconds in
+                let current = model.hapticPreferences.fillerClusterConfiguration
+                model.setFillerClusterConfiguration(
+                    FillerClusterConfiguration(
+                        requiredFillerCount: current.requiredFillerCount,
+                        windowSeconds: windowSeconds
+                    )
+                )
+            }
+        )
+    }
+
+    private var fillerClusterControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Stepper(
+                value: fillerRequiredCountBinding,
+                in: FillerClusterConfiguration.requiredCountRange,
+                step: 1
+            ) {
+                adjustmentLabel(
+                    title: "Fillers required",
+                    value: "\(model.hapticPreferences.fillerClusterConfiguration.requiredFillerCount)"
+                )
+            }
+            .accessibilityLabel("Fillers required for a cluster")
+            .accessibilityValue("\(model.hapticPreferences.fillerClusterConfiguration.requiredFillerCount)")
+
+            Stepper(
+                value: fillerWindowSecondsBinding,
+                in: FillerClusterConfiguration.windowSecondsRange,
+                step: FillerClusterConfiguration.windowStepSeconds
+            ) {
+                adjustmentLabel(
+                    title: "Lookback window",
+                    value: "\(model.hapticPreferences.fillerClusterConfiguration.windowSeconds) sec"
+                )
+            }
+            .accessibilityLabel("Filler cluster lookback window")
+            .accessibilityValue("\(model.hapticPreferences.fillerClusterConfiguration.windowSeconds) seconds")
+
+            Text(fillerClusterDescription)
+                .font(.cueCaption)
+                .foregroundStyle(CueTheme.secondaryInk)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func adjustmentLabel(title: String, value: String) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                Text(value)
+                    .font(.cueCaption.monospacedDigit())
+                    .foregroundStyle(CueTheme.ink)
+            }
+        } else {
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.cueCaption.monospacedDigit())
+                    .foregroundStyle(CueTheme.ink)
+            }
+        }
+    }
+
+    private var fillerClusterDescription: String {
+        let cluster = model.hapticPreferences.fillerClusterConfiguration
+        return "Cue after \(cluster.requiredFillerCount) fillers within \(cluster.windowSeconds) seconds · 30-second reset. Lower count or longer window cues sooner."
     }
 
     @ViewBuilder

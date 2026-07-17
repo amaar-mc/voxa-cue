@@ -178,7 +178,7 @@ struct SessionSetupView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "waveform.path")
-                        Text("Customize pulse patterns")
+                        Text("Customize cue behavior")
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
@@ -344,6 +344,10 @@ struct SessionSetupView: View {
     private func patternDescription(for cue: CueKind) -> String {
         let pattern = model.hapticPreferences.patternByCue[cue] ?? .doubleTap
         let intensity = model.hapticPreferences.intensityByCue[cue] ?? .medium
+        if cue == .fillerBurst {
+            let cluster = model.hapticPreferences.fillerClusterConfiguration
+            return "\(pattern.label) · \(intensity.label) · \(cluster.requiredFillerCount) in \(cluster.windowSeconds) sec"
+        }
         return "\(pattern.label) · \(intensity.label)"
     }
 
@@ -356,6 +360,7 @@ struct SessionSetupView: View {
             enabledCues: haptics.enabledCues,
             patternByCue: haptics.patternByCue,
             intensityByCue: haptics.intensityByCue,
+            fillerClusterConfiguration: haptics.fillerClusterConfiguration,
             highConfidenceFillers: baseProfile.highConfidenceFillers,
             optionalFillers: baseProfile.optionalFillers
         )
