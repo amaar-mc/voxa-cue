@@ -1,15 +1,13 @@
 #include <Arduino.h>
-
-#if !defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
 #include <Wire.h>
 
 #include <Adafruit_DRV2605.h>
-#endif
 
 #include <cstddef>
 #include <cstdint>
 
 #include "voxa_ble_transport.hpp"
+#include "voxa_haptic_hardware.hpp"
 #include "voxa_patterns.hpp"
 #include "voxa_protocol.hpp"
 #include "voxa_session_light.hpp"
@@ -21,15 +19,6 @@ constexpr std::uint8_t kEmergencyBuzzerPin = 9U;
 constexpr std::uint8_t kSessionLightPwmSteps = 32U;
 constexpr std::uint32_t kSessionLightPwmStepMicroseconds = 250U;
 constexpr std::uint32_t kSessionLightHeartbeatTimeoutMilliseconds = 5000U;
-
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-constexpr std::uint8_t kDiagnosticControlPin = 2U;
-constexpr std::uint8_t kDiagnosticSoftPwm = 150U;
-constexpr std::uint8_t kDiagnosticMediumPwm = 185U;
-constexpr std::uint8_t kDiagnosticStrongPwm = 220U;
-#else
-constexpr std::uint8_t kDrv2605Address = 0x5AU;
-#endif
 
 struct PlaybackState {
   bool active;
@@ -57,9 +46,7 @@ enum class PlaybackUpdate : std::uint8_t {
   kDriverFault = 2U,
 };
 
-#if !defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
 Adafruit_DRV2605 hapticDriver;
-#endif
 PlaybackState playback{};
 SessionLightState sessionLight{};
 voxa::EmergencyBuzzerState emergencyBuzzer{};
@@ -172,21 +159,11 @@ void handleSessionLightFrame(
 }
 
 bool driverPresent() {
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-  return true;
-#else
-  Wire.beginTransmission(kDrv2605Address);
+  Wire.beginTransmission(voxa::haptic_hardware::kI2cAddress);
   return Wire.endTransmission() == 0U;
-#endif
 }
 
 bool initializeHapticDriver() {
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-  pinMode(kDiagnosticControlPin, OUTPUT);
-  analogWriteResolution(8);
-  analogWrite(kDiagnosticControlPin, 0U);
-  return true;
-#else
 #if defined(ARDUINO_ARCH_ESP32)
   Wire.begin(A4, A5);
 #else
@@ -200,37 +177,13 @@ bool initializeHapticDriver() {
   hapticDriver.setMode(DRV2605_MODE_REALTIME);
   hapticDriver.setRealtimeValue(0U);
   return driverPresent();
-#endif
 }
-
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-std::uint8_t diagnosticPwmForIntensity(voxa::Intensity intensity) {
-  switch (intensity) {
-    case voxa::Intensity::kSoft:
-      return kDiagnosticSoftPwm;
-    case voxa::Intensity::kMedium:
-      return kDiagnosticMediumPwm;
-    case voxa::Intensity::kStrong:
-      return kDiagnosticStrongPwm;
-  }
-  return 0U;
-}
-#endif
 
 void setHapticOutput(std::uint8_t amplitudePercent,
                      voxa::Intensity intensity) {
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-  const std::uint16_t boundedPercent =
-      amplitudePercent > 100U ? 100U : amplitudePercent;
-  const std::uint8_t pwm = static_cast<std::uint8_t>(
-      static_cast<std::uint16_t>(diagnosticPwmForIntensity(intensity)) *
-      boundedPercent / 100U);
-  analogWrite(kDiagnosticControlPin, pwm);
-#else
   const std::uint8_t amplitude =
       voxa::scaledAmplitudeForIntensity(intensity, amplitudePercent);
   hapticDriver.setRealtimeValue(amplitude);
-#endif
 }
 
 bool publishStatus(std::uint16_t sequence, voxa::StatusState state,
@@ -380,11 +333,7 @@ void setup() {
   if (!bluetoothReady) {
     Serial.println("Bluetooth initialization failed");
   } else if (driverReady) {
-#if defined(VOXA_DIRECT_PWM_DIAGNOSTIC)
-    Serial.println("Voxa Cue D2 PWM diagnostic ready");
-#else
     Serial.println("Voxa Cue firmware 1.3 ready");
-#endif
   } else {
     Serial.println("DRV2605L not detected; haptic commands will be rejected");
   }
