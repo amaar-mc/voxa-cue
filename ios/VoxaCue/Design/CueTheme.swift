@@ -2,32 +2,39 @@ import SwiftUI
 import UIKit
 
 enum CueTheme {
+    // Voxa brand system
+    static let pulseViolet = Color(red: 112 / 255, green: 92 / 255, blue: 255 / 255)
+    static let cadenceLilac = Color(red: 151 / 255, green: 112 / 255, blue: 255 / 255)
+    static let signalBlue = Color(red: 123 / 255, green: 151 / 255, blue: 255 / 255)
+    static let midnightInk = Color(red: 10 / 255, green: 18 / 255, blue: 36 / 255)
+    static let atmosphere = Color(red: 233 / 255, green: 236 / 255, blue: 246 / 255)
+
     static let canvas = Color("BrandBackground")
     static let surface = Color("BrandSurface")
     static let ink = Color.cueAdaptive(
-        light: UIColor(red: 11 / 255, green: 23 / 255, blue: 27 / 255, alpha: 1),
-        dark: UIColor(red: 239 / 255, green: 247 / 255, blue: 244 / 255, alpha: 1)
+        light: UIColor(red: 10 / 255, green: 18 / 255, blue: 36 / 255, alpha: 1),
+        dark: UIColor(red: 233 / 255, green: 236 / 255, blue: 246 / 255, alpha: 1)
     )
     static let secondaryInk = Color.cueAdaptive(
-        light: UIColor(red: 83 / 255, green: 99 / 255, blue: 103 / 255, alpha: 1),
-        dark: UIColor(red: 169 / 255, green: 187 / 255, blue: 184 / 255, alpha: 1)
+        light: UIColor(red: 76 / 255, green: 85 / 255, blue: 105 / 255, alpha: 1),
+        dark: UIColor(red: 184 / 255, green: 192 / 255, blue: 213 / 255, alpha: 1)
     )
     static let border = Color.cueAdaptive(
-        light: UIColor(red: 216 / 255, green: 223 / 255, blue: 219 / 255, alpha: 1),
-        dark: UIColor(red: 47 / 255, green: 68 / 255, blue: 68 / 255, alpha: 1)
+        light: UIColor(red: 204 / 255, green: 210 / 255, blue: 227 / 255, alpha: 1),
+        dark: UIColor(red: 45 / 255, green: 55 / 255, blue: 82 / 255, alpha: 1)
     )
-    static let signalBright = Color(red: 52 / 255, green: 184 / 255, blue: 170 / 255)
+    static let signalBright = signalBlue
     static let signal = Color.cueAdaptive(
-        light: UIColor(red: 11 / 255, green: 117 / 255, blue: 111 / 255, alpha: 1),
-        dark: UIColor(red: 83 / 255, green: 210 / 255, blue: 195 / 255, alpha: 1)
+        light: UIColor(red: 112 / 255, green: 92 / 255, blue: 255 / 255, alpha: 1),
+        dark: UIColor(red: 151 / 255, green: 112 / 255, blue: 255 / 255, alpha: 1)
     )
     static let signalSoft = Color.cueAdaptive(
-        light: UIColor(red: 224 / 255, green: 239 / 255, blue: 235 / 255, alpha: 1),
-        dark: UIColor(red: 18 / 255, green: 58 / 255, blue: 57 / 255, alpha: 1)
+        light: UIColor(red: 238 / 255, green: 235 / 255, blue: 255 / 255, alpha: 1),
+        dark: UIColor(red: 34 / 255, green: 27 / 255, blue: 74 / 255, alpha: 1)
     )
     static let haptic = Color.cueAdaptive(
-        light: UIColor(red: 145 / 255, green: 75 / 255, blue: 25 / 255, alpha: 1),
-        dark: UIColor(red: 241 / 255, green: 164 / 255, blue: 95 / 255, alpha: 1)
+        light: UIColor(red: 103 / 255, green: 75 / 255, blue: 224 / 255, alpha: 1),
+        dark: UIColor(red: 123 / 255, green: 151 / 255, blue: 255 / 255, alpha: 1)
     )
     static let green = Color.cueAdaptive(
         light: UIColor(red: 13 / 255, green: 116 / 255, blue: 74 / 255, alpha: 1),
@@ -35,8 +42,8 @@ enum CueTheme {
     )
     static let greenBright = Color(red: 61 / 255, green: 199 / 255, blue: 136 / 255)
     static let navy = Color.cueAdaptive(
-        light: UIColor(red: 11 / 255, green: 23 / 255, blue: 27 / 255, alpha: 1),
-        dark: UIColor(red: 8 / 255, green: 18 / 255, blue: 22 / 255, alpha: 1)
+        light: UIColor(red: 10 / 255, green: 18 / 255, blue: 36 / 255, alpha: 1),
+        dark: UIColor(red: 4 / 255, green: 8 / 255, blue: 18 / 255, alpha: 1)
     )
     static let amber = Color.cueAdaptive(
         light: UIColor(red: 140 / 255, green: 81 / 255, blue: 12 / 255, alpha: 1),
@@ -47,7 +54,7 @@ enum CueTheme {
         dark: UIColor(red: 255 / 255, green: 112 / 255, blue: 124 / 255, alpha: 1)
     )
 
-    static let actionFill = Color(red: 8 / 255, green: 91 / 255, blue: 86 / 255)
+    static let actionFill = pulseViolet
 
     enum Radius {
         static let small: CGFloat = 12
@@ -391,37 +398,14 @@ struct CueWordmark: View {
     }
 
     var body: some View {
-        HStack(spacing: compact ? 8 : 11) {
-            ZStack {
-                Circle()
-                    .trim(from: 0.10, to: 0.90)
-                    .stroke(
-                        CueTheme.ink,
-                        style: StrokeStyle(lineWidth: compact ? 2.2 : 2.8, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-35))
-                    .padding(compact ? 3 : 4)
-                Image(systemName: "waveform.path")
-                    .font(.system(size: compact ? 11 : 15, weight: .medium))
-                    .foregroundStyle(CueTheme.ink)
-                Circle()
-                    .fill(CueTheme.actionFill)
-                    .frame(width: compact ? 5 : 7, height: compact ? 5 : 7)
-                    .offset(x: compact ? 11 : 14)
-            }
-            .frame(width: compact ? 31 : 40, height: compact ? 31 : 40)
-
-            HStack(alignment: .firstTextBaseline, spacing: compact ? 4 : 5) {
-                Text("Voxa")
-                    .font(.system(size: compact ? 20 : 28, weight: .light, design: .rounded))
-                    .foregroundStyle(CueTheme.ink)
-                Text("Cue")
-                    .font(.system(size: compact ? 20 : 28, weight: .medium, design: .rounded))
-                    .foregroundStyle(CueTheme.signal)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Voxa Cue")
+        Image("VoxaWordmark")
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .scaledToFit()
+            .frame(height: compact ? 31 : 40)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Voxa Cue")
     }
 }
 
