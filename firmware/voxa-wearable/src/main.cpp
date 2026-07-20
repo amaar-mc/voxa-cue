@@ -173,7 +173,7 @@ bool initializeHapticDriver() {
     return false;
   }
 
-  hapticDriver.useLRA();
+  hapticDriver.useERM();
   hapticDriver.setMode(DRV2605_MODE_REALTIME);
   hapticDriver.setRealtimeValue(0U);
   return driverPresent();
