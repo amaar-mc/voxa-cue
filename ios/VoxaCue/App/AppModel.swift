@@ -193,6 +193,7 @@ final class AppModel {
     private let preferences: UserDefaults
     private var nextCueSequenceValue: UInt16
     private var includesDemoFixtures = true
+    private var deletedSessionIDs: Set<UUID> = []
     private var sessionStartTask: Task<Void, Never>?
     private var startingSessionID: UUID?
     private var deviceLabTimeoutTask: Task<Void, Never>?
@@ -380,17 +381,28 @@ final class AppModel {
 
     func completeOnboarding(setupIntent: SessionSetupIntent?) {
         persistOnboardingCompletion()
+        onboardingPresentation = nil
         if let setupIntent {
             selectedTab = .today
-            sessionSetupIntent = setupIntent
-            setupPresented = true
+            presentSessionSetup(intent: setupIntent)
         }
-        onboardingPresentation = nil
     }
 
     func presentSessionSetup(intent: SessionSetupIntent) {
+        guard cueBandIsReady else {
+            setupPresented = false
+            selectedTab = .today
+            lastError = "Connect your Cue Band before setting up a session."
+            return
+        }
+        lastError = nil
         sessionSetupIntent = intent
         setupPresented = true
+    }
+
+    var cueBandIsReady: Bool {
+        if case .ready = connectionState { return true }
+        return false
     }
 
     func beginSession(configuration: SessionConfiguration) {
@@ -478,12 +490,18 @@ final class AppModel {
             lastError = "Your local session history could not be loaded."
             return
         }
+        let retainedSessions = loadedSessions.filter { !deletedSessionIDs.contains($0.sessionID) }
         if demoMode, includesDemoFixtures {
-            let loadedIDs = Set(loadedSessions.map(\.sessionID))
-            sessions = (loadedSessions + DemoFixtures.sessions().filter { !loadedIDs.contains($0.sessionID) })
+            let loadedIDs = Set(retainedSessions.map(\.sessionID))
+            sessions = (
+                retainedSessions
+                    + DemoFixtures.sessions().filter {
+                        !loadedIDs.contains($0.sessionID) && !deletedSessionIDs.contains($0.sessionID)
+                    }
+            )
                 .sorted { $0.startedAt > $1.startedAt }
         } else {
-            sessions = loadedSessions
+            sessions = retainedSessions
         }
         var loadedInsights: [UUID: CoachingInsight] = [:]
         var insightLoadFailed = false
@@ -503,6 +521,10 @@ final class AppModel {
     }
 
     func generateInsight(for summary: SessionSummary) async {
+        guard !deletedSessionIDs.contains(summary.sessionID),
+              sessions.contains(where: { $0.sessionID == summary.sessionID }) else {
+            return
+        }
         if let existing = insightBySession[summary.sessionID] {
             insightBySession[summary.sessionID] = existing
             return
@@ -527,8 +549,12 @@ final class AppModel {
             } else {
                 throw VoxaAPIError.invalidPayload
             }
-            insightBySession[summary.sessionID] = insight
+            guard !deletedSessionIDs.contains(summary.sessionID),
+                  sessions.contains(where: { $0.sessionID == summary.sessionID }) else {
+                return
+            }
             try dataStore.saveInsight(sessionID: summary.sessionID, insight: insight)
+            insightBySession[summary.sessionID] = insight
         } catch {
             guard !Task.isCancelled, (error as? VoxaAPIError) != .cancelled else { return }
             let message = coachingErrorMessage(error)
@@ -578,10 +604,28 @@ final class AppModel {
         do {
             try dataStore.deleteAllLocalData()
             if demoMode { includesDemoFixtures = false }
+            deletedSessionIDs.formUnion(sessions.map(\.sessionID))
             sessions = []
             insightBySession = [:]
         } catch {
             lastError = "Local data could not be deleted."
+        }
+    }
+
+    func deleteSession(_ summary: SessionSummary) {
+        do {
+            try dataStore.deleteSession(sessionID: summary.sessionID)
+            deletedSessionIDs.insert(summary.sessionID)
+            sessions.removeAll { $0.sessionID == summary.sessionID }
+            insightBySession.removeValue(forKey: summary.sessionID)
+            if selectedSummary?.sessionID == summary.sessionID {
+                selectedSummary = nil
+            }
+            if completedSummary?.sessionID == summary.sessionID {
+                completedSummary = nil
+            }
+        } catch {
+            lastError = "This session could not be deleted."
         }
     }
 
