@@ -12,7 +12,7 @@ private struct LegacyHapticPreferences: Encodable {
 }
 
 @Test("Local deck planning preserves order and lands exactly on target time")
-func localDeckPlanTiming() {
+func localDeckPlanTiming() throws {
     let slides = [
         DeckSlide(
             id: UUID(),
@@ -30,7 +30,7 @@ func localDeckPlanTiming() {
         )
     ]
 
-    let plan = LocalDeckPlanner.makePlan(
+    let plan = try LocalDeckPlanner.makePlan(
         title: "Pitch",
         targetDurationSeconds: 180,
         slides: slides
@@ -43,7 +43,7 @@ func localDeckPlanTiming() {
 }
 
 @Test("Sparse slides receive conservative fallback anchors")
-func localDeckPlanFallbackAnchors() {
+func localDeckPlanFallbackAnchors() throws {
     let slides = [
         DeckSlide(
             id: UUID(),
@@ -54,7 +54,7 @@ func localDeckPlanFallbackAnchors() {
         )
     ]
 
-    let plan = LocalDeckPlanner.makePlan(
+    let plan = try LocalDeckPlanner.makePlan(
         title: "Brief",
         targetDurationSeconds: 30,
         slides: slides
@@ -297,7 +297,7 @@ func replayedOnboardingPreservesCustomizedCues() throws {
 }
 
 @MainActor
-@Test("Onboarding can route directly into first session setup")
+@Test("Onboarding can route directly into guided presentation setup")
 func onboardingRoutesIntoSessionSetup() throws {
     let suiteName = "VoxaCueTests.onboarding-session-setup"
     let preferences = try #require(UserDefaults(suiteName: suiteName))
@@ -312,11 +312,12 @@ func onboardingRoutesIntoSessionSetup() throws {
     )
     model.selectedTab = .settings
 
-    model.completeOnboarding(openSessionSetup: true)
+    model.completeOnboarding(setupIntent: .presentation)
 
     #expect(model.onboardingPresentation == nil)
     #expect(model.selectedTab == .today)
     #expect(model.setupPresented)
+    #expect(model.sessionSetupIntent == .presentation)
     #expect(preferences.bool(forKey: "hasCompletedVoxaOnboarding"))
 }
 
@@ -327,6 +328,47 @@ func sessionConfigurationKeepsEmergencyBuzzerOptIn() {
 
     #expect(!disabled.emergencyBuzzerEnabled)
     #expect(enabled.emergencyBuzzerEnabled)
+}
+
+@Test("A failed replacement keeps the current presentation explicit")
+func presentationReplacementFailureCopyPreservesContext() {
+    #expect(
+        presentationImportFailureMessage(
+            errorDescription: "The PDF is damaged.",
+            retainsCurrentPresentation: true
+        ) == "The PDF is damaged. Your current presentation is unchanged."
+    )
+    #expect(
+        presentationImportFailureMessage(
+            errorDescription: "The PDF is damaged.",
+            retainsCurrentPresentation: false
+        ) == "The PDF is damaged."
+    )
+}
+
+@Test("Simple slide timing never presents an impossible average")
+func simpleSlideTimingCopyRequiresEnoughTime() {
+    #expect(
+        simplePresentationTimingDescription(
+            targetDurationSeconds: 60,
+            slideCount: 100
+        ) == "Increase target to at least 2 min"
+    )
+    #expect(
+        simplePresentationTimingDescription(
+            targetDurationSeconds: 300,
+            slideCount: 7
+        ) == "Divide evenly · about 0:43 per slide"
+    )
+}
+
+@Test("Disconnected presentation setup explains missing wrist cues")
+func disconnectedPresentationBandCopyIsExplicit() {
+    #expect(
+        disconnectedPresentationBandDetail(transitionCueEnabled: true)
+            == "Not connected · on-screen guide continues without wrist cues"
+    )
+    #expect(disconnectedPresentationBandDetail(transitionCueEnabled: false) == nil)
 }
 
 @MainActor
@@ -361,7 +403,7 @@ func demoModeAvoidsCoachingAPI() async throws {
         )
     ]
 
-    let preparedPlan = await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
+    let preparedPlan = try await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
     await model.generateInsight(for: summary)
 
     #expect(preparedPlan.source == .local)
@@ -441,7 +483,6 @@ func liveSessionLightFollowsSessionLifecycle() async throws {
         configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
-        semanticMatcher: SemanticMatcher(),
         demoMode: true,
         allocateCueSequence: { 1 },
         sendCue: { _ in },
@@ -498,7 +539,6 @@ func liveSessionRequestsEmergencyBuzzerAtThreshold() throws {
         configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: true),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
-        semanticMatcher: SemanticMatcher(),
         demoMode: true,
         allocateCueSequence: { 1 },
         sendCue: { _ in },
@@ -878,8 +918,85 @@ func deviceLabTimeoutsArePhaseSpecific() {
     )
 }
 
-@Test("Local deck plans stay inside the persisted insight contract")
-func localDeckPlanRespectsInsightBounds() {
+@MainActor
+@Test("A scheduled slide boundary sends one transition cue and advances the guide")
+func scheduledSlideBoundarySendsOneCue() throws {
+    var sentCommands: [CueCommand] = []
+    let controller = try makeGuidedPresentationController(
+        transitionCueEnabled: true,
+        dataStore: VoxaDataStore(inMemory: true),
+        sendCue: { sentCommands.append($0) }
+    )
+    controller.phase = .recording
+    controller.metrics = guidedPresentationMetrics(elapsedSeconds: 30)
+
+    controller.evaluateLiveCue()
+    controller.evaluateLiveCue()
+
+    #expect(sentCommands.map(\.pattern) == [.longShortLong])
+    #expect(controller.cueLogs.map(\.decision.kind) == [.deckBehind])
+    #expect(controller.currentPresentationSlideNumber == 2)
+}
+
+@MainActor
+@Test("The on-screen slide guide advances when transition haptics are off")
+func scheduledSlideBoundaryAdvancesWithoutHaptics() throws {
+    var sentCommands: [CueCommand] = []
+    let controller = try makeGuidedPresentationController(
+        transitionCueEnabled: false,
+        dataStore: VoxaDataStore(inMemory: true),
+        sendCue: { sentCommands.append($0) }
+    )
+    controller.phase = .recording
+    controller.metrics = guidedPresentationMetrics(elapsedSeconds: 30)
+
+    controller.evaluateLiveCue()
+
+    #expect(sentCommands.isEmpty)
+    #expect(controller.cueLogs.isEmpty)
+    #expect(controller.currentPresentationSlideNumber == 2)
+}
+
+@MainActor
+@Test("A delayed timer catches up without bursting stale slide cues")
+func delayedSlideTimerSendsAtMostOneCue() throws {
+    var sentCommands: [CueCommand] = []
+    let controller = try makeGuidedPresentationController(
+        transitionCueEnabled: true,
+        dataStore: VoxaDataStore(inMemory: true),
+        sendCue: { sentCommands.append($0) }
+    )
+    controller.phase = .recording
+    controller.metrics = guidedPresentationMetrics(elapsedSeconds: 60)
+
+    controller.evaluateLiveCue()
+
+    #expect(sentCommands.count == 1)
+    #expect(controller.cueLogs.count == 1)
+    #expect(controller.currentPresentationSlideNumber == 3)
+}
+
+@MainActor
+@Test("Timed slide cues never fabricate observed slide-change analytics")
+func timedSlideCuesDoNotPersistObservedCheckpoints() async throws {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    let controller = try makeGuidedPresentationController(
+        transitionCueEnabled: true,
+        dataStore: dataStore,
+        sendCue: { _ in }
+    )
+    controller.phase = .recording
+    controller.metrics = guidedPresentationMetrics(elapsedSeconds: 60)
+    controller.evaluateLiveCue()
+
+    await controller.finish()
+
+    let context = try dataStore.fetchInsightContext(sessionID: controller.id)
+    #expect(context.checkpoints.isEmpty)
+}
+
+@Test("Local deck plans reject presentations above the supported slide limit")
+func localDeckPlanRejectsOversizedPresentations() {
     let slides = (0..<150).map { index in
         DeckSlide(
             id: UUID(),
@@ -890,19 +1007,17 @@ func localDeckPlanRespectsInsightBounds() {
         )
     }
 
-    let plan = LocalDeckPlanner.makePlan(
-        title: "Large pitch",
-        targetDurationSeconds: 180,
-        slides: slides
-    )
-
-    #expect(plan.checkpoints.count == 100)
-    #expect(plan.checkpoints.allSatisfy { $0.label.count <= 120 })
-    #expect(plan.checkpoints.allSatisfy { $0.semanticSummary.count <= 400 })
-    #expect(zip(plan.checkpoints, plan.checkpoints.dropFirst()).allSatisfy {
-        $0.targetCumulativeSeconds < $1.targetCumulativeSeconds
-    })
-    #expect(plan.checkpoints.last?.targetCumulativeSeconds == 180)
+    var rejected = false
+    do {
+        _ = try LocalDeckPlanner.makePlan(
+            title: "Large pitch",
+            targetDurationSeconds: 180,
+            slides: slides
+        )
+    } catch {
+        rejected = true
+    }
+    #expect(rejected)
 }
 
 private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendable {
@@ -928,7 +1043,6 @@ private func makeSessionControllerForBehaviorTests(demoMode: Bool) throws -> Liv
         configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false),
         speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
         dataStore: try VoxaDataStore(inMemory: true),
-        semanticMatcher: SemanticMatcher(),
         demoMode: demoMode,
         allocateCueSequence: { 1 },
         sendCue: { _ in },
@@ -951,6 +1065,79 @@ private func behaviorTestSessionConfiguration(emergencyBuzzerEnabled: Bool) -> S
         profile: .rehearsalV1(),
         deckPlan: nil,
         emergencyBuzzerEnabled: emergencyBuzzerEnabled
+    )
+}
+
+@MainActor
+private func makeGuidedPresentationController(
+    transitionCueEnabled: Bool,
+    dataStore: VoxaDataStore,
+    sendCue: @escaping @MainActor (CueCommand) throws -> Void
+) throws -> LiveSessionController {
+    let base = CoachingProfile.rehearsalV1()
+    let enabledCues = transitionCueEnabled
+        ? base.enabledCues.union([.deckBehind])
+        : base.enabledCues.subtracting([.deckBehind])
+    let profile = CoachingProfile(
+        minimumWPM: base.minimumWPM,
+        maximumWPM: base.maximumWPM,
+        enabledCues: enabledCues,
+        patternByCue: base.patternByCue,
+        intensityByCue: base.intensityByCue,
+        fillerClusterConfiguration: base.fillerClusterConfiguration,
+        highConfidenceFillers: base.highConfidenceFillers,
+        optionalFillers: base.optionalFillers
+    )
+    let slides = (1...3).map { index in
+        DeckSlide(
+            id: UUID(),
+            index: index,
+            title: "Slide \(index)",
+            body: "",
+            notes: ""
+        )
+    }
+    let plan = try buildTimedDeckPlan(
+        title: "Guided pitch",
+        slides: slides,
+        allocation: .even(totalSeconds: 90)
+    )
+    let configuration = SessionConfiguration(
+        id: UUID(),
+        name: "Guided pitch",
+        mode: .powerPoint,
+        targetDurationSeconds: 90,
+        profile: profile,
+        deckPlan: plan,
+        emergencyBuzzerEnabled: false
+    )
+    return LiveSessionController(
+        configuration: configuration,
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        dataStore: dataStore,
+        demoMode: true,
+        allocateCueSequence: { 1 },
+        sendCue: sendCue,
+        sendSessionLight: { _ in },
+        monotonicNow: { 100 },
+        cueDeliveryDeadlines: CueDeliveryDeadlineConfiguration(
+            acceptanceTimeoutSeconds: 2,
+            completionTimeoutSeconds: 4
+        ),
+        onFinish: { _ in }
+    )
+}
+
+private func guidedPresentationMetrics(elapsedSeconds: TimeInterval) -> LiveMetrics {
+    LiveMetrics(
+        elapsedSeconds: elapsedSeconds,
+        rollingWPM: 145,
+        finalizedWordCount: 72,
+        fillerCount: 0,
+        voicedSeconds: 24,
+        talkRatio: 0.8,
+        energyDBFS: nil,
+        pitchHertz: nil
     )
 }
 
