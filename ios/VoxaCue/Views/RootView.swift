@@ -43,7 +43,7 @@ struct MainTabView: View {
         .toolbarBackground(.visible, for: .tabBar)
         .sensoryFeedback(.selection, trigger: model.selectedTab)
         .sheet(isPresented: $model.setupPresented, onDismiss: model.presentPendingSession) {
-            SessionSetupView()
+            SessionSetupView(initialMode: model.sessionSetupIntent.mode)
         }
         .fullScreenCover(item: $model.activeSession) { session in
             LiveSessionView(session: session)

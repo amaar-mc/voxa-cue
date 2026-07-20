@@ -96,8 +96,17 @@ struct TodayView: View {
                     symbol: "arrow.up.right",
                     style: .primary,
                     disabled: false,
-                    action: { model.setupPresented = true }
+                    action: { model.presentSessionSetup(intent: .freeSpeaking) }
                 )
+                Button {
+                    model.presentSessionSetup(intent: .presentation)
+                } label: {
+                    Label("Use a presentation", systemImage: "rectangle.stack")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(CueTheme.signal)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
