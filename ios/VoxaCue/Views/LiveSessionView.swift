@@ -76,7 +76,11 @@ struct LiveSessionView: View {
                 .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 90 : 120, weight: .ultraLight, design: .rounded).monospacedDigit())
                 .foregroundStyle(CueTheme.ink)
                 .contentTransition(reduceMotion ? .identity : .numericText())
-            Text("Place your phone nearby with the microphone clear")
+            Text(
+                session.configuration.mode == .powerPoint
+                    ? "Open slide 1, then place your phone nearby"
+                    : "Place your phone nearby with the microphone clear"
+            )
                 .font(.cueBody)
                 .foregroundStyle(CueTheme.secondaryInk)
                 .multilineTextAlignment(.center)
@@ -93,6 +97,7 @@ struct LiveSessionView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     if session.isPaused { pauseBanner }
+                    if session.configuration.mode == .powerPoint { presentationGuideCard }
                     timeRing
                     paceStatus
                     if let latestCue = session.cueLogs.last { lastCueCard(latestCue) }
@@ -109,6 +114,69 @@ struct LiveSessionView: View {
             }
             controls
         }
+    }
+
+    private var presentationGuideCard: some View {
+        PremiumCard(padding: 18) {
+            VStack(alignment: .leading, spacing: 12) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        presentationSlidePosition
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 8)
+                        presentationSlideCountdown
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        presentationSlidePosition
+                        presentationSlideCountdown
+                    }
+                }
+                Text(session.currentCheckpointLabel ?? "Presentation")
+                    .font(.cueSection)
+                    .foregroundStyle(CueTheme.ink)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(CueTheme.border.opacity(0.7))
+                        Capsule()
+                            .fill(CueTheme.signal)
+                            .frame(width: proxy.size.width * session.currentSlideProgress)
+                    }
+                }
+                .frame(height: 5)
+                .animation(reduceMotion ? nil : .linear(duration: 0.45), value: session.currentSlideProgress)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Slide \(session.currentPresentationSlideNumber ?? session.presentationSlideCount) of \(session.presentationSlideCount), \(session.currentCheckpointLabel ?? "Presentation"). \(slideCueCountdown)."
+        )
+    }
+
+    private var presentationSlidePosition: some View {
+        CueSectionLabel(
+            text: "Slide \(session.currentPresentationSlideNumber ?? session.presentationSlideCount) of \(session.presentationSlideCount)",
+            color: CueTheme.signal
+        )
+    }
+
+    private var presentationSlideCountdown: some View {
+        Text(slideCueCountdown)
+            .font(.cueCaption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(CueTheme.signal)
+    }
+
+    private var slideCueCountdown: String {
+        if session.presentationTimingComplete { return "Target time reached" }
+        if let remaining = session.secondsUntilSlideCue {
+            return "Change slide in \(remaining.clockString)"
+        }
+        if let remaining = session.secondsUntilPresentationEnd {
+            return "Target ends in \(remaining.clockString)"
+        }
+        return "Final slide"
     }
 
     private var liveHeader: some View {
