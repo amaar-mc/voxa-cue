@@ -13,9 +13,9 @@ void productionHapticsRequireDrv2605lOverDefaultI2c() {
   TEST_ASSERT_FALSE(voxa::haptic_hardware::kDirectPwmMotorOutputSupported);
 }
 
-void productionHapticsUseAnLra() {
+void productionHapticsUseAnErm() {
   TEST_ASSERT_EQUAL_UINT8(
-      static_cast<std::uint8_t>(voxa::haptic_hardware::Actuator::kLra),
+      static_cast<std::uint8_t>(voxa::haptic_hardware::Actuator::kErm),
       static_cast<std::uint8_t>(voxa::haptic_hardware::kActuator));
 }
 
@@ -24,6 +24,6 @@ void productionHapticsUseAnLra() {
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(productionHapticsRequireDrv2605lOverDefaultI2c);
-  RUN_TEST(productionHapticsUseAnLra);
+  RUN_TEST(productionHapticsUseAnErm);
   return UNITY_END();
 }
