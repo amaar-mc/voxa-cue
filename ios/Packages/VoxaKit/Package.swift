@@ -24,8 +24,14 @@ let package = Package(
             ]
         ),
         .testTarget(name: "VoxaCoreTests", dependencies: ["VoxaCore"]),
-        .testTarget(name: "VoxaRuntimeTests", dependencies: ["VoxaRuntime", "VoxaCore"])
+        .testTarget(
+            name: "VoxaRuntimeTests",
+            dependencies: [
+                "VoxaRuntime",
+                "VoxaCore",
+                .product(name: "ZIPFoundation", package: "ZIPFoundation")
+            ]
+        )
     ],
     swiftLanguageModes: [.v6]
 )
-
