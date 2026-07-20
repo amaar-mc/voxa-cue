@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-Voxa Cue is phone-first. The iPhone built-in microphone is the only audio source. Live transcription, DSP, metrics, cue selection, persistence, and BLE control run on-device. Do not add Raspberry Pi, external-microphone, cloud-audio, network-dependent live-cue paths, or PowerPoint UI to the MVP. The optional API may process a finalized transcript only after explicit post-session consent; retained deck-plan code is dormant.
+Voxa Cue is phone-first. The iPhone built-in microphone is the only audio source. Live transcription, DSP, metrics, cue selection, presentation-file parsing, persistence, and BLE control run on-device. Do not add Raspberry Pi, external-microphone, cloud-audio, or network-dependent live-cue paths to the MVP. Guided presentation mode may import PDF or PowerPoint files locally and derive deterministic slide timings; presentation content must never enter the live API path. The optional API may process a finalized transcript only after explicit post-session consent.
 
 The live haptic path is:
 

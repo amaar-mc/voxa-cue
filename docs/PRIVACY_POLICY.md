@@ -10,6 +10,13 @@ During a session, Voxa Cue uses the iPhone's built-in microphone to process spee
 
 Raw microphone audio is transiently processed in memory. Voxa Cue does not record it to a file, retain it after the session, or upload it.
 
+When the presenter chooses guided presentation mode, Voxa Cue can read a PDF or
+PowerPoint file selected through the iOS file picker. Slide order and bounded
+text are processed locally to create an even or per-slide timing schedule. The
+source file and full extracted slide bodies are not copied into Voxa Cue's local
+database or uploaded. Local session history retains only generic transition-cue
+events and their delivery status, not slide labels or claimed slide changes.
+
 The following session data is saved locally with SwiftData so the presenter can review history:
 
 - finalized transcript segments and session transcript;
