@@ -237,21 +237,69 @@ public func timedPresentationFillerOffsets(
     highConfidenceFillers: [String],
     contextualFillers: [String]
 ) -> [TimeInterval] {
-    segments.flatMap { segment in
-        let tokens = indexedSpeechTokens(segment.text)
-        guard !tokens.isEmpty else { return [TimeInterval]() }
-        let matches = presentationFillerMatches(
-            tokens: tokens,
-            highConfidenceFillers: highConfidenceFillers,
-            contextualFillers: contextualFillers
-        )
-        let duration = max(0, segment.endSeconds - segment.startSeconds)
-        return matches.map { match in
-            let endFraction = Double(match.endWordIndex + 1) / Double(tokens.count)
-            return segment.startSeconds + duration * endFraction
-        }
+    let timedTokens = chronologicalTimedSpeechTokens(segments: segments)
+    guard !timedTokens.isEmpty else { return [] }
+    let matches = presentationFillerMatches(
+        tokens: timedTokens.map(\.token),
+        highConfidenceFillers: highConfidenceFillers,
+        contextualFillers: contextualFillers
+    )
+    return matches.map { match in
+        timedTokens[match.endWordIndex].endSeconds
     }
     .sorted()
+}
+
+private struct TimedIndexedSpeechToken {
+    var token: IndexedSpeechToken
+    let endSeconds: TimeInterval
+}
+
+private func chronologicalTimedSpeechTokens(
+    segments: [FinalTranscriptSegment]
+) -> [TimedIndexedSpeechToken] {
+    var result: [TimedIndexedSpeechToken] = []
+    for segment in segments.sorted(by: chronologicalSegmentOrder) {
+        let tokens = indexedSpeechTokens(segment.text)
+        guard !tokens.isEmpty else { continue }
+        let duration = max(0, segment.endSeconds - segment.startSeconds)
+        var segmentTokens = tokens.enumerated().map { index, token in
+            let endFraction = Double(index + 1) / Double(tokens.count)
+            return TimedIndexedSpeechToken(
+                token: token,
+                endSeconds: segment.startSeconds + duration * endFraction
+            )
+        }
+
+        if let previousIndex = result.indices.last,
+           let firstSegmentIndex = segmentTokens.indices.first {
+            let previous = result[previousIndex]
+            let first = segmentTokens[firstSegmentIndex]
+            let boundarySeparator = previous.token.separatorAfter + first.token.separatorBefore
+            result[previousIndex].token = IndexedSpeechToken(
+                word: previous.token.word,
+                separatorBefore: previous.token.separatorBefore,
+                separatorAfter: boundarySeparator
+            )
+            segmentTokens[firstSegmentIndex].token = IndexedSpeechToken(
+                word: first.token.word,
+                separatorBefore: boundarySeparator,
+                separatorAfter: first.token.separatorAfter
+            )
+        }
+        result.append(contentsOf: segmentTokens)
+    }
+    return result
+}
+
+private func chronologicalSegmentOrder(
+    first: FinalTranscriptSegment,
+    second: FinalTranscriptSegment
+) -> Bool {
+    if first.startSeconds == second.startSeconds {
+        return first.endSeconds < second.endSeconds
+    }
+    return first.startSeconds < second.startSeconds
 }
 
 private struct IndexedSpeechToken {

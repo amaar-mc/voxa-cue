@@ -273,6 +273,64 @@ func contextualFillerOffsetsMatchSummaryClassification() {
     #expect(offsets.count == 4)
 }
 
+@Test("Timed filler matching recognizes a multiword phrase across transcript segments")
+func timedFillerMatchingRecognizesCrossSegmentPhrase() {
+    let segments = [
+        FinalTranscriptSegment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!,
+            startSeconds: 0,
+            endSeconds: 1,
+            text: "you"
+        ),
+        FinalTranscriptSegment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000014")!,
+            startSeconds: 1,
+            endSeconds: 2,
+            text: "know,"
+        ),
+    ]
+
+    let offsets = timedPresentationFillerOffsets(
+        segments: segments,
+        highConfidenceFillers: ["um"],
+        contextualFillers: ["you know"]
+    )
+
+    #expect(offsets == [2])
+}
+
+@Test("Timed filler matching counts repeated unpunctuated like across transcript segments")
+func timedFillerMatchingCountsCrossSegmentContextualRepetition() {
+    let segments = [
+        FinalTranscriptSegment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000015")!,
+            startSeconds: 0,
+            endSeconds: 1,
+            text: "like"
+        ),
+        FinalTranscriptSegment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000016")!,
+            startSeconds: 1,
+            endSeconds: 2,
+            text: "like"
+        ),
+        FinalTranscriptSegment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000017")!,
+            startSeconds: 2,
+            endSeconds: 3,
+            text: "like"
+        ),
+    ]
+
+    let offsets = timedPresentationFillerOffsets(
+        segments: segments,
+        highConfidenceFillers: ["um"],
+        contextualFillers: ["like"]
+    )
+
+    #expect(offsets == [1, 2, 3])
+}
+
 @Test("Pause analytics include only internal speech gaps above the measurement floor")
 func pauseAnalyticsUsesInternalSpeechGaps() {
     let intervals = [
