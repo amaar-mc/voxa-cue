@@ -3,6 +3,8 @@ import VoxaCore
 
 struct SessionsView: View {
     @Environment(AppModel.self) private var model
+    @State private var sessionPendingDeletion: SessionSummary?
+    @State private var confirmSessionDeletion = false
 
     var body: some View {
         ScrollView {
@@ -38,17 +40,27 @@ struct SessionsView: View {
                     model.presentSessionSetup(intent: .freeSpeaking)
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(CueTheme.ink)
-                        .frame(width: 44, height: 44)
-                        .background(CueTheme.surface)
-                        .clipShape(Circle())
-                        .overlay {
-                            Circle().stroke(CueTheme.border.opacity(0.8), lineWidth: 0.7)
-                        }
+                        .font(.system(size: 15, weight: .semibold))
                 }
+                .tint(CueTheme.signal)
                 .accessibilityLabel("Start a new session")
             }
+        }
+        .confirmationDialog(
+            "Delete session?",
+            isPresented: $confirmSessionDeletion,
+            titleVisibility: .visible,
+            presenting: sessionPendingDeletion
+        ) { session in
+            Button("Delete session", role: .destructive) {
+                model.deleteSession(session)
+                sessionPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                sessionPendingDeletion = nil
+            }
+        } message: { session in
+            Text("This permanently deletes \(session.name), its transcript, metrics, and coaching data from this iPhone.")
         }
     }
 
@@ -88,48 +100,62 @@ struct SessionsView: View {
     }
 
     private func sessionRow(_ session: SessionSummary) -> some View {
-        Button {
-            model.selectedSummary = session
-        } label: {
-            PremiumCard(padding: 18) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 14) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                .fill(timingColor(for: session).opacity(0.11))
-                            Image(systemName: timingSymbol(for: session))
-                                .font(.system(size: 18, weight: .light))
-                                .foregroundStyle(timingColor(for: session))
+        ZStack(alignment: .topTrailing) {
+            Button {
+                model.selectedSummary = session
+            } label: {
+                PremiumCard(padding: 18) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .fill(timingColor(for: session).opacity(0.11))
+                                Image(systemName: timingSymbol(for: session))
+                                    .font(.system(size: 18, weight: .light))
+                                    .foregroundStyle(timingColor(for: session))
+                            }
+                            .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(session.name)
+                                    .font(.system(.body, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(CueTheme.ink)
+                                    .lineLimit(2)
+                                Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.cueCaption)
+                                    .foregroundStyle(CueTheme.secondaryInk)
+                            }
+                            Spacer(minLength: 44)
                         }
-                        .frame(width: 44, height: 44)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(session.name)
-                                .font(.system(.body, design: .rounded, weight: .semibold))
-                                .foregroundStyle(CueTheme.ink)
-                                .lineLimit(2)
-                            Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.cueCaption)
-                                .foregroundStyle(CueTheme.secondaryInk)
-                        }
-                        Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(CueTheme.secondaryInk.opacity(0.65))
-                            .padding(.top, 6)
-                    }
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) {
-                            sessionRowMetrics(session)
-                        }
-                        VStack(alignment: .leading, spacing: 12) {
-                            sessionRowMetrics(session)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 10) {
+                                sessionRowMetrics(session)
+                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                sessionRowMetrics(session)
+                            }
                         }
                     }
                 }
             }
+            .buttonStyle(SpringPressStyle())
+            .accessibilityHint("Opens the session summary")
+
+            Menu {
+                Button("Delete session", systemImage: "trash", role: .destructive) {
+                    sessionPendingDeletion = session
+                    confirmSessionDeletion = true
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Session actions")
+            .padding(.top, 8)
+            .padding(.trailing, 8)
         }
-        .buttonStyle(SpringPressStyle())
-        .accessibilityHint("Opens the session summary")
     }
 
     @ViewBuilder
