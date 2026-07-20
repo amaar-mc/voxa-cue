@@ -102,13 +102,6 @@ struct SessionSetupView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    ScreenTitle(
-                        eyebrow: "New session",
-                        title: sessionMode == .powerPoint ? "Guide your presentation" : "Set your coaching target",
-                        subtitle: sessionMode == .powerPoint
-                            ? "Cue keeps each slide on time while pace and filler coaching continues."
-                            : "Cue listens through this iPhone and coaches pace, fillers, and timing."
-                    )
                     sessionTypeCard
                     basicsCard
                     if sessionMode == .powerPoint {
