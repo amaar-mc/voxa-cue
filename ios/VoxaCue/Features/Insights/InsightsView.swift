@@ -395,7 +395,7 @@ struct InsightsView: View {
                     symbol: "arrow.up.right",
                     style: .primary,
                     disabled: false,
-                    action: { model.setupPresented = true }
+                    action: { model.presentSessionSetup(intent: .freeSpeaking) }
                 )
             }
         }

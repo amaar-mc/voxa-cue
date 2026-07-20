@@ -35,7 +35,7 @@ struct SessionsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    model.setupPresented = true
+                    model.presentSessionSetup(intent: .freeSpeaking)
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .semibold))
@@ -204,7 +204,7 @@ struct SessionsView: View {
                     symbol: "arrow.up.right",
                     style: .primary,
                     disabled: false,
-                    action: { model.setupPresented = true }
+                    action: { model.presentSessionSetup(intent: .freeSpeaking) }
                 )
             }
         }
