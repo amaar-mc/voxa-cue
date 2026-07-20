@@ -322,6 +322,40 @@ public final class VoxaDataStore {
         )
     }
 
+    public func deleteSession(sessionID: UUID) throws {
+        do {
+            let sessions = try context.fetch(
+                FetchDescriptor<SessionRecord>(predicate: #Predicate { $0.id == sessionID })
+            )
+            let transcriptSegments = try context.fetch(
+                FetchDescriptor<TranscriptSegmentRecord>(predicate: #Predicate { $0.sessionID == sessionID })
+            )
+            let metricSamples = try context.fetch(
+                FetchDescriptor<MetricSampleRecord>(predicate: #Predicate { $0.sessionID == sessionID })
+            )
+            let cueEvents = try context.fetch(
+                FetchDescriptor<CueEventRecord>(predicate: #Predicate { $0.sessionID == sessionID })
+            )
+            let checkpointResults = try context.fetch(
+                FetchDescriptor<CheckpointResultRecord>(predicate: #Predicate { $0.sessionID == sessionID })
+            )
+            let insights = try context.fetch(
+                FetchDescriptor<InsightRecord>(predicate: #Predicate { $0.sessionID == sessionID })
+            )
+
+            transcriptSegments.forEach(context.delete)
+            metricSamples.forEach(context.delete)
+            cueEvents.forEach(context.delete)
+            checkpointResults.forEach(context.delete)
+            insights.forEach(context.delete)
+            sessions.forEach(context.delete)
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     public func deleteAllLocalData() throws {
         try context.delete(model: SessionRecord.self)
         try context.delete(model: TranscriptSegmentRecord.self)

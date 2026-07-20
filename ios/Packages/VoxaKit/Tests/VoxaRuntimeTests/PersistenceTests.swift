@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 import VoxaCore
 @testable import VoxaRuntime
@@ -59,4 +60,91 @@ func sessionPersistenceRoundTripsInsightEvidence() throws {
     let context = try store.fetchInsightContext(sessionID: sessionID)
     #expect(context.cueEvents == [cueEvent])
     #expect(context.checkpoints == [checkpoint])
+}
+
+@MainActor
+@Test("Deleting one session removes its transcript and every related artifact")
+func deletingSessionRemovesEveryRelatedArtifact() throws {
+    let store = try VoxaDataStore(inMemory: true)
+    let sessionID = try #require(UUID(uuidString: "D9C79EC1-9282-4ED8-A43A-89517E136E79"))
+    let summary = SessionSummary(
+        sessionID: sessionID,
+        name: "Private rehearsal",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+        durationSeconds: 90,
+        targetDurationSeconds: 120,
+        targetMinimumWPM: 130,
+        targetMaximumWPM: 160,
+        speakingSeconds: 72,
+        averageWPM: 144,
+        timeInPaceRange: 0.75,
+        fillerCount: 2,
+        fillersPerSpeakingMinute: 1.67,
+        talkRatio: 0.8,
+        paceStandardDeviationWPM: 8,
+        pauseCount: 3,
+        averagePauseSeconds: 0.7,
+        longestPauseSeconds: 1.3,
+        pitchRangeSemitones: 6,
+        energyRangeDB: 10,
+        cueCount: 1,
+        transcript: "This transcript must be deleted with its session."
+    )
+    let segment = FinalTranscriptSegment(
+        id: try #require(UUID(uuidString: "959839D4-B1FD-4641-91BC-056D995310CA")),
+        startSeconds: 0,
+        endSeconds: 5,
+        text: "This transcript must be deleted."
+    )
+    let sample = LiveMetrics(
+        elapsedSeconds: 5,
+        rollingWPM: 144,
+        finalizedWordCount: 12,
+        fillerCount: 1,
+        voicedSeconds: 4,
+        talkRatio: 0.8,
+        energyDBFS: -20,
+        pitchHertz: 180
+    )
+    let cueEvent = SessionCueEvent(
+        sequence: 7,
+        kind: .fillerBurst,
+        elapsedSeconds: 5,
+        reason: "Filler cluster detected.",
+        deliveryStatus: .completed
+    )
+    let checkpoint = SessionCheckpointResult(
+        id: "opening",
+        label: "Opening",
+        targetCumulativeSeconds: 30,
+        observedCumulativeSeconds: 28,
+        confidence: 0.9,
+        status: .reached
+    )
+    let insight = CoachingInsight(
+        schemaVersion: 1,
+        overallSummary: "Private coaching summary.",
+        strengths: [],
+        priorities: [],
+        drills: [],
+        confidenceNote: "Based on this session."
+    )
+
+    try store.saveSession(
+        summary: summary,
+        segments: [segment],
+        samples: [sample],
+        cueEvents: [cueEvent],
+        checkpointResults: [checkpoint]
+    )
+    try store.saveInsight(sessionID: sessionID, insight: insight)
+
+    try store.deleteSession(sessionID: sessionID)
+
+    #expect(try store.fetchSessions().isEmpty)
+    #expect(try store.fetchInsight(sessionID: sessionID) == nil)
+    #expect(try store.context.fetch(FetchDescriptor<TranscriptSegmentRecord>()).isEmpty)
+    #expect(try store.context.fetch(FetchDescriptor<MetricSampleRecord>()).isEmpty)
+    #expect(try store.context.fetch(FetchDescriptor<CueEventRecord>()).isEmpty)
+    #expect(try store.context.fetch(FetchDescriptor<CheckpointResultRecord>()).isEmpty)
 }
