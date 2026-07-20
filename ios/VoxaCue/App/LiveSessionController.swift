@@ -35,7 +35,6 @@ final class LiveSessionController: Identifiable {
     let configuration: SessionConfiguration
     private let speechPipeline: LiveSpeechPipeline
     private let dataStore: VoxaDataStore
-    private let semanticMatcher: SemanticMatcher
     private let demoMode: Bool
     private let allocateCueSequence: @MainActor () -> UInt16
     private let sendCue: @MainActor (CueCommand) throws -> Void
@@ -64,6 +63,38 @@ final class LiveSessionController: Identifiable {
         if case let .paused(reason) = phase { return reason }
         return nil
     }
+    var presentationSlideCount: Int {
+        configuration.deckPlan?.checkpoints.count ?? 0
+    }
+    var currentPresentationSlideNumber: Int? {
+        guard presentationSlideCount > 0 else { return nil }
+        return min(currentCheckpointIndex + 1, presentationSlideCount)
+    }
+    var secondsUntilSlideCue: TimeInterval? {
+        guard let checkpoints = configuration.deckPlan?.checkpoints,
+              currentCheckpointIndex < checkpoints.count - 1 else { return nil }
+        return max(0, TimeInterval(checkpoints[currentCheckpointIndex].targetCumulativeSeconds) - metrics.elapsedSeconds)
+    }
+    var secondsUntilPresentationEnd: TimeInterval? {
+        guard let checkpoints = configuration.deckPlan?.checkpoints,
+              let finalCheckpoint = checkpoints.last,
+              currentCheckpointIndex == checkpoints.count - 1 else { return nil }
+        return max(0, TimeInterval(finalCheckpoint.targetCumulativeSeconds) - metrics.elapsedSeconds)
+    }
+    var presentationTimingComplete: Bool {
+        guard presentationSlideCount > 0 else { return false }
+        return currentCheckpointIndex >= presentationSlideCount
+    }
+    var currentSlideProgress: Double {
+        guard let checkpoints = configuration.deckPlan?.checkpoints,
+              checkpoints.indices.contains(currentCheckpointIndex) else { return 1 }
+        let start = currentCheckpointIndex == 0
+            ? 0
+            : checkpoints[currentCheckpointIndex - 1].targetCumulativeSeconds
+        let end = checkpoints[currentCheckpointIndex].targetCumulativeSeconds
+        guard end > start else { return 1 }
+        return min(1, max(0, (metrics.elapsedSeconds - Double(start)) / Double(end - start)))
+    }
 
     private var startedAt: Date?
     private var presentationClock: ActivePresentationClock?
@@ -85,11 +116,6 @@ final class LiveSessionController: Identifiable {
     private var metricSamples: [LiveMetrics] = []
     private var cueEngineState = CueEngineState.initial()
     private var currentCheckpointIndex = 0
-    private var checkpointMatchStreak = 0
-    private var currentCheckpointMatched = false
-    private var currentCheckpointEvidenceConfidence = 0.0
-    private var observedCheckpointTimes: [String: TimeInterval] = [:]
-    private var observedCheckpointConfidences: [String: Double] = [:]
     private var lastStoredSampleSecond = -1
     private var lastSessionLight: CueSessionLight?
     private var lastSessionLightSentAt: TimeInterval?
@@ -98,7 +124,6 @@ final class LiveSessionController: Identifiable {
         configuration: SessionConfiguration,
         speechPipeline: LiveSpeechPipeline,
         dataStore: VoxaDataStore,
-        semanticMatcher: SemanticMatcher,
         demoMode: Bool,
         allocateCueSequence: @escaping @MainActor () -> UInt16,
         sendCue: @escaping @MainActor (CueCommand) throws -> Void,
@@ -111,7 +136,6 @@ final class LiveSessionController: Identifiable {
         self.configuration = configuration
         self.speechPipeline = speechPipeline
         self.dataStore = dataStore
-        self.semanticMatcher = semanticMatcher
         self.demoMode = demoMode
         self.allocateCueSequence = allocateCueSequence
         self.sendCue = sendCue
@@ -261,7 +285,7 @@ final class LiveSessionController: Identifiable {
                         deliveryStatus: log.deliveryStatus
                     )
                 },
-                checkpointResults: makeCheckpointResults()
+                checkpointResults: []
             )
         } catch {
             phase = .failed("The session finished, but its local summary could not be saved.")
@@ -411,9 +435,9 @@ final class LiveSessionController: Identifiable {
                 updateMetrics()
                 if demoMode {
                     updateDemoMetrics()
-                    updateDemoDeckAlignment()
                 }
                 evaluateLiveCue()
+                updateTimedDeckCompletion()
                 let currentSecond = Int(metrics.elapsedSeconds)
                 if currentSecond.isMultiple(of: 2), currentSecond != lastStoredSampleSecond {
                     metricSamples.append(metrics)
@@ -456,7 +480,6 @@ final class LiveSessionController: Identifiable {
             volatileTranscriptSegment = nil
             rebuildRecentFillerOffsets()
             updateMetrics()
-            updateDeckAlignment()
         case let .voiceActivity(isSpeech, startSeconds, endSeconds):
             guard phase == .recording || isPaused || phase == .finalizing else { return }
             let durationSeconds = max(0, endSeconds - startSeconds)
@@ -620,55 +643,8 @@ final class LiveSessionController: Identifiable {
         microphoneLevel = 0.58 + sin(elapsed * 2) * 0.12
     }
 
-    private func updateDemoDeckAlignment() {
-        guard let checkpoints = configuration.deckPlan?.checkpoints else { return }
-        while currentCheckpointIndex < checkpoints.count {
-            let checkpoint = checkpoints[currentCheckpointIndex]
-            guard metrics.elapsedSeconds >= TimeInterval(checkpoint.targetCumulativeSeconds) else { break }
-            observedCheckpointTimes[checkpoint.id] = metrics.elapsedSeconds
-            observedCheckpointConfidences[checkpoint.id] = 1
-            currentCheckpointIndex += 1
-        }
-        checkpointProgress = checkpoints.isEmpty ? 0 : Double(currentCheckpointIndex) / Double(checkpoints.count)
-        currentCheckpointLabel = currentCheckpointIndex < checkpoints.count
-            ? checkpoints[currentCheckpointIndex].label
-            : "Deck complete"
-    }
-
-    private func updateDeckAlignment() {
-        guard let checkpoints = configuration.deckPlan?.checkpoints,
-              currentCheckpointIndex < checkpoints.count else {
-            checkpointProgress = 1
-            currentCheckpointLabel = "Deck complete"
-            return
-        }
-        let checkpoint = checkpoints[currentCheckpointIndex]
-        let recentText = String(liveTranscript.suffix(900))
-        let similarity = semanticMatcher.similarity(first: recentText, second: checkpoint.semanticSummary)
-        let match = matchDeckCheckpoint(
-            DeckMatchInput(transcript: recentText, checkpoint: checkpoint, semanticSimilarity: similarity)
-        )
-        currentCheckpointMatched = match.reached
-        currentCheckpointEvidenceConfidence = min(
-            1,
-            Double(normalizedSpeechWords(recentText).count) / 40
-        )
-        checkpointMatchStreak = match.reached ? checkpointMatchStreak + 1 : 0
-        if checkpointMatchStreak >= 2 {
-            observedCheckpointTimes[checkpoint.id] = metrics.elapsedSeconds
-            observedCheckpointConfidences[checkpoint.id] = match.combinedScore
-            currentCheckpointIndex += 1
-            checkpointMatchStreak = 0
-            currentCheckpointMatched = false
-            currentCheckpointEvidenceConfidence = 0
-        }
-        checkpointProgress = checkpoints.isEmpty ? 0 : Double(currentCheckpointIndex) / Double(checkpoints.count)
-        currentCheckpointLabel = currentCheckpointIndex < checkpoints.count
-            ? checkpoints[currentCheckpointIndex].label
-            : "Deck complete"
-    }
-
     func evaluateLiveCue() {
+        prepareScheduledSlideEvaluation()
         let cuePaceEvidence: PaceEvidence
         if demoMode {
             cuePaceEvidence = paceEvidence
@@ -686,13 +662,14 @@ final class LiveSessionController: Identifiable {
         }
         let deckProgress: DeckProgress?
         if let checkpoints = configuration.deckPlan?.checkpoints,
-           currentCheckpointIndex < checkpoints.count {
+           currentCheckpointIndex < checkpoints.count - 1 {
             let checkpoint = checkpoints[currentCheckpointIndex]
             deckProgress = DeckProgress(
                 checkpointID: checkpoint.id,
                 targetCumulativeSeconds: TimeInterval(checkpoint.targetCumulativeSeconds),
-                reached: currentCheckpointMatched,
-                confidence: currentCheckpointEvidenceConfidence
+                reached: false,
+                confidence: 1,
+                policy: .scheduledTransition
             )
         } else {
             deckProgress = nil
@@ -713,6 +690,9 @@ final class LiveSessionController: Identifiable {
         )
         cueEngineState = result.state
         guard let decision = result.decision else { return }
+        if decision.kind == .deckBehind {
+            recordScheduledSlideTransition()
+        }
         guard let pattern = configuration.profile.patternByCue[decision.kind] else { return }
         let sequence = allocateCueSequence()
         let intensity = configuration.profile.intensityByCue[decision.kind] ?? .medium
@@ -735,6 +715,52 @@ final class LiveSessionController: Identifiable {
             )
         )
         scheduleCueDeadlineCheck()
+    }
+
+    private func prepareScheduledSlideEvaluation() {
+        guard let checkpoints = configuration.deckPlan?.checkpoints else { return }
+        var dueBoundaryCount = 0
+        var candidateIndex = currentCheckpointIndex
+        while candidateIndex < checkpoints.count - 1,
+              metrics.elapsedSeconds >= TimeInterval(checkpoints[candidateIndex].targetCumulativeSeconds) {
+            dueBoundaryCount += 1
+            candidateIndex += 1
+        }
+        let shouldEmitLatestTransition = configuration.profile.enabledCues.contains(.deckBehind)
+            && metrics.elapsedSeconds < configuration.targetDurationSeconds
+            && dueBoundaryCount > 0
+        let silentAdvanceCount = shouldEmitLatestTransition
+            ? dueBoundaryCount - 1
+            : dueBoundaryCount
+        for _ in 0..<silentAdvanceCount {
+            recordScheduledSlideTransition()
+        }
+    }
+
+    private func recordScheduledSlideTransition() {
+        guard let checkpoints = configuration.deckPlan?.checkpoints,
+              currentCheckpointIndex < checkpoints.count - 1 else { return }
+        currentCheckpointIndex += 1
+        updateTimedDeckPresentationState(checkpoints: checkpoints)
+    }
+
+    private func updateTimedDeckCompletion() {
+        guard let checkpoints = configuration.deckPlan?.checkpoints,
+              let finalCheckpoint = checkpoints.last else { return }
+        if currentCheckpointIndex == checkpoints.count - 1,
+           metrics.elapsedSeconds >= TimeInterval(finalCheckpoint.targetCumulativeSeconds) {
+            currentCheckpointIndex = checkpoints.count
+        }
+        updateTimedDeckPresentationState(checkpoints: checkpoints)
+    }
+
+    private func updateTimedDeckPresentationState(checkpoints: [DeckCheckpoint]) {
+        checkpointProgress = checkpoints.isEmpty
+            ? 0
+            : Double(currentCheckpointIndex) / Double(checkpoints.count)
+        currentCheckpointLabel = currentCheckpointIndex < checkpoints.count
+            ? checkpoints[currentCheckpointIndex].label
+            : "Presentation complete"
     }
 
     private func makeSummary() -> SessionSummary {
@@ -802,26 +828,4 @@ final class LiveSessionController: Identifiable {
         )
     }
 
-    private func makeCheckpointResults() -> [SessionCheckpointResult] {
-        guard let checkpoints = configuration.deckPlan?.checkpoints else { return [] }
-        return checkpoints.map { checkpoint in
-            let observed = observedCheckpointTimes[checkpoint.id]
-            let status: CheckpointOutcomeStatus
-            if observed != nil {
-                status = .reached
-            } else if metrics.elapsedSeconds >= TimeInterval(checkpoint.targetCumulativeSeconds) {
-                status = .missed
-            } else {
-                status = .skipped
-            }
-            return SessionCheckpointResult(
-                id: checkpoint.id,
-                label: checkpoint.label,
-                targetCumulativeSeconds: checkpoint.targetCumulativeSeconds,
-                observedCumulativeSeconds: observed,
-                confidence: observedCheckpointConfidences[checkpoint.id],
-                status: status
-            )
-        }
-    }
 }

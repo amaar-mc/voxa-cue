@@ -34,6 +34,18 @@ enum OnboardingPresentation: Equatable {
     case replay
 }
 
+enum SessionSetupIntent: Equatable {
+    case freeSpeaking
+    case presentation
+
+    var mode: SessionMode {
+        switch self {
+        case .freeSpeaking: .freeSpeaking
+        case .presentation: .powerPoint
+        }
+    }
+}
+
 func normalizedHapticPreferences(
     _ stored: HapticPreferences,
     defaults: HapticPreferences
@@ -199,6 +211,7 @@ final class AppModel {
     var lastReceivedBandPacket: Data?
     var deviceLabCueDelivery = DeviceLabCueDelivery.idle
     var setupPresented = false
+    var sessionSetupIntent = SessionSetupIntent.freeSpeaking
     var activeSession: LiveSessionController?
     var completedSummary: SessionSummary?
     var selectedSummary: SessionSummary?
@@ -365,13 +378,19 @@ final class AppModel {
         onboardingPresentation = nil
     }
 
-    func completeOnboarding(openSessionSetup: Bool) {
+    func completeOnboarding(setupIntent: SessionSetupIntent?) {
         persistOnboardingCompletion()
-        if openSessionSetup {
+        if let setupIntent {
             selectedTab = .today
+            sessionSetupIntent = setupIntent
             setupPresented = true
         }
         onboardingPresentation = nil
+    }
+
+    func presentSessionSetup(intent: SessionSetupIntent) {
+        sessionSetupIntent = intent
+        setupPresented = true
     }
 
     func beginSession(configuration: SessionConfiguration) {
@@ -385,7 +404,6 @@ final class AppModel {
             configuration: configuration,
             speechPipeline: speechPipeline,
             dataStore: dataStore,
-            semanticMatcher: SemanticMatcher(),
             demoMode: demoMode,
             allocateCueSequence: { [weak self] in
                 guard let self else { return 1 }
@@ -503,7 +521,7 @@ final class AppModel {
                 let context = try dataStore.fetchInsightContext(sessionID: summary.sessionID)
                 insight = try await apiClient.createInsight(
                     summary: summary,
-                    checkpoints: context.checkpoints,
+                    checkpoints: [],
                     cueEvents: context.cueEvents
                 )
             } else {
@@ -519,23 +537,13 @@ final class AppModel {
         }
     }
 
-    func createDeckPlan(title: String, targetDurationSeconds: Int, slides: [DeckSlide]) async -> PreparedDeckPlan {
-        if !demoMode, let apiClient {
-            do {
-                let remotePlan = try await apiClient.createDeckPlan(
-                    title: title,
-                    targetDurationSeconds: targetDurationSeconds,
-                    slides: slides
-                )
-                return PreparedDeckPlan(plan: remotePlan, source: .coachingAPI)
-            } catch {
-                if !Task.isCancelled, (error as? VoxaAPIError) != .cancelled {
-                    coachingAPIState = .unavailable(message: coachingErrorMessage(error))
-                }
-            }
-        }
+    func createDeckPlan(
+        title: String,
+        targetDurationSeconds: Int,
+        slides: [DeckSlide]
+    ) async throws -> PreparedDeckPlan {
         return PreparedDeckPlan(
-            plan: LocalDeckPlanner.makePlan(
+            plan: try LocalDeckPlanner.makePlan(
                 title: title,
                 targetDurationSeconds: targetDurationSeconds,
                 slides: slides
@@ -733,58 +741,16 @@ private func coachingErrorMessage(_ error: any Error) -> String {
 }
 
 enum LocalDeckPlanner {
-    static func makePlan(title: String, targetDurationSeconds: Int, slides: [DeckSlide]) -> DeckPlan {
-        let boundedTargetDuration = max(1, targetDurationSeconds)
-        let maximumCheckpointCount = min(100, boundedTargetDuration)
-        let slideGroups = groupedSlides(slides, maximumGroupCount: maximumCheckpointCount)
-        let weights = slideGroups.map { group in
-            max(1, group.reduce(0) { total, slide in
-                total + normalizedSpeechWords([slide.title, slide.body, slide.notes].joined(separator: " ")).count
-            })
-        }
-        let totalWeight = max(1, weights.reduce(0, +))
-        var cumulativeWeight = 0
-        var previousTarget = 0
-        let checkpoints = zip(slideGroups, weights).enumerated().compactMap { offset, pair -> DeckCheckpoint? in
-            let (group, weight) = pair
-            guard let representativeSlide = group.last else { return nil }
-            cumulativeWeight += weight
-            let remainingCheckpoints = slideGroups.count - offset - 1
-            let rawTarget = Int(
-                (Double(cumulativeWeight) / Double(totalWeight) * Double(boundedTargetDuration)).rounded()
-            )
-            let target = offset == slideGroups.count - 1
-                ? boundedTargetDuration
-                : min(
-                    boundedTargetDuration - remainingCheckpoints,
-                    max(previousTarget + 1, rawTarget)
-                )
-            previousTarget = target
-            let combinedText = group
-                .flatMap { [$0.title, $0.body, $0.notes] }
-                .filter { !$0.isEmpty }
-                .joined(separator: ". ")
-            let allWords = normalizedSpeechWords(combinedText)
-            let anchors = Array(
-                allWords
-                    .filter { $0.count >= 5 }
-                    .reduce(into: [String]()) { unique, word in
-                        if !unique.contains(word) { unique.append(word) }
-                    }
-                    .prefix(6)
-            )
-            let fallbackAnchors = Array(["slide", "topic"].prefix(max(0, 2 - anchors.count)))
-            let paddedAnchors = anchors.count >= 2 ? anchors : anchors + fallbackAnchors
-            return DeckCheckpoint(
-                id: "slide-\(representativeSlide.index)",
-                slideIndex: representativeSlide.index,
-                label: shortened(groupLabel(group), maximumCharacters: 120),
-                targetCumulativeSeconds: target,
-                semanticSummary: shortened(combinedText, maximumCharacters: 400),
-                anchorTerms: Array(paddedAnchors)
-            )
-        }
-        return DeckPlan(schemaVersion: 1, title: title, checkpoints: checkpoints)
+    static func makePlan(
+        title: String,
+        targetDurationSeconds: Int,
+        slides: [DeckSlide]
+    ) throws -> DeckPlan {
+        try buildTimedDeckPlan(
+            title: title,
+            slides: slides,
+            allocation: .even(totalSeconds: targetDurationSeconds)
+        )
     }
 
     static func retime(plan: DeckPlan, targetDurationSeconds: Int) -> DeckPlan {
@@ -826,23 +792,4 @@ enum LocalDeckPlanner {
         )
     }
 
-    private static func groupedSlides(_ slides: [DeckSlide], maximumGroupCount: Int) -> [[DeckSlide]] {
-        guard !slides.isEmpty, maximumGroupCount > 0 else { return [] }
-        let groupCount = min(slides.count, maximumGroupCount)
-        return (0..<groupCount).map { groupIndex in
-            let lowerBound = groupIndex * slides.count / groupCount
-            let upperBound = (groupIndex + 1) * slides.count / groupCount
-            return Array(slides[lowerBound..<upperBound])
-        }
-    }
-
-    private static func groupLabel(_ slides: [DeckSlide]) -> String {
-        guard let first = slides.first, let last = slides.last else { return "Presentation checkpoint" }
-        if first.id == last.id { return first.title }
-        return "\(first.title) – \(last.title)"
-    }
-
-    private static func shortened(_ value: String, maximumCharacters: Int) -> String {
-        String(value.prefix(maximumCharacters))
-    }
 }
