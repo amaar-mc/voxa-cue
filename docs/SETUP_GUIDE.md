@@ -9,7 +9,7 @@ Required:
 - macOS with Xcode 27 beta at `/Applications/Xcode-beta.app`
 - an iPhone running iOS 26 or later for real speech and BLE testing
 - Node.js 22 or later, pnpm 10.32.1, XcodeGen, and `uvx`
-- Arduino Nano 33 IoT, DRV2605L breakout, 3 V LRA motor, and a data-capable Micro-USB cable
+- Arduino Nano 33 IoT, DRV2605L breakout, 3 V ERM motor, and a data-capable Micro-USB cable
 
 ```sh
 brew install node pnpm xcodegen
@@ -67,7 +67,7 @@ Disconnect power before wiring:
 | `GND` | `GND` | Common ground |
 | `A4` | `SDA` | I2C data |
 | `A5` | `SCL` | I2C clock |
-| — | `OUT+`, `OUT-` | LRA motor leads |
+| — | `OUT+`, `OUT-` | ERM motor leads |
 
 Never connect the motor directly to a GPIO, 3V3, or GND. Then flash:
 

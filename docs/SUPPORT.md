@@ -7,7 +7,7 @@ Voxa Cue is currently a closed M&TSI prototype. Support is provided through the 
 - iPhone running iOS 26.0 or later
 - Voxa Cue iPhone app version 1.0.0 (build 1)
 - Arduino Nano 33 IoT running Voxa Cue firmware 1.3; Nano ESP32 remains supported
-- DRV2605L haptic driver and a 3 V LRA motor
+- DRV2605L haptic driver and a 3 V ERM motor
 - Optional HTTPS access to the deployed Voxa Cue API for post-session insights
 
 No Raspberry Pi or external microphone is supported. Keep the iPhone screen open, place the phone near the presenter, and leave its built-in microphone unobstructed.
