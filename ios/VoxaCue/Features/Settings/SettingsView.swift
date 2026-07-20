@@ -11,20 +11,22 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CueTheme.Space.large) {
-                ScreenTitle(
-                    eyebrow: "Your Cue",
-                    title: "Settings",
-                    subtitle: "Band, haptics, privacy, and local data."
-                )
+                Text("Settings")
+                    .font(.cueTitle)
+                    .foregroundStyle(CueTheme.ink)
+                    .accessibilityAddTraits(.isHeader)
                 bandCard
                 hapticCard
                 setupGuideCard
 #if DEBUG
                 DemoProSettingsCard(entitlementStore: model.proEntitlementStore)
 #endif
-                processingCard
-                apiCard
-                dataCard
+                if isAPIConfigured || model.demoMode {
+                    apiCard
+                }
+                if hasLocalData {
+                    dataCard
+                }
                 informationCard
                 versionFooter
             }
@@ -79,22 +81,6 @@ struct SettingsView: View {
         }
     }
 
-    private var processingCard: some View {
-        PremiumCard(padding: 20) {
-            HStack(alignment: .top, spacing: 15) {
-                SectionMark(assetName: "OnDevicePrivacy", size: 58)
-                VStack(alignment: .leading, spacing: 8) {
-                    CueSectionLabel(text: "Privacy", color: CueTheme.green)
-                    Text("Live analysis stays on this iPhone and raw audio is discarded. AI coaching is sent only after you confirm.")
-                        .font(.cueBody)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
     private var hapticCard: some View {
         NavigationLink {
             HapticCueSettingsView()
@@ -108,10 +94,9 @@ struct SettingsView: View {
                         .background(CueTheme.signalSoft)
                         .clipShape(Circle())
                     VStack(alignment: .leading, spacing: 4) {
-                        CueSectionLabel(text: "Haptic signals", color: CueTheme.signal)
-                        Text("Choose what each pulse means.")
-                            .font(.cueBody)
-                            .foregroundStyle(CueTheme.secondaryInk)
+                        Text("Haptic signals")
+                            .font(.cueSection)
+                            .foregroundStyle(CueTheme.ink)
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
@@ -134,11 +119,9 @@ struct SettingsView: View {
                         .background(CueTheme.haptic.opacity(0.10))
                         .clipShape(Circle())
                     VStack(alignment: .leading, spacing: 4) {
-                        CueSectionLabel(text: "Setup guide", color: CueTheme.haptic)
-                        Text("Replay the four-step introduction.")
-                            .font(.cueBody)
-                            .foregroundStyle(CueTheme.secondaryInk)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Setup guide")
+                            .font(.cueSection)
+                            .foregroundStyle(CueTheme.ink)
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
@@ -176,10 +159,9 @@ struct SettingsView: View {
     private var dataCard: some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 15) {
-                sectionLabel(title: "Local data", symbol: "internaldrive", tint: CueTheme.signal)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dataCountLabel)
-                        .font(.cueBody.weight(.semibold))
+                        .font(.cueSection)
                         .foregroundStyle(CueTheme.ink)
                     Text(localDataDescription)
                         .font(.cueCaption)
@@ -203,8 +185,6 @@ struct SettingsView: View {
                         .contentShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
                 }
                 .buttonStyle(SpringPressStyle())
-                .disabled(model.sessions.isEmpty && model.insightBySession.isEmpty)
-                .opacity(model.sessions.isEmpty && model.insightBySession.isEmpty ? 0.45 : 1)
             }
         }
     }
@@ -250,24 +230,12 @@ struct SettingsView: View {
     private var versionFooter: some View {
         VStack(spacing: 6) {
             CueWordmark(compact: true)
-            Text("Voxa Cue \(appVersion) (\(buildNumber))")
+            Text("Version \(appVersion) (\(buildNumber))")
                 .font(.cueCaption.monospacedDigit())
-                .foregroundStyle(CueTheme.secondaryInk)
-            Text("Discreet guidance. Confident delivery.")
-                .font(.cueCaption)
                 .foregroundStyle(CueTheme.secondaryInk)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
-    }
-
-    private func sectionLabel(title: String, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: symbol)
-                .font(.system(.caption2, design: .rounded, weight: .bold))
-            CueSectionLabel(text: title, color: tint)
-        }
-        .foregroundStyle(tint)
     }
 
     @ViewBuilder
@@ -294,8 +262,7 @@ struct SettingsView: View {
 
     private var connectionText: some View {
         VStack(alignment: .leading, spacing: 4) {
-            CueSectionLabel(text: "Cue Band", color: CueTheme.signal)
-            Text(model.connectionState.label)
+            Text("Cue Band")
                 .font(.cueSection)
                 .foregroundStyle(CueTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -317,7 +284,9 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var apiHeader: some View {
-        let label = sectionLabel(title: "AI coaching", symbol: "sparkles", tint: CueTheme.signal)
+        let label = Text("AI coaching")
+            .font(.cueSection)
+            .foregroundStyle(CueTheme.ink)
         let status = StatusPill(
             label: apiStatusLabel,
             symbol: apiStatusSymbol,
@@ -350,6 +319,10 @@ struct SettingsView: View {
             return "\(model.sessions.count) temporary \(model.sessions.count == 1 ? "session" : "sessions")"
         }
         return "\(model.sessions.count) saved \(model.sessions.count == 1 ? "session" : "sessions")"
+    }
+
+    private var hasLocalData: Bool {
+        !model.sessions.isEmpty || !model.insightBySession.isEmpty
     }
 
     private var localDataDescription: String {
@@ -432,13 +405,13 @@ struct SettingsView: View {
         }
         switch model.coachingAPIState {
         case .localOnly:
-            return "Live coaching stays local. Optional AI insights are off."
+            return "Optional AI insights are off."
         case .configured:
-            return "Optional AI insights are configured but not checked."
+            return "No presentation data is sent."
         case .checking:
-            return "Checking access. No presentation data is sent."
+            return "No presentation data is sent."
         case let .ready(build):
-            return "Optional AI insights are available. Build \(build)."
+            return "Build \(build)"
         case let .unavailable(message):
             return message
         }
@@ -499,19 +472,19 @@ struct SettingsView: View {
     private var connectionDetail: String {
         switch model.connectionState {
         case let .ready(firmware):
-            "Firmware \(firmware) · BLE protocol v1"
+            "Connected · firmware \(firmware)"
         case .idle:
-            "Nearby band required for live vibration cues"
+            "Required for live cues"
         case .bluetoothUnavailable:
-            "Turn on Bluetooth in iPhone Settings, then retry"
+            "Turn on Bluetooth to connect"
         case .searching:
-            "Looking for a nearby Voxa Cue wristband"
+            "Searching nearby"
         case .connecting:
-            "Opening a private Bluetooth connection"
+            "Connecting"
         case .discovering:
-            "Checking haptic command compatibility"
+            "Checking compatibility"
         case .reconnecting:
-            "Restoring the most recent band connection"
+            "Reconnecting"
         case let .failed(message):
             message
         }
