@@ -91,7 +91,7 @@ struct HapticCueSettingsView: View {
                 Spacer(minLength: 8)
                 Picker("Pattern for \(cue.label)", selection: patternBinding(cue)) {
                     ForEach(HapticPattern.allCases, id: \.self) { pattern in
-                        Text(pattern.label).tag(pattern)
+                        Text(hapticPatternPulseDescription(pattern)).tag(pattern)
                     }
                 }
                 .pickerStyle(.menu)
