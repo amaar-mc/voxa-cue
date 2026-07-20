@@ -123,40 +123,9 @@ On startup the serial monitor prints either `Voxa Cue firmware 1.3 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
 rejected with the protocol's `driver fault` error.
 
-### Temporary D2 PWM diagnostic
-
-The `nano_33_iot_direct_pwm_test` environment reproduces the prototype test
-sketch's PWM behavior on Nano pin `D2` while retaining the current Voxa Cue BLE
-v1 service, command packets, status packets, and vibration patterns. It does
-not initialize, detect, or test a DRV2605L.
-
-Use this environment only when `D2` is connected to a high-impedance,
-3.3 V-compatible logic input on a separately powered motor-driver module and
-the module shares ground with the Nano. Never connect a bare vibration motor
-directly to `D2`; the motor can exceed the GPIO current limit and its inductive
-kick can damage the Nano.
-
-With USB, battery, and every other power source disconnected, verify that
-topology before flashing. Then run:
-
-```sh
-uvx --with pip platformio run -e nano_33_iot_direct_pwm_test --target upload
-uvx --with pip platformio device monitor --baud 115200
-```
-
-The monitor must print `Voxa Cue D2 PWM diagnostic ready`, and the board
-advertises as `Voxa D2` to distinguish it from production firmware. The Chrome
-BLE tester and iPhone Device Lab can then send their normal commands. A
-`completed` status means the Nano executed the PWM timing; confirm the physical
-vibration yourself because this diagnostic path has no motor-feedback signal.
-This build includes the same v1.3 RGB session-light and D9 overtime-buzzer
-behavior as the production driver build.
-
-Restore the production DRV2605L firmware after the test:
-
-```sh
-uvx --with pip platformio run -e nano_33_iot --target upload
-```
+The production firmware has no direct-GPIO or MOSFET motor-output mode. Every
+haptic command requires a detected DRV2605L on the default I2C bus and is
+rejected with `driver fault` if address `0x5A` is unavailable.
 
 ## BLE smoke test
 
