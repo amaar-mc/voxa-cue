@@ -9,12 +9,6 @@ struct HapticCueSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CueTheme.Space.large) {
-                ScreenTitle(
-                    eyebrow: "Cue language",
-                    title: "Haptic signals",
-                    subtitle: "Tune when cues trigger and how they feel."
-                )
-
                 cueGroup(title: "Essentials", cues: CueKind.essentialDefaults)
                 cueGroup(title: "Presentation", cues: [.deckBehind])
 
@@ -37,12 +31,9 @@ struct HapticCueSettingsView: View {
                         }
                         .padding(.top, 18)
                     } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            CueSectionLabel(text: "Advanced cues", color: CueTheme.signal)
-                            Text("Optional pace and timing reminders")
-                                .font(.cueCaption)
-                                .foregroundStyle(CueTheme.secondaryInk)
-                        }
+                        Text("Advanced cues")
+                            .font(.cueSection)
+                            .foregroundStyle(CueTheme.ink)
                     }
                     .tint(CueTheme.signal)
                 }
@@ -65,7 +56,9 @@ struct HapticCueSettingsView: View {
     private func cueGroup(title: String, cues: [CueKind]) -> some View {
         PremiumCard(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
-                CueSectionLabel(text: title, color: CueTheme.signal)
+                Text(title)
+                    .font(.cueSection)
+                    .foregroundStyle(CueTheme.ink)
                 ForEach(cues, id: \.self) { cue in
                     cueEditor(cue)
                     if cue != cues.last {
@@ -84,32 +77,22 @@ struct HapticCueSettingsView: View {
                 fillerClusterControls
             }
 
-            HStack(spacing: 12) {
-                Text("Pattern")
-                    .font(.cueCaption)
-                    .foregroundStyle(CueTheme.secondaryInk)
-                Spacer(minLength: 8)
-                Picker("Pattern for \(cue.label)", selection: patternBinding(cue)) {
-                    ForEach(HapticPattern.allCases, id: \.self) { pattern in
-                        Text(hapticPatternPulseDescription(pattern)).tag(pattern)
-                    }
-                }
-                .pickerStyle(.menu)
-                .tint(CueTheme.signal)
-            }
+            patternMenu(for: cue)
 
             intensityPicker(for: cue)
 
-            Button {
-                preview(cue)
-            } label: {
-                Label("Test signal", systemImage: "wave.3.right")
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 38)
+            if bandIsReady {
+                Button {
+                    preview(cue)
+                } label: {
+                    Label("Test signal", systemImage: "wave.3.right")
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                }
+                .buttonStyle(.bordered)
+                .tint(CueTheme.signal)
+                .disabled(model.deviceLabCueDelivery.isPending)
             }
-            .buttonStyle(.bordered)
-            .tint(CueTheme.signal)
-            .disabled(!bandIsReady || model.deviceLabCueDelivery.isPending)
         }
     }
 
@@ -157,6 +140,43 @@ struct HapticCueSettingsView: View {
             get: { model.hapticPreferences.patternByCue[cue] ?? .doubleTap },
             set: { model.setCuePattern(cue, pattern: $0) }
         )
+    }
+
+    private func patternMenu(for cue: CueKind) -> some View {
+        let selectedPattern = model.hapticPreferences.patternByCue[cue] ?? .doubleTap
+
+        return Menu {
+            ForEach(HapticPattern.allCases, id: \.self) { pattern in
+                Button {
+                    model.setCuePattern(cue, pattern: pattern)
+                } label: {
+                    if pattern == selectedPattern {
+                        Label(hapticPatternPulseDescription(pattern), systemImage: "checkmark")
+                    } else {
+                        Text(hapticPatternPulseDescription(pattern))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Text("Pattern")
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                Spacer(minLength: 12)
+                Text(hapticPatternPulseDescription(selectedPattern))
+                    .font(.cueCaption.weight(.semibold))
+                    .foregroundStyle(CueTheme.signal)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(CueTheme.signal)
+            }
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Pattern for \(cue.label)")
+        .accessibilityValue(hapticPatternPulseDescription(selectedPattern))
     }
 
     private func intensityBinding(_ cue: CueKind) -> Binding<CueIntensity> {
@@ -256,9 +276,7 @@ struct HapticCueSettingsView: View {
     }
 
     private var fillerClusterDescription: String {
-        let cluster = model.hapticPreferences.fillerClusterConfiguration
-        let fillerLabel = cluster.requiredFillerCount == 1 ? "filler" : "fillers"
-        return "Cue after \(cluster.requiredFillerCount) \(fillerLabel) within \(cluster.windowSeconds) seconds · 30-second reset. Lower count or longer window cues sooner."
+        "30-second cooldown. Lower count or longer window triggers sooner."
     }
 
     @ViewBuilder
