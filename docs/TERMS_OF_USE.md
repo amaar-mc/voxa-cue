@@ -24,7 +24,7 @@ Voxa Cue is not a medical device, assistive-alert system, emergency device, or g
 
 ## Wearable safety
 
-Use only a correctly assembled supported Nano board, DRV2605L driver, rated LRA motor, protected power source, and enclosure. Stop using the band if it becomes hot, causes discomfort, damages skin, or behaves unexpectedly. The motor must never be connected directly to a microcontroller pin or bare battery.
+Use only a correctly assembled supported Nano board, DRV2605L driver, rated ERM motor, protected power source, and enclosure. Stop using the band if it becomes hot, causes discomfort, damages skin, or behaves unexpectedly. The motor must never be connected directly to a microcontroller pin or bare battery.
 
 ## Availability and warranty
 

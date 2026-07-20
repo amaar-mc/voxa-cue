@@ -53,7 +53,7 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Measure cue-to-vibration latency on the supported iPhone and production band across a full session; record median, p95, and failure rate.
 - [ ] Validate transcription and filler metrics across representative voices, accents, room noise, phone distances, and speaking styles; document limitations in product copy.
 - [ ] Validate that acoustic features are not represented as medical, emotion, identity, or disability judgments.
-- [ ] Calibrate Soft, Medium, and Strong on the production LRA and enclosure while preserving `soft < medium < strong <= 127`.
+- [ ] Calibrate Soft, Medium, and Strong on the production ERM and enclosure while preserving `soft < medium < strong <= 127`.
 - [ ] Test BLE reconnect, sequence rollover, band reboot, driver fault, command burst, and phone interruption behavior.
 - [ ] Complete battery runtime, charging, thermal, skin-contact, drop, ingress, and continuous-wear testing before distributing an untethered wearable.
 - [ ] Confirm support can diagnose a failure without requesting presentation transcripts or secrets.
