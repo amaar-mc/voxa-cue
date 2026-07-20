@@ -40,7 +40,7 @@ CoreBluetooth central -- haptic + timing --> Nano 33 IoT peripheral
 seven-byte status <-- accepted/completed -- DRV2605L RTP      RGB progress
                                               |                 light
                                               v
-                                            3 V LRA
+                                            3 V ERM
 ```
 
 ## iPhone application
@@ -143,7 +143,7 @@ HIGH for exactly two seconds. The firmware latches that event so heartbeat
 writes cannot retrigger it, while older firmware receives ordinary overtime
 mode 3 instead.
 
-The Nano drives a 3 V LRA through a DRV2605L in real-time playback mode. `millis()` advances a fixed-size pulse state machine; the main loop never blocks for a full pattern and allocates no Arduino `String` in the command or playback path.
+The Nano drives a 3 V ERM through a DRV2605L in real-time playback mode. `millis()` advances a fixed-size pulse state machine; the main loop never blocks for a full pattern and allocates no Arduino `String` in the command or playback path.
 
 ## Optional API
 

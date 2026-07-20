@@ -6,7 +6,7 @@ Voxa Cue is phone-first. The iPhone built-in microphone is the only audio source
 
 The live haptic path is:
 
-`AVAudioEngine → SpeechAnalyzer/local DSP → CueEngine → CoreBluetooth → Nano 33 IoT → DRV2605L → LRA`
+`AVAudioEngine → SpeechAnalyzer/local DSP → CueEngine → CoreBluetooth → Nano 33 IoT → DRV2605L → ERM`
 
 `contracts/ble-v1.md` is normative for app/firmware transport. Keep both implementations compatible with it.
 
