@@ -6,6 +6,11 @@ The iPhone is the only microphone, recorder, speech processor, real-time decisio
 
 AI is intentionally outside the live haptic loop. Live decisions are deterministic and on-device; the optional API produces coaching only after a presenter explicitly confirms transcript transmission. This keeps presentation feedback private, predictable, and independent of network latency.
 
+Guided presentation mode is also local. The app can parse a PDF or PowerPoint
+file, build either an even or presenter-authored per-slide schedule, and feed
+slide boundaries into the same deterministic cue engine. No presentation file
+or extracted slide text is uploaded.
+
 ## Runtime flow
 
 ```text
@@ -82,17 +87,33 @@ global cooldown, enablement, intensity, pattern mapping, and priority suppress
 noisy or conflicting feedback. The app maps the highest-priority semantic cue
 to a physical BLE pattern.
 
-### Deferred presentation-plan code
+### Guided presentation timing
 
-The repository retains tested parser, matcher, and API-contract code for a possible later presentation-plan feature, but the MVP exposes no file importer or deck mode and never enables the deck-behind cue. BLE pattern ID 4 remains reserved so this simplification does not break protocol v1.
+`PresentationFileParser` accepts `.pptx` and `.pdf` files from the system file
+picker. It validates file size and type, rejects malformed or encrypted input,
+caps imports at 100 slides, bounds extracted text, and defends PowerPoint archive
+and relationship paths before reading slide text. Imported files are parsed
+under their security-scoped URL and are not copied into app storage.
+
+`buildTimedDeckPlan` preserves slide order and creates cumulative boundaries.
+Even mode divides the exact target duration deterministically; per-slide mode
+requires one positive duration for every slide. The final slide ends at the
+session target and never emits a false “next slide” cue. Non-final boundaries
+use the pause-aware presentation clock and can emit the configurable BLE pattern
+ID 4. Slide timing continues on screen when transition haptics are disabled or
+the band is disconnected. A transition suppresses pace and filler cues in its
+two-second approach window and takes priority over intermediate time milestones
+to avoid stacked wrist feedback.
 
 ### Local persistence
 
 SwiftData stores session summaries, finalized transcript segments, metric
 samples, cue events, and generated coaching insights. Optional fields preserve
 the difference between zero and “not measured” for pause, pace-variability, and
-intonation metrics. The schema can still decode historical deck records, but the
-current app creates none. The app has no account and no remote application
+intonation metrics. Timed guidance does not claim that a presenter changed
+slides, so it persists generic cue delivery evidence rather than fabricated
+slide outcomes. Imported files, slide titles, and slide bodies are not
+persisted. The app has no account and no remote application
 database. `VoxaDataStore.deleteAllLocalData()` removes every app model type in
 one local operation.
 
@@ -157,6 +178,7 @@ and restoration remain release gates.
 | Boundary | Data crossing it | Data that never crosses it |
 | --- | --- | --- |
 | Microphone to app memory | PCM buffers during an active session | Retained audio files |
+| Imported presentation to app memory | Slide order, bounded text, and selected timings | Network upload or wearable transfer |
 | App to Cue Band | Cue ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
 | App to insight API | Confirmed finalized transcript, metrics, and cue summaries | Raw audio |
 | API to OpenAI | Text needed for the requested structured result | App bearer token, BLE data, raw audio |

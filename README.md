@@ -58,8 +58,23 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 | --- | --- |
 | Speaking pace and persistence | Evidence-based session summary |
 | Contextual filler bursts | Pace, filler, pause, timing, and talk-ratio analytics |
+| Even or per-slide presentation timing | Pause-aware slide guidance and cue history |
 | 50% and target-time defaults; optional 75% and 90% cues | Descriptive intonation and energy trends |
 | Private haptic delivery acknowledgements | Longitudinal session history |
+
+### Guided presentations
+
+Choose **Use a presentation** to import a `.pptx` or `.pdf` file. Voxa Cue reads
+up to 100 slides locally, then offers two timing modes:
+
+- **Even timing** divides the session target across every slide, including a deterministic remainder.
+- **Per slide** lets the presenter assign each slide an explicit duration whose total must match the session target.
+
+During the session, the app shows the current slide and its remaining time. At
+each non-final boundary it can send a configurable long-short-long transition
+pulse. The schedule uses the same pause-aware presentation clock as speech
+metrics, so pausing for Q&A also pauses slide timing. Imported slide content is
+never sent to the wearable or the live API path.
 
 ### A configurable haptic language
 
@@ -85,8 +100,10 @@ persistence thresholds, and cue priority prevent noisy or conflicting feedback.
 ```mermaid
 flowchart LR
     MIC["Built-in iPhone<br/>microphone"] --> SPEECH["SpeechAnalyzer<br/>+ local DSP"]
+    DECK["PDF / PowerPoint<br/>local import"] --> TIMING["Even or per-slide<br/>timing plan"]
     SPEECH --> METRICS["Transcript, pace,<br/>fillers, pauses, intonation"]
     METRICS --> ENGINE["Deterministic<br/>CueEngine"]
+    TIMING --> ENGINE
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
     BLE --> NANO["Nano 33 IoT"]
     NANO --> MOTOR["DRV2605L<br/>+ 3 V LRA"]
@@ -97,7 +114,7 @@ flowchart LR
     classDef phone fill:#F3F4F1,stroke:#0B756F,color:#0B171B,stroke-width:2px;
     classDef band fill:#F3E7DC,stroke:#A85E24,color:#0B171B,stroke-width:2px;
     classDef optional fill:#0B756F,stroke:#07524E,color:#ffffff,stroke-width:2px;
-    class MIC,SPEECH,METRICS,ENGINE,BLE,STORE phone;
+    class MIC,DECK,TIMING,SPEECH,METRICS,ENGINE,BLE,STORE phone;
     class NANO,MOTOR,LIGHT band;
     class API optional;
 ```
@@ -109,6 +126,7 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | Boundary | What crosses it | What never crosses it |
 | --- | --- | --- |
 | Microphone → app memory | PCM buffers during an active session | Retained audio files |
+| Imported presentation → app memory | Slide order, local text, and selected timings | Network upload or wearable transfer |
 | iPhone → Cue Band | Physical pattern ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
 | iPhone → insight API | Confirmed transcript, aggregate metrics, and cue summaries | Raw audio |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
