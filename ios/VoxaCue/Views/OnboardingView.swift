@@ -95,8 +95,8 @@ struct OnboardingView: View {
             }
 
             if currentStep == .ready {
-                Button(alternateCompletionTitle) {
-                    model.completeOnboarding(openSessionSetup: false)
+                Button("Practice without slides") {
+                    model.completeOnboarding(setupIntent: .freeSpeaking)
                 }
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(CueTheme.secondaryInk)
@@ -114,10 +114,6 @@ struct OnboardingView: View {
         OnboardingStep(rawValue: page) ?? .welcome
     }
 
-    private var alternateCompletionTitle: String {
-        presentation == .firstRun ? "Explore the app first" : "Return to Settings"
-    }
-
     private func moveBack() {
         guard page > OnboardingStep.welcome.rawValue else { return }
         withAnimation(CueMotion.settle(reduceMotion: reduceMotion)) {
@@ -127,7 +123,7 @@ struct OnboardingView: View {
 
     private func advance() {
         if currentStep == .ready {
-            model.completeOnboarding(openSessionSetup: true)
+            model.completeOnboarding(setupIntent: .presentation)
             return
         }
         withAnimation(CueMotion.settle(reduceMotion: reduceMotion)) {
@@ -158,7 +154,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .welcome: "Your voice, coached in the moment."
         case .cues: "Four cues. One clear language."
         case .band: "Pair your Cue Band."
-        case .ready: "Start with a simple target."
+        case .ready: "Choose how you want to practice."
         }
     }
 
@@ -173,7 +169,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .band:
             "Power on the band and keep it nearby. You can also continue with phone-only analytics."
         case .ready:
-            "Your first setup opens at five minutes and 130–160 words per minute. Adjust either before you begin."
+            "Practice freely or add a presentation for private slide-change cues. You can switch modes in setup."
         }
     }
 
@@ -182,14 +178,14 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .welcome: "Show my starter cues"
         case .cues: "Connect my band"
         case .band: "Prepare my rehearsal"
-        case .ready: "Set up first session"
+        case .ready: "Set up a presentation"
         }
     }
 
     var compactPrimaryActionTitle: String {
         switch self {
         case .welcome, .cues, .band: "Next"
-        case .ready: "Set up"
+        case .ready: "Use slides"
         }
     }
 
@@ -336,17 +332,16 @@ private struct OnboardingStepView: View {
                     SectionMark(assetName: "OnDevicePrivacy", size: 72)
                     VStack(alignment: .leading, spacing: 4) {
                         CueSectionLabel(text: "Recommended start", color: CueTheme.signal)
-                        Text("A focused five-minute run")
+                        Text("Two focused ways to rehearse")
                             .font(.cueSection)
                             .foregroundStyle(CueTheme.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Divider().overlay(CueTheme.border)
-                readinessRow(symbol: "timer", label: "Target", value: "5 minutes")
-                readinessRow(symbol: "waveform.path.ecg", label: "Pace", value: "130–160 WPM")
-                readinessRow(symbol: "mic.fill", label: "Audio", value: "This iPhone")
-                Label("Microphone access is requested only when you begin. Raw audio is never saved.", systemImage: "lock.shield.fill")
+                readinessRow(symbol: "waveform", label: "Free speaking", value: "Pace, fillers, time")
+                readinessRow(symbol: "rectangle.stack", label: "Presentation", value: "Timed slide cues")
+                Label("Slides stay on this iPhone. Raw audio is never saved.", systemImage: "lock.shield.fill")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.green)
                     .fixedSize(horizontal: false, vertical: true)
