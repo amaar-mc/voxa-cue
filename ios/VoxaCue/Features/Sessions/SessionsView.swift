@@ -9,11 +9,10 @@ struct SessionsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CueTheme.Space.large) {
-                ScreenTitle(
-                    eyebrow: "Practice history",
-                    title: "Sessions",
-                    subtitle: "Every rehearsal becomes a clearer baseline for your next one."
-                )
+                Text("Sessions")
+                    .font(.cueTitle)
+                    .foregroundStyle(CueTheme.ink)
+                    .accessibilityAddTraits(.isHeader)
                 if model.demoMode {
                     StatusPill(
                         label: "Deterministic demo data",
@@ -69,7 +68,6 @@ struct SessionsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        CueSectionLabel(text: "Your practice", color: CueTheme.signal)
                         Text(practiceHeadline)
                             .font(.cueSection)
                             .foregroundStyle(CueTheme.ink)
@@ -221,7 +219,7 @@ struct SessionsView: View {
                 Text("Build your first baseline")
                     .font(.cueSection)
                     .foregroundStyle(CueTheme.ink)
-                Text("Record one rehearsal to see your pace, fillers, timing, and vocal range.")
+                Text("Record one rehearsal to see pace, fillers, and timing.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)

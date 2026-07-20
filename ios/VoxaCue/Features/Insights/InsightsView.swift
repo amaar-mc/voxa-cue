@@ -9,11 +9,10 @@ struct InsightsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CueTheme.Space.large) {
-                ScreenTitle(
-                    eyebrow: "Long-term coaching",
-                    title: "Insights",
-                    subtitle: "Track what is changing across rehearsals and choose the next habit to practice."
-                )
+                Text("Insights")
+                    .font(.cueTitle)
+                    .foregroundStyle(CueTheme.ink)
+                    .accessibilityAddTraits(.isHeader)
                 if model.demoMode {
                     StatusPill(
                         label: "Deterministic demo data",
@@ -157,7 +156,7 @@ struct InsightsView: View {
                         fallback: "Not measured"
                     )
                 }
-                Text("These are descriptive measurements from voiced audio and internal speech gaps. Voxa Cue does not assign a universal voice score.")
+                Text("Measurements, not a voice score.")
                     .font(.cueCaption)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
@@ -386,7 +385,7 @@ struct InsightsView: View {
                 Text("Your trends start after one session")
                     .font(.cueSection)
                     .foregroundStyle(CueTheme.ink)
-                Text("After one session, compare pace, fillers, timing, and talk ratio.")
+                Text("Compare pace, fillers, timing, and talk ratio.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
