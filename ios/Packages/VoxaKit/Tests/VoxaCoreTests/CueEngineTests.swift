@@ -8,7 +8,7 @@ private let configuration = CueEngineConfiguration.version1()
 @Test("The default profile enables only essential cues with distinct signals")
 func mvpProfileContainsOnlyPhoneFirstCues() {
     #expect(FillerClusterConfiguration.requiredCountRange == 1...6)
-    #expect(CueKind.liveMVP == [.tooFast, .fillerBurst, .time50, .time100, .tooSlow, .time75, .time90])
+    #expect(CueKind.liveMVP == [.tooFast, .fillerBurst, .time50, .time100, .tooSlow, .time75, .time90, .deckBehind])
     #expect(profile.enabledCues == Set(CueKind.essentialDefaults))
     #expect(profile.intensityByCue.keys.allSatisfy { CueKind.liveMVP.contains($0) })
     #expect(profile.patternByCue[.tooFast] == .doubleTap)
@@ -355,7 +355,8 @@ func uncertainDeckProgressIsSuppressed() {
         checkpointID: "slide-2",
         targetCumulativeSeconds: 30,
         reached: false,
-        confidence: 0.50
+        confidence: 0.50,
+        policy: .semanticAlignment
     )
     let input = makeInput(
         elapsed: 60,
@@ -370,6 +371,161 @@ func uncertainDeckProgressIsSuppressed() {
 
     let result = evaluateCue(input: input, state: .initial(), configuration: configuration)
     #expect(result.decision == nil)
+}
+
+@Test("Scheduled slide transitions fire on time through general cooldown")
+func scheduledSlideTransitionBypassesGeneralCooldown() {
+    let base = CoachingProfile.rehearsalV1()
+    let guidedProfile = CoachingProfile(
+        minimumWPM: base.minimumWPM,
+        maximumWPM: base.maximumWPM,
+        enabledCues: base.enabledCues.union([.deckBehind]),
+        patternByCue: base.patternByCue.merging([.deckBehind: .longShortLong]) { _, guided in guided },
+        intensityByCue: base.intensityByCue.merging([.deckBehind: .medium]) { _, guided in guided },
+        fillerClusterConfiguration: base.fillerClusterConfiguration,
+        highConfidenceFillers: base.highConfidenceFillers,
+        optionalFillers: base.optionalFillers
+    )
+    let state = CueEngineState(
+        fastConditionStartedAt: nil,
+        slowConditionStartedAt: nil,
+        fastConditionArmed: true,
+        slowConditionArmed: true,
+        lastPaceEvaluationAt: 27,
+        lastGlobalCueAt: 27,
+        lastCueAtByKind: [.fillerBurst: 27],
+        deliveredMilestones: [],
+        deliveredDeckCheckpoints: []
+    )
+    let metrics = LiveMetrics(
+        elapsedSeconds: 30,
+        rollingWPM: 145,
+        finalizedWordCount: 60,
+        fillerCount: 0,
+        voicedSeconds: 24,
+        talkRatio: 0.8,
+        energyDBFS: -24,
+        pitchHertz: 180
+    )
+    let input = CueEvaluationInput(
+        metrics: metrics,
+        paceEvidence: PaceEvidence(recognizedWordCount: 60, latestTranscriptEndSeconds: 30),
+        targetDurationSeconds: 120,
+        recentFillerOffsets: [],
+        deckProgress: DeckProgress(
+            checkpointID: "slide-0",
+            targetCumulativeSeconds: 30,
+            reached: false,
+            confidence: 1,
+            policy: .scheduledTransition
+        ),
+        profile: guidedProfile,
+        isPaused: false
+    )
+
+    let result = evaluateCue(input: input, state: state, configuration: configuration)
+
+    #expect(result.decision?.kind == .deckBehind)
+    #expect(result.state.deliveredDeckCheckpoints == ["slide-0"])
+}
+
+@Test("Semantic deck coaching retains its dedicated cooldown")
+func semanticDeckCueRespectsDeckCooldown() {
+    let base = CoachingProfile.rehearsalV1()
+    let guidedProfile = CoachingProfile(
+        minimumWPM: base.minimumWPM,
+        maximumWPM: base.maximumWPM,
+        enabledCues: base.enabledCues.union([.deckBehind]),
+        patternByCue: base.patternByCue,
+        intensityByCue: base.intensityByCue,
+        fillerClusterConfiguration: base.fillerClusterConfiguration,
+        highConfidenceFillers: base.highConfidenceFillers,
+        optionalFillers: base.optionalFillers
+    )
+    let state = CueEngineState(
+        fastConditionStartedAt: nil,
+        slowConditionStartedAt: nil,
+        fastConditionArmed: true,
+        slowConditionArmed: true,
+        lastPaceEvaluationAt: nil,
+        lastGlobalCueAt: nil,
+        lastCueAtByKind: [.deckBehind: 80],
+        deliveredMilestones: [],
+        deliveredDeckCheckpoints: []
+    )
+    let input = CueEvaluationInput(
+        metrics: LiveMetrics(
+            elapsedSeconds: 100,
+            rollingWPM: 145,
+            finalizedWordCount: 100,
+            fillerCount: 0,
+            voicedSeconds: 70,
+            talkRatio: 0.7,
+            energyDBFS: nil,
+            pitchHertz: nil
+        ),
+        paceEvidence: PaceEvidence(recognizedWordCount: 100, latestTranscriptEndSeconds: 100),
+        targetDurationSeconds: 600,
+        recentFillerOffsets: [],
+        deckProgress: DeckProgress(
+            checkpointID: "slide-2",
+            targetCumulativeSeconds: 60,
+            reached: false,
+            confidence: 1,
+            policy: .semanticAlignment
+        ),
+        profile: guidedProfile,
+        isPaused: false
+    )
+
+    let result = evaluateCue(input: input, state: state, configuration: configuration)
+
+    #expect(result.decision == nil)
+}
+
+@Test("Scheduled transition outranks an intermediate percentage milestone")
+func scheduledSlideTransitionAvoidsStackedMilestone() {
+    let base = CoachingProfile.rehearsalV1()
+    let guidedProfile = CoachingProfile(
+        minimumWPM: base.minimumWPM,
+        maximumWPM: base.maximumWPM,
+        enabledCues: base.enabledCues.union([.deckBehind]),
+        patternByCue: base.patternByCue.merging([.deckBehind: .longShortLong]) { _, guided in guided },
+        intensityByCue: base.intensityByCue.merging([.deckBehind: .medium]) { _, guided in guided },
+        fillerClusterConfiguration: base.fillerClusterConfiguration,
+        highConfidenceFillers: base.highConfidenceFillers,
+        optionalFillers: base.optionalFillers
+    )
+    let metrics = LiveMetrics(
+        elapsedSeconds: 60,
+        rollingWPM: 145,
+        finalizedWordCount: 120,
+        fillerCount: 0,
+        voicedSeconds: 48,
+        talkRatio: 0.8,
+        energyDBFS: -24,
+        pitchHertz: 180
+    )
+    let input = CueEvaluationInput(
+        metrics: metrics,
+        paceEvidence: PaceEvidence(recognizedWordCount: 120, latestTranscriptEndSeconds: 60),
+        targetDurationSeconds: 120,
+        recentFillerOffsets: [],
+        deckProgress: DeckProgress(
+            checkpointID: "slide-1",
+            targetCumulativeSeconds: 60,
+            reached: false,
+            confidence: 1,
+            policy: .scheduledTransition
+        ),
+        profile: guidedProfile,
+        isPaused: false
+    )
+
+    let result = evaluateCue(input: input, state: .initial(), configuration: configuration)
+
+    #expect(result.decision?.kind == .deckBehind)
+    #expect(result.state.deliveredMilestones.contains(.time50))
 }
 
 @Test("Short presentations receive enabled time milestones on schedule")
