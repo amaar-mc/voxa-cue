@@ -146,10 +146,10 @@ func sessionLightWriteFailureRequestsReconnect() {
     )
 }
 
-@Test("BLE discovery is service-based and recognizes diagnostic firmware")
-func discoveryContractIncludesD2Diagnostic() {
+@Test("BLE discovery is service-based and recognizes production firmware")
+func discoveryContractIncludesProductionFirmware() {
     #expect(CueBLE.discoveryServiceUUIDs == [CueBLE.serviceUUID])
-    #expect(CueBLE.knownPeripheralNames == ["Voxa Cue", "Voxa D2"])
+    #expect(CueBLE.knownPeripheralNames == ["Voxa Cue"])
 }
 
 @Test("BLE command matches the six-byte wire contract")

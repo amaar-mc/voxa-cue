@@ -9,7 +9,7 @@ public enum CueBLE {
     public static let statusUUID = CBUUID(string: "6F2A0003-7C93-4A58-A9D4-3C52BBD1F110")
     public static let sessionLightUUID = CBUUID(string: "6F2A0004-7C93-4A58-A9D4-3C52BBD1F110")
     public static let discoveryServiceUUIDs: [CBUUID] = [serviceUUID]
-    public static let knownPeripheralNames: [String] = ["Voxa Cue", "Voxa D2"]
+    public static let knownPeripheralNames: [String] = ["Voxa Cue"]
 
     public static func encode(command: CueCommand) throws -> Data {
         guard (1...3).contains(command.repeatCount) else { throw CueBLEError.invalidRepeatCount }
