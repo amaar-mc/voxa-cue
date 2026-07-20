@@ -74,7 +74,7 @@ struct TodayView: View {
                     }
                 }
 
-                Text("Set a time and pace target, then place your phone nearby. Live analysis stays on-device.")
+                Text("Set your target, place your phone nearby, and speak.")
                     .font(.cueBody)
                     .foregroundStyle(CueTheme.secondaryInk)
                     .lineSpacing(3)
@@ -92,33 +92,53 @@ struct TodayView: View {
                 }
 
                 VoxaButton(
-                    title: "Start a session",
-                    symbol: "arrow.up.right",
+                    title: primaryActionTitle,
+                    symbol: model.cueBandIsReady ? "arrow.up.right" : "wave.3.right",
                     style: .primary,
-                    disabled: false,
-                    action: { model.presentSessionSetup(intent: .freeSpeaking) }
+                    disabled: bandConnectionIsBusy,
+                    action: primaryAction
                 )
-                Button {
-                    model.presentSessionSetup(intent: .presentation)
-                } label: {
-                    Label("Use a presentation", systemImage: "rectangle.stack")
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(CueTheme.signal)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                if model.cueBandIsReady {
+                    Button {
+                        model.presentSessionSetup(intent: .presentation)
+                    } label: {
+                        Label("Use a presentation", systemImage: "rectangle.stack")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundStyle(CueTheme.signal)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 
-    private var heroCopy: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CueSectionLabel(text: "Ready when you are", color: CueTheme.green)
-            Text("Speak with rhythm.\nStay in the room.")
-                .font(.cueTitle)
-                .foregroundStyle(CueTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
+    private var primaryActionTitle: String {
+        if model.cueBandIsReady { return "Start a session" }
+        if bandConnectionIsBusy { return model.connectionState.label }
+        return "Connect Cue Band"
+    }
+
+    private func primaryAction() {
+        if model.cueBandIsReady {
+            model.presentSessionSetup(intent: .freeSpeaking)
+        } else {
+            model.connectCueBand()
         }
+    }
+
+    private var bandConnectionIsBusy: Bool {
+        switch model.connectionState {
+        case .searching, .connecting, .discovering, .reconnecting: true
+        case .idle, .bluetoothUnavailable, .ready, .failed: false
+        }
+    }
+
+    private var heroCopy: some View {
+        Text("Ready to rehearse?")
+            .font(.cueTitle)
+            .foregroundStyle(CueTheme.ink)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func readinessItem(symbol: String, title: String, detail: String) -> some View {
@@ -236,8 +256,8 @@ struct TodayView: View {
     }
 
     private var bandReadinessDetail: String {
-        if case .ready = model.connectionState { return "Connected" }
-        return "Optional"
+        if model.cueBandIsReady { return "Connected" }
+        return "Required"
     }
 
     private var connectionColor: Color {

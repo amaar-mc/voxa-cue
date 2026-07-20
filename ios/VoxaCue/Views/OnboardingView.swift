@@ -84,12 +84,10 @@ struct OnboardingView: View {
                 }
 
                 VoxaButton(
-                    title: dynamicTypeSize.isAccessibilitySize
-                        ? currentStep.compactPrimaryActionTitle
-                        : currentStep.primaryActionTitle,
+                    title: onboardingPrimaryActionTitle,
                     symbol: currentStep.primaryActionSymbol,
                     style: .primary,
-                    disabled: false,
+                    disabled: requiresBandConnection && bandConnectionIsBusy,
                     action: advance
                 )
             }
@@ -102,6 +100,7 @@ struct OnboardingView: View {
                 .foregroundStyle(CueTheme.secondaryInk)
                 .frame(minHeight: 44)
                 .buttonStyle(SpringPressStyle())
+                .disabled(!model.cueBandIsReady)
             }
         }
         .padding(.horizontal, 20)
@@ -114,6 +113,26 @@ struct OnboardingView: View {
         OnboardingStep(rawValue: page) ?? .welcome
     }
 
+    private var onboardingPrimaryActionTitle: String {
+        if requiresBandConnection, !model.cueBandIsReady {
+            return bandConnectionIsBusy ? model.connectionState.label : "Connect Cue Band"
+        }
+        return dynamicTypeSize.isAccessibilitySize
+            ? currentStep.compactPrimaryActionTitle
+            : currentStep.primaryActionTitle
+    }
+
+    private var requiresBandConnection: Bool {
+        currentStep == .band || currentStep == .ready
+    }
+
+    private var bandConnectionIsBusy: Bool {
+        switch model.connectionState {
+        case .searching, .connecting, .discovering, .reconnecting: true
+        case .idle, .bluetoothUnavailable, .ready, .failed: false
+        }
+    }
+
     private func moveBack() {
         guard page > OnboardingStep.welcome.rawValue else { return }
         withAnimation(CueMotion.settle(reduceMotion: reduceMotion)) {
@@ -122,6 +141,10 @@ struct OnboardingView: View {
     }
 
     private func advance() {
+        if requiresBandConnection, !model.cueBandIsReady {
+            model.connectCueBand()
+            return
+        }
         if currentStep == .ready {
             model.completeOnboarding(setupIntent: .presentation)
             return
@@ -144,7 +167,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome: "Meet Voxa Cue"
         case .cues: "Ready from day one"
-        case .band: "Optional wrist feedback"
+        case .band: "Connect your Cue Band"
         case .ready: "Your first rehearsal"
         }
     }
@@ -167,7 +190,7 @@ private enum OnboardingStep: Int, CaseIterable, Identifiable {
                 ? "These recommended signals are already active. You can tune every pulse later."
                 : "This is the recommended starting set. Your custom cue settings will stay unchanged."
         case .band:
-            "Power on the band and keep it nearby. You can also continue with phone-only analytics."
+            "Power on the band and keep it nearby. Cue Band must be connected before a session begins."
         case .ready:
             "Practice freely or add a presentation for private slide-change cues. You can switch modes in setup."
         }
@@ -313,13 +336,13 @@ private struct OnboardingStepView: View {
                         .foregroundStyle(CueTheme.green)
                         .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 } else {
-                    VoxaButton(
-                        title: bandIsBusy ? "Searching for Cue Band…" : "Connect Cue Band",
-                        symbol: "dot.radiowaves.left.and.right",
-                        style: .secondary,
-                        disabled: bandIsBusy,
-                        action: model.connectCueBand
+                    Label(
+                        bandIsBusy ? "Searching for your band…" : "Power on your band, then connect below",
+                        systemImage: "dot.radiowaves.left.and.right"
                     )
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 }
             }
         }
@@ -386,7 +409,7 @@ private struct OnboardingStepView: View {
     }
 
     private func starterCueDetail(cue: CueKind, defaults: HapticPreferences) -> String {
-        let pattern = defaults.patternByCue[cue]?.label ?? "Recommended signal"
+        let pattern = defaults.patternByCue[cue].map(hapticPatternPulseDescription) ?? "Recommended pulse"
         if cue == .fillerBurst {
             let configuration = defaults.fillerClusterConfiguration
             return "\(pattern) · \(configuration.requiredFillerCount) fillers in \(configuration.windowSeconds) sec"
