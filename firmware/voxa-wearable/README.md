@@ -2,7 +2,7 @@
 
 Firmware v1.3 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
 BLE v1 peripheral. Both accept versioned, semantic haptic commands from the
-Voxa Cue iPhone app and drive a 3 V LRA through a DRV2605L in real-time
+Voxa Cue iPhone app and drive a 3 V ERM through a DRV2605L in real-time
 playback mode. They also drive a session-progress RGB LED and an optional
 one-shot overtime buzzer. The main loop never blocks for the length of a
 vibration or tone.
@@ -17,7 +17,7 @@ the motor driver is unavailable. Every valid command reports `accepted`, then
 
 - Arduino Nano 33 IoT or Arduino Nano ESP32
 - DRV2605L breakout at I2C address `0x5A`
-- 3 V LRA coin vibration motor
+- 3 V ERM coin vibration motor
 - Common-cathode RGB LED with one 220–330 Ω resistor per color leg
 - 3.3 V-compatible active-buzzer module or transistor-switched active buzzer
 - Data-capable USB cable matching the board (Micro-USB for Nano 33 IoT;
@@ -31,7 +31,7 @@ Wire with all power disconnected:
 | `GND` | `GND` | Shared ground |
 | `SDA` / `A4` | `SDA` | I2C data |
 | `SCL` / `A5` | `SCL` | I2C clock |
-| — | `OUT+` / `OUT-` | LRA motor leads; polarity is not significant |
+| — | `OUT+` / `OUT-` | ERM motor leads; polarity does not change the cue pattern |
 
 Wire the session light separately:
 
@@ -187,7 +187,7 @@ the DRV2605L's positive RTP scale:
 
 Calibrate on the exact production motor and enclosure:
 
-1. Verify the motor datasheet says LRA and 3 V rated operation. Do not test an
+1. Verify the motor datasheet says ERM and 3 V rated operation. Do not test an
    unknown motor at Strong.
 2. Start on Soft and preview every pattern while the band is worn normally.
 3. Increase through Medium and Strong, checking that each level is distinct,
@@ -198,8 +198,8 @@ Calibrate on the exact production motor and enclosure:
 5. Run the BLE smoke test for all nine pattern IDs and repeat counts 1–3, then
    wear-test continuously for 15 minutes before the demo.
 
-If the specific LRA requires rated-voltage, overdrive-clamp, resonance, or
-auto-calibration register values beyond the Adafruit library's `useLRA()`
+If the specific ERM requires rated-voltage, overdrive-clamp, or auto-calibration
+register values beyond the Adafruit library's `useERM()`
 configuration, derive them from that motor's datasheet and the TI DRV2605L
 design procedure. Do not copy register values from a different motor.
 

@@ -106,7 +106,7 @@ flowchart LR
     TIMING --> ENGINE
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
     BLE --> NANO["Nano 33 IoT"]
-    NANO --> MOTOR["DRV2605L<br/>+ 3 V LRA"]
+    NANO --> MOTOR["DRV2605L<br/>+ 3 V ERM"]
     NANO --> LIGHT["RGB session<br/>progress light"]
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
@@ -231,7 +231,7 @@ For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to
 <details>
 <summary><strong>Flash and pair the Cue Band</strong></summary>
 
-Wire the Nano 33 IoT, DRV2605L breakout, and 3 V LRA using the safety notes in [the firmware guide](firmware/voxa-wearable/README.md). Update the board's NINA-W102 connectivity firmware to 3.0.0 or newer before the first BLE test.
+Wire the Nano 33 IoT, DRV2605L breakout, and 3 V ERM using the safety notes in [the firmware guide](firmware/voxa-wearable/README.md). Update the board's NINA-W102 connectivity firmware to 3.0.0 or newer before the first BLE test.
 
 ```sh
 cd firmware/voxa-wearable
