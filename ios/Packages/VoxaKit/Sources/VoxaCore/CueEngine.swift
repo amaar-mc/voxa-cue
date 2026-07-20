@@ -74,17 +74,30 @@ public struct PaceEvidence: Equatable, Sendable {
     }
 }
 
+public enum DeckCuePolicy: Equatable, Sendable {
+    case semanticAlignment
+    case scheduledTransition
+}
+
 public struct DeckProgress: Equatable, Sendable {
     public let checkpointID: String
     public let targetCumulativeSeconds: TimeInterval
     public let reached: Bool
     public let confidence: Double
+    public let policy: DeckCuePolicy
 
-    public init(checkpointID: String, targetCumulativeSeconds: TimeInterval, reached: Bool, confidence: Double) {
+    public init(
+        checkpointID: String,
+        targetCumulativeSeconds: TimeInterval,
+        reached: Bool,
+        confidence: Double,
+        policy: DeckCuePolicy
+    ) {
         self.checkpointID = checkpointID
         self.targetCumulativeSeconds = targetCumulativeSeconds
         self.reached = reached
         self.confidence = confidence
+        self.policy = policy
     }
 }
 
@@ -254,12 +267,14 @@ public func evaluateCue(
                 kind: candidate.kind,
                 elapsed: elapsed,
                 state: conditionedState,
+                deckPolicy: input.deckProgress?.policy,
                 configuration: configuration
             )
     }) else {
         return CueEvaluationResult(state: conditionedState, decision: nil)
     }
     guard isTimeMilestone(decision.kind)
+            || isScheduledTransition(decision: decision, input: input)
             || globalCooldownPassed(
                 elapsed: elapsed,
                 state: conditionedState,
@@ -282,6 +297,12 @@ public func evaluateCue(
         milestones.formUnion([.time50, .time75, .time90, .time100])
     case .tooFast, .tooSlow, .fillerBurst, .deckBehind:
         break
+    }
+    if isScheduledTransition(decision: decision, input: input) {
+        milestones.formUnion(intermediateMilestonesReached(
+            elapsedSeconds: elapsed,
+            targetDurationSeconds: input.targetDurationSeconds
+        ))
     }
     var deckCheckpoints = conditionedState.deliveredDeckCheckpoints
     if decision.kind == .deckBehind, let progress = input.deckProgress {
@@ -320,6 +341,10 @@ private func isTimeMilestone(_ kind: CueKind) -> Bool {
     kind == .time50 || kind == .time75 || kind == .time90 || kind == .time100
 }
 
+private func isScheduledTransition(decision: CueDecision, input: CueEvaluationInput) -> Bool {
+    decision.kind == .deckBehind && input.deckProgress?.policy == .scheduledTransition
+}
+
 private func orderedCandidates(
     input: CueEvaluationInput,
     state: CueEngineState,
@@ -329,8 +354,18 @@ private func orderedCandidates(
     let elapsed = input.metrics.elapsedSeconds
     var decisions: [CueDecision] = []
 
+    if !state.deliveredMilestones.contains(.time100), elapsed >= input.targetDurationSeconds {
+        decisions.append(CueDecision(kind: .time100, reason: "Reached 100% of target time"))
+    }
+
+    if let deck = input.deckProgress,
+       deck.policy == .scheduledTransition,
+       elapsed >= deck.targetCumulativeSeconds,
+       !state.deliveredDeckCheckpoints.contains(deck.checkpointID) {
+        decisions.append(CueDecision(kind: .deckBehind, reason: "Time to move to the next slide"))
+    }
+
     let milestones: [(CueKind, Double)] = [
-        (.time100, 1.0),
         (.time90, 0.90),
         (.time75, 0.75),
         (.time50, 0.50),
@@ -342,6 +377,7 @@ private func orderedCandidates(
     }
 
     if let deck = input.deckProgress,
+       deck.policy == .semanticAlignment,
        !deck.reached,
        deck.confidence >= configuration.deckMinimumConfidence,
        elapsed >= deck.targetCumulativeSeconds + configuration.deckGraceSeconds,
@@ -349,11 +385,17 @@ private func orderedCandidates(
         decisions.append(CueDecision(kind: .deckBehind, reason: "Presentation content is behind its checkpoint"))
     }
 
+    let scheduledTransitionIsImminent = input.deckProgress.map { deck in
+        deck.policy == .scheduledTransition
+            && elapsed >= deck.targetCumulativeSeconds - 2
+    } ?? false
+
     let clusterConfiguration = input.profile.fillerClusterConfiguration
     let recentFillers = input.recentFillerOffsets.filter {
         $0 > elapsed - TimeInterval(clusterConfiguration.windowSeconds) && $0 <= elapsed
     }
-    if recentFillers.count >= clusterConfiguration.requiredFillerCount {
+    if !scheduledTransitionIsImminent,
+       recentFillers.count >= clusterConfiguration.requiredFillerCount {
         decisions.append(
             CueDecision(
                 kind: .fillerBurst,
@@ -363,13 +405,15 @@ private func orderedCandidates(
     }
 
     let enoughSpeech = paceEvidenceIsUsable(input: input, configuration: configuration)
-    if paceEvaluationIsDue,
+    if !scheduledTransitionIsImminent,
+       paceEvaluationIsDue,
        enoughSpeech,
        let fastStart = state.fastConditionStartedAt,
        elapsed - fastStart >= configuration.fastPersistenceSeconds {
         decisions.append(CueDecision(kind: .tooFast, reason: "Speaking above target pace"))
     }
-    if paceEvaluationIsDue,
+    if !scheduledTransitionIsImminent,
+       paceEvaluationIsDue,
        enoughSpeech,
        let slowStart = state.slowConditionStartedAt,
        elapsed - slowStart >= configuration.slowPersistenceSeconds {
@@ -401,9 +445,26 @@ private func ruleCooldownPassed(
     kind: CueKind,
     elapsed: TimeInterval,
     state: CueEngineState,
+    deckPolicy: DeckCuePolicy?,
     configuration: CueEngineConfiguration
 ) -> Bool {
     guard let last = state.lastCueAtByKind[kind] else { return true }
-    let cooldown = kind == .deckBehind ? configuration.deckCooldownSeconds : configuration.perRuleCooldownSeconds
-    return elapsed - last >= cooldown
+    if kind == .deckBehind {
+        if deckPolicy == .scheduledTransition { return true }
+        return elapsed - last >= configuration.deckCooldownSeconds
+    }
+    return elapsed - last >= configuration.perRuleCooldownSeconds
+}
+
+private func intermediateMilestonesReached(
+    elapsedSeconds: TimeInterval,
+    targetDurationSeconds: TimeInterval
+) -> Set<CueKind> {
+    guard targetDurationSeconds > 0 else { return [] }
+    let fraction = elapsedSeconds / targetDurationSeconds
+    var milestones = Set<CueKind>()
+    if fraction >= 0.5 { milestones.insert(.time50) }
+    if fraction >= 0.75 { milestones.insert(.time75) }
+    if fraction >= 0.9 { milestones.insert(.time90) }
+    return milestones
 }

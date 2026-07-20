@@ -23,14 +23,16 @@ public enum CueKind: UInt8, Codable, CaseIterable, Hashable, Sendable {
         .time90,
     ]
 
-    public static let liveMVP = essentialDefaults + advanced
+    public static let presentation: [CueKind] = [.deckBehind]
+
+    public static let liveMVP = essentialDefaults + advanced + presentation
 
     public var label: String {
         switch self {
         case .tooFast: "Slow down"
         case .tooSlow: "Pick up the pace"
         case .fillerBurst: "Filler cluster"
-        case .deckBehind: "Move to the next idea"
+        case .deckBehind: "Change slide"
         case .time50: "Halfway point"
         case .time75: "75% of time used"
         case .time90: "90% of time used"
@@ -148,7 +150,7 @@ public enum SessionMode: String, Codable, CaseIterable, Hashable, Sendable {
     public var label: String {
         switch self {
         case .freeSpeaking: "Free speaking"
-        case .powerPoint: "PowerPoint"
+        case .powerPoint: "Presentation"
         }
     }
 }
@@ -219,6 +221,7 @@ public struct HapticPreferences: Codable, Equatable, Sendable {
                 .time50: .tripleTap,
                 .time100: .deadlineHold,
                 .tooSlow: .longPulse,
+                .deckBehind: .longShortLong,
                 .time75: .singlePulse,
                 .time90: .doublePulse,
             ],
@@ -228,6 +231,7 @@ public struct HapticPreferences: Codable, Equatable, Sendable {
                 .time50: .medium,
                 .time100: .strong,
                 .tooSlow: .medium,
+                .deckBehind: .medium,
                 .time75: .medium,
                 .time90: .medium,
             ],
