@@ -128,6 +128,92 @@ func appModelHydratesSavedInsights() throws {
 }
 
 @MainActor
+@Test("Deleting a practice session updates visible history and selected details")
+func appModelDeletesOnePracticeSession() throws {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    let summaries = Array(DemoFixtures.sessions().prefix(2))
+    let target = try #require(summaries.first)
+    let retained = try #require(summaries.last)
+    let insight = DemoFixtures.insight()
+    for summary in summaries {
+        try dataStore.saveSession(
+            summary: summary,
+            segments: [],
+            samples: [],
+            cueEvents: [],
+            checkpointResults: []
+        )
+        try dataStore.saveInsight(sessionID: summary.sessionID, insight: insight)
+    }
+    let suiteName = "VoxaCueTests.single-session-deletion"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: dataStore,
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    model.selectedSummary = target
+
+    model.deleteSession(target)
+
+    #expect(model.sessions == [retained])
+    #expect(model.selectedSummary == nil)
+    #expect(model.insightBySession[target.sessionID] == nil)
+    #expect(try dataStore.fetchSessions() == [retained])
+}
+
+@MainActor
+@Test("Deleting a session prevents an in-flight insight from recreating private data")
+func deletingSessionInvalidatesInFlightInsight() async throws {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    let summary = try #require(DemoFixtures.sessions().first)
+    try dataStore.saveSession(
+        summary: summary,
+        segments: [],
+        samples: [],
+        cueEvents: [],
+        checkpointResults: []
+    )
+    DelayedInsightURLProtocol.requestGate.reset()
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [DelayedInsightURLProtocol.self]
+    let apiClient = VoxaAPIClient(
+        baseURL: try #require(URL(string: "https://api.example.test")),
+        bearerToken: "privacy-race-test-token-with-32-characters",
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
+    )
+    let suiteName = "VoxaCueTests.insight-deletion-race"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: dataStore,
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: apiClient,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    let generation = Task { await model.generateInsight(for: summary) }
+    for _ in 0..<100 where !DelayedInsightURLProtocol.requestGate.didStart {
+        try await Task.sleep(nanoseconds: 2_000_000)
+    }
+    #expect(DelayedInsightURLProtocol.requestGate.didStart)
+
+    model.deleteSession(summary)
+    await generation.value
+
+    #expect(model.insightBySession[summary.sessionID] == nil)
+    #expect(try dataStore.fetchInsight(sessionID: summary.sessionID) == nil)
+    #expect(try dataStore.fetchSessions().isEmpty)
+}
+
+@MainActor
 @Test("App model repairs missing legacy haptic mappings without replacing custom choices")
 func appModelNormalizesLegacyHapticPreferences() throws {
     let suiteName = "VoxaCueTests.legacy-haptic-preferences"
@@ -311,6 +397,7 @@ func onboardingRoutesIntoSessionSetup() throws {
         preferences: preferences
     )
     model.selectedTab = .settings
+    model.connectionState = .ready(firmware: "1.4")
 
     model.completeOnboarding(setupIntent: .presentation)
 
@@ -319,6 +406,53 @@ func onboardingRoutesIntoSessionSetup() throws {
     #expect(model.setupPresented)
     #expect(model.sessionSetupIntent == .presentation)
     #expect(preferences.bool(forKey: "hasCompletedVoxaOnboarding"))
+}
+
+@MainActor
+@Test("Session setup stays closed until the Cue Band is connected")
+func sessionSetupRequiresConnectedCueBand() throws {
+    let suiteName = "VoxaCueTests.session-setup-connection-gate"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+    model.selectedTab = .sessions
+
+    model.presentSessionSetup(intent: .presentation)
+
+    #expect(!model.setupPresented)
+    #expect(model.selectedTab == .today)
+    #expect(model.lastError == "Connect your Cue Band before setting up a session.")
+
+    model.connectionState = .ready(firmware: "1.4")
+    model.lastError = nil
+    model.presentSessionSetup(intent: .presentation)
+
+    #expect(model.setupPresented)
+    #expect(model.sessionSetupIntent == .presentation)
+    #expect(model.lastError == nil)
+}
+
+@Test("Pace presets provide clear and distinct coaching ranges")
+func pacePresetRanges() {
+    #expect(SpeakingPacePreset.slow.range == 100...130)
+    #expect(SpeakingPacePreset.normal.range == 130...160)
+    #expect(SpeakingPacePreset.fast.range == 160...190)
+    #expect(SpeakingPacePreset.matching(minimumWPM: 130, maximumWPM: 160) == .normal)
+    #expect(SpeakingPacePreset.matching(minimumWPM: 125, maximumWPM: 165) == nil)
+}
+
+@Test("Session setup describes haptics as explicit pulses")
+func hapticPatternDescriptionsNamePulses() {
+    #expect(hapticPatternPulseDescription(.doubleTap) == "2 short pulses")
+    #expect(hapticPatternPulseDescription(.longShortLong) == "Long, short, long pulses")
+    #expect(hapticPatternPulseDescription(.calmWave) == "1 gradual pulse")
 }
 
 @Test("Session setup keeps the emergency buzzer off unless explicitly enabled")
@@ -360,15 +494,6 @@ func simpleSlideTimingCopyRequiresEnoughTime() {
             slideCount: 7
         ) == "Divide evenly · about 0:43 per slide"
     )
-}
-
-@Test("Disconnected presentation setup explains missing wrist cues")
-func disconnectedPresentationBandCopyIsExplicit() {
-    #expect(
-        disconnectedPresentationBandDetail(transitionCueEnabled: true)
-            == "Not connected · on-screen guide continues without wrist cues"
-    )
-    #expect(disconnectedPresentationBandDetail(transitionCueEnabled: false) == nil)
 }
 
 @MainActor
@@ -1032,6 +1157,58 @@ private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendab
     override func startLoading() {
         Issue.record("Demo mode attempted an unexpected API request")
         client?.urlProtocol(self, didFailWithError: URLError(.dataNotAllowed))
+    }
+
+    override func stopLoading() {}
+}
+
+private final class DelayedRequestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var started = false
+
+    var didStart: Bool {
+        lock.withLock { started }
+    }
+
+    func reset() {
+        lock.withLock { started = false }
+    }
+
+    func markStarted() {
+        lock.withLock { started = true }
+    }
+}
+
+private final class DelayedInsightURLProtocol: URLProtocol, @unchecked Sendable {
+    static let requestGate = DelayedRequestGate()
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requestGate.markStarted()
+        Thread.sleep(forTimeInterval: 0.12)
+        let body = Data(
+            #"{"schemaVersion":1,"overallSummary":"You finished on time.","strengths":[{"title":"Strong timing","evidence":"The presentation finished inside its target."}],"priorities":[{"title":"Stabilize pace","evidence":"A fast section occurred.","nextAction":"Pause after each key claim."}],"drills":[{"title":"Pace ladder","instructions":"Rehearse the opening at target pace.","durationMinutes":5}],"confidenceNote":"Feedback uses session metrics only."}"#.utf8
+        )
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
     }
 
     override func stopLoading() {}
