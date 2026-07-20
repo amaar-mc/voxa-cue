@@ -16,6 +16,7 @@ struct HapticCueSettingsView: View {
                 )
 
                 cueGroup(title: "Essentials", cues: CueKind.essentialDefaults)
+                cueGroup(title: "Presentation", cues: [.deckBehind])
 
                 if !bandIsReady {
                     Label("Connect Cue Band to test signals", systemImage: "wave.3.right")
@@ -77,20 +78,7 @@ struct HapticCueSettingsView: View {
 
     private func cueEditor(_ cue: CueKind) -> some View {
         VStack(alignment: .leading, spacing: 13) {
-            Toggle(isOn: enabledBinding(cue)) {
-                HStack(spacing: 11) {
-                    Image(systemName: symbol(for: cue))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(CueTheme.signal)
-                        .frame(width: 30, height: 30)
-                        .background(CueTheme.signalSoft)
-                        .clipShape(Circle())
-                    Text(cue.label)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(CueTheme.ink)
-                }
-            }
-            .tint(CueTheme.signal)
+            cueEnablementHeader(cue)
 
             if cue == .fillerBurst {
                 fillerClusterControls
@@ -122,6 +110,38 @@ struct HapticCueSettingsView: View {
             .buttonStyle(.bordered)
             .tint(CueTheme.signal)
             .disabled(!bandIsReady || model.deviceLabCueDelivery.isPending)
+        }
+    }
+
+    @ViewBuilder
+    private func cueEnablementHeader(_ cue: CueKind) -> some View {
+        if cue == .deckBehind {
+            HStack(spacing: 11) {
+                cueIdentity(cue)
+                Spacer(minLength: 8)
+                Text("Choose per session")
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.secondaryInk)
+            }
+        } else {
+            Toggle(isOn: enabledBinding(cue)) {
+                cueIdentity(cue)
+            }
+            .tint(CueTheme.signal)
+        }
+    }
+
+    private func cueIdentity(_ cue: CueKind) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: symbol(for: cue))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(CueTheme.signal)
+                .frame(width: 30, height: 30)
+                .background(CueTheme.signalSoft)
+                .clipShape(Circle())
+            Text(cue.label)
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .foregroundStyle(CueTheme.ink)
         }
     }
 

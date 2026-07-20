@@ -620,7 +620,7 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "Saved on this phone",
-                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, and generated coaching insights are stored locally. Raw audio is not retained. You can delete all local Voxa Cue data from Settings."
+                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, and generated coaching insights are stored locally. Imported files, slide text, slide titles, and raw audio are not retained. You can delete all local Voxa Cue data from Settings."
                 ),
                 SettingsDocumentSection(
                     title: "Optional remote features",
