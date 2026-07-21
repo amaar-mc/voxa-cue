@@ -15,7 +15,7 @@
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-0B756F?style=for-the-badge&logo=swift&logoColor=white" />
     <img alt="iOS 26+" src="https://img.shields.io/badge/iOS-26%2B-071122?style=for-the-badge&logo=apple&logoColor=white" />
     <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-Strict-0B756F?style=for-the-badge&logo=typescript&logoColor=white" />
-    <img alt="Arduino Nano 33 IoT" src="https://img.shields.io/badge/Nano_33_IoT-Wearable-A85E24?style=for-the-badge&logo=arduino&logoColor=white" />
+    <img alt="XIAO nRF54L15 Sense" src="https://img.shields.io/badge/XIAO_nRF54L15-Wearable-A85E24?style=for-the-badge&logo=seeedstudio&logoColor=white" />
   </p>
 
   <p>
@@ -105,9 +105,9 @@ flowchart LR
     METRICS --> ENGINE["Deterministic<br/>CueEngine"]
     TIMING --> ENGINE
     ENGINE --> BLE["CoreBluetooth<br/>BLE v1"]
-    BLE --> NANO["Nano 33 IoT"]
-    NANO --> MOTOR["DRV2605L<br/>+ 3 V ERM"]
-    NANO --> LIGHT["RGB session<br/>progress light"]
+    BLE --> BAND["XIAO nRF54L15<br/>Zephyr"]
+    BAND --> MOTOR["DRV2605L<br/>+ 3 V ERM"]
+    BAND --> LIGHT["RGB session<br/>progress light"]
     METRICS --> STORE[("SwiftData<br/>session history")]
     STORE -. "explicit consent" .-> API["Voxa API<br/>post-session only"]
 
@@ -115,7 +115,7 @@ flowchart LR
     classDef band fill:#F3E7DC,stroke:#A85E24,color:#0B171B,stroke-width:2px;
     classDef optional fill:#0B756F,stroke:#07524E,color:#ffffff,stroke-width:2px;
     class MIC,DECK,TIMING,SPEECH,METRICS,ENGINE,BLE,STORE phone;
-    class NANO,MOTOR,LIGHT band;
+    class BAND,MOTOR,LIGHT band;
     class API optional;
 ```
 
@@ -142,7 +142,7 @@ The server owns the OpenAI key and calls the Responses API with the allowlisted 
 | iPhone app | SwiftUI, Observation, SwiftData, SpeechAnalyzer, AVAudioEngine, CoreBluetooth |
 | Shared iOS logic | Swift 6 package with pure cue, transcript, timing, and analytics modules |
 | API | Hono, strict TypeScript, Zod, OpenAI Responses API with `gpt-5.6-luna`, Vitest, Vercel |
-| Wearable | Arduino Nano 33 IoT with ArduinoBLE, DRV2605L, and PlatformIO; Nano ESP32 remains supported |
+| Wearable | Seeed Studio XIAO nRF54L15 Sense with Zephyr, DRV2605L, and PlatformIO; Nano 33 IoT and Nano ESP32 remain supported |
 | Contracts | Post-session JSON Schemas plus a versioned six-byte command and seven-byte status BLE protocol |
 
 ## Brand system
@@ -168,6 +168,7 @@ voxa-cue/
 ├── design/brand/                Complete Concept 3 brand toolkit
 ├── docs/                        Architecture, privacy, support, and release gates
 ├── firmware/voxa-wearable/      Nano 33 IoT / Nano ESP32 haptic firmware
+├── firmware/voxa-wearable-nrf54/ XIAO nRF54L15 Zephyr haptic firmware
 ├── firmware/imu-diagnostic/     Standalone Nano 33 IoT IMU lab firmware
 ├── ios/
 │   ├── Packages/VoxaKit/        Reusable VoxaCore and VoxaRuntime modules
@@ -192,8 +193,9 @@ pnpm verify
 
 That single command type-checks, tests, and builds the API, runs package and
 simulator app tests, validates both Debug and credential-free Release iOS
-builds, lints the privacy manifest, verifies both Nano firmware paths, and
-executes the isolated gesture-model test and notebook pipeline.
+builds, lints the privacy manifest, verifies both Nano firmware paths and the
+XIAO nRF54L15 Zephyr target, and executes the isolated gesture-model test and
+notebook pipeline.
 
 ### Launch the iPhone app
 
@@ -237,15 +239,31 @@ For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to
 <details>
 <summary><strong>Flash and pair the Cue Band</strong></summary>
 
-Wire the Nano 33 IoT, DRV2605L breakout, and 3 V ERM using the safety notes in [the firmware guide](firmware/voxa-wearable/README.md). Update the board's NINA-W102 connectivity firmware to 3.0.0 or newer before the first BLE test.
+For the compact Cue Band, wire the XIAO nRF54L15 Sense at 3.3 V only: D4
+(`P1.10`) to DRV2605L SDA, D5 (`P1.11`) to SCL, red to D6, blue to D7,
+green to D8, and the optional active-buzzer signal to D9. Put a 220–330 Ω
+resistor on every RGB leg. D9 may drive only a 3.3 V-compatible high-impedance
+input or a correctly sized transistor stage. The ERM connects only to the
+DRV2605L outputs, never to a GPIO or power rail. Keep every ground common and
+confirm the breakout accepts 3.3 V before powering it.
 
 ```sh
-cd firmware/voxa-wearable
-uvx --with pip platformio run -e nano_33_iot --target upload
-uvx --with pip platformio device monitor --baud 115200
+pnpm firmware:build:xiao
+pnpm firmware:flash:xiao
 ```
 
-The serial monitor should print `Voxa Cue firmware 1.3 ready`. In the app, open **Settings → Device Lab**, scan, connect, and send a test command. During a timed session, the RGB light moves from green through yellow and orange to red, then flashes red overtime. If a 3.3 V-compatible active buzzer is wired to D9, the opt-in emergency-buzzer setting produces one two-second tone at 30 seconds overtime.
+The XIAO's onboard CMSIS-DAP probe handles flashing over its USB-C data cable;
+do not double-press reset or look for a UF2 volume. In the app, open
+**Settings → Device Lab**, scan, connect, and send a test command. The Zephyr
+target advertises the same BLE v1 UUIDs and packets as the Nano targets, so the
+iOS app needs no code or setting change. During a timed session, the RGB light
+moves from green through yellow and orange to red, then flashes red overtime.
+If a 3.3 V-compatible active buzzer is wired safely to D9, the opt-in
+emergency-buzzer setting produces one two-second tone at 30 seconds overtime.
+
+The legacy Nano 33 IoT and Nano ESP32 targets remain documented in
+[the Nano firmware guide](firmware/voxa-wearable/README.md). The Nano 33 IoT
+still requires NINA-W102 connectivity firmware 3.0.0 or newer.
 
 </details>
 
@@ -268,7 +286,7 @@ The current implementation is exercised across all three layers:
 | API | Strict TypeScript plus contract and failure-path tests |
 | VoxaCore + VoxaRuntime | Swift behavior tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
 | iPhone application | Simulator behavior tests plus unsigned Debug and Release generic-device builds |
-| Firmware | Native protocol, pattern, light, and driver-recovery tests plus successful Nano 33 IoT and Nano ESP32 builds |
+| Firmware | Native protocol, pattern, light, and driver-recovery tests plus successful XIAO nRF54L15, Nano 33 IoT, and Nano ESP32 builds |
 | IMU lab | Native packet/sensor tests, labeled-recorder and model-pipeline tests, executable notebook, and a Nano 33 IoT build |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
@@ -283,7 +301,8 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 | [Backend audit](docs/BACKEND_AUDIT.md) | Closed-prototype verdict and public-release gaps |
 | [Product architecture](docs/PRODUCT_ARCHITECTURE.md) | Runtime data flow, trust boundaries, and failure behavior |
 | [BLE protocol v1](contracts/ble-v1.md) | Normative UUIDs, packet bytes, statuses, and replay rules |
-| [Firmware guide](firmware/voxa-wearable/README.md) | Wiring, flashing, calibration, and safety |
+| [XIAO firmware](firmware/voxa-wearable-nrf54) | Primary Zephyr wearable target; wiring and CMSIS-DAP steps are in the setup guide |
+| [Nano firmware](firmware/voxa-wearable/README.md) | Supported Nano wiring, flashing, calibration, and safety |
 | [Gesture ML lab](ml/gesture-classifier/README.md) | Labeled collection, quality gates, grouped evaluation, and model export |
 | [Privacy policy](docs/PRIVACY_POLICY.md) | Prototype data practices |
 | [Support](docs/SUPPORT.md) | Compatibility and troubleshooting |
