@@ -4,11 +4,17 @@ This is a standalone lab build. It does not modify or share code with the Voxa
 Cue haptic firmware. Flashing it temporarily replaces the sketch running on the
 Nano 33 IoT; the production wearable firmware can be flashed back afterward.
 
-## Wiring
+## Sensor and wiring
 
-Use the external I2C pins printed on the Nano 33 IoT:
+The Nano 33 IoT's onboard LSM6DS3 is the default sensor. It is already connected
+to the board's I2C bus at `0x6A`, so no external IMU wiring is required for the
+gesture dataset recorder. The diagnostic configures its accelerometer for
+±4 g so ordinary fast hand gestures do not clip at the default ±2 g range.
 
-| IMU | Nano 33 IoT |
+The diagnostic can also inspect a supported external I2C sensor. For that
+optional setup, use the pins printed on the Nano 33 IoT:
+
+| External IMU | Nano 33 IoT |
 | --- | --- |
 | `VCC` | `3V3` |
 | `GND` | `GND` |
@@ -43,8 +49,9 @@ uvx --with pip platformio device monitor \
 ```
 
 The serial output lists every responding I2C address, then the detected sensor
-kind and state. The BLE device advertises as `Voxa IMU Lab` and sends 25 samples
-per second to the companion diagnostic dashboard in `tools/imu-debug`.
+kind and state. The BLE device advertises as `Voxa IMU Lab` and sends 50 samples
+per second to the diagnostic tools. Use `ml/gesture-classifier/recorder` for
+labeled trials and `tools/imu-debug` for live engineering inspection.
 
 To restore the wearable firmware afterward:
 
@@ -61,7 +68,7 @@ payload. Integers are little-endian.
 | Offset | Type | Meaning |
 | --- | --- | --- |
 | 0 | `uint8` | Protocol version (`1`) |
-| 1 | `uint8` | Sensor healthy (`1`) |
+| 1 | `uint8` | Sensor healthy (`1`); a read fault emits one sequenced `0` packet |
 | 2–3 | `uint16` | Sequence |
 | 4–7 | `uint32` | Milliseconds since boot |
 | 8–13 | `int16 × 3` | X/Y/Z acceleration in milli-g |
