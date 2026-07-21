@@ -13,6 +13,8 @@ api/.vercel/
 api/dist/
 api/coverage/
 firmware/voxa-wearable/.pio/
-.env
-.env.local
+.env*
+!.env.example
 *.log
+/tmp/
+/output/
