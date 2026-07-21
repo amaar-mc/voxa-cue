@@ -2,16 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import type { RequestLogEvent, RequestLogger } from "../src/app";
-import type {
-  StructuredGenerationRequest,
-  StructuredOutputGenerator,
-} from "../src/openai";
+import type { StructuredOutputGenerator } from "../src/openai";
 import {
   validCoachChatRequest,
   validCoachChatResponse,
   demoToken,
-  validDeckPlanRequest,
-  validDeckPlanResponse,
   validInsightRequest,
   validInsightResponse,
   validRoadmapRequest,
@@ -57,7 +52,7 @@ afterEach(() => {
 
 describe("Voxa Cue API", () => {
   it("exposes a minimal liveness probe with hardened response headers", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
     const response = await app.request("/livez", {
@@ -69,7 +64,6 @@ describe("Voxa Cue API", () => {
       status: "ok",
       service: "voxa-cue-api",
       schemaVersion: 1,
-      build: buildIdentifier,
     });
     expect(response.headers.get("x-request-id")).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
@@ -87,11 +81,11 @@ describe("Voxa Cue API", () => {
   });
 
   it("requires the demo bearer token on protected endpoints", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
     const healthResponse = await app.request("/health");
-    const postResponse = await app.request("/v1/deck-plans", {
+    const insightResponse = await app.request("/v1/insights", {
       method: "POST",
     });
     const roadmapResponse = await app.request("/v1/roadmaps", {
@@ -103,14 +97,14 @@ describe("Voxa Cue API", () => {
 
     expect(healthResponse.status).toBe(401);
     expect(healthResponse.headers.get("www-authenticate")).toContain("Bearer");
-    expect(postResponse.status).toBe(401);
+    expect(insightResponse.status).toBe(401);
     expect(roadmapResponse.status).toBe(401);
     expect(chatResponse.status).toBe(401);
     expect(generate).not.toHaveBeenCalled();
   });
 
   it("reports health without contacting OpenAI", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
     const response = await app.request("/health", {
@@ -130,7 +124,7 @@ describe("Voxa Cue API", () => {
   });
 
   it("reports authenticated readiness without invoking model generation", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const unavailableApp = createApp({
       buildIdentifier,
       demoApiToken: demoToken,
@@ -243,41 +237,42 @@ describe("Voxa Cue API", () => {
     expect(generate.mock.calls[0]?.[0]?.signal.aborted).toBe(true);
   });
 
-  it("creates a validated deck plan with strict structured output", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+  it("does not expose a remote presentation-content route", async () => {
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
     const response = await app.request(
       "/v1/deck-plans",
-      jsonRequest(validDeckPlanRequest),
+      jsonRequest({
+        schemaVersion: 1,
+        locale: "en-US",
+        title: "Private pitch",
+        targetDurationSeconds: 180,
+        slides: [{
+          slideIndex: 0,
+          title: "Confidential slide",
+          visibleText: "Presentation content stays on the phone.",
+          speakerNotes: "Private notes",
+        }],
+      }),
     );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(validDeckPlanResponse);
-    expect(generate).toHaveBeenCalledOnce();
-    const generationRequest = generate.mock.calls[0]?.[0] as
-      | StructuredGenerationRequest
-      | undefined;
-    expect(generationRequest?.schemaName).toBe("voxa_cue_deck_plan_v1");
-    expect(generationRequest?.jsonSchema).toMatchObject({
-      type: "object",
-      additionalProperties: false,
-    });
-    expect(generationRequest?.input).not.toContain(demoToken);
+    expect(response.status).toBe(404);
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it("rejects request fields that can carry raw audio before generation", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
     const requestWithAudio = {
-      ...validDeckPlanRequest,
+      ...validInsightRequest,
       metadata: {
         audioBase64: "UklGRg==",
       },
     };
 
     const response = await app.request(
-      "/v1/deck-plans",
+      "/v1/insights",
       jsonRequest(requestWithAudio),
     );
 
@@ -289,17 +284,17 @@ describe("Voxa Cue API", () => {
   });
 
   it("enforces JSON content type and request schema", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
-    const unsupportedResponse = await app.request("/v1/deck-plans", {
+    const unsupportedResponse = await app.request("/v1/insights", {
       method: "POST",
       headers: authorizationHeaders,
-      body: JSON.stringify(validDeckPlanRequest),
+      body: JSON.stringify(validInsightRequest),
     });
     const invalidResponse = await app.request(
-      "/v1/deck-plans",
-      jsonRequest({ ...validDeckPlanRequest, locale: "fr-FR" }),
+      "/v1/insights",
+      jsonRequest({ ...validInsightRequest, locale: "fr-FR" }),
     );
 
     expect(unsupportedResponse.status).toBe(415);
@@ -314,15 +309,15 @@ describe("Voxa Cue API", () => {
   });
 
   it("rejects oversized payloads before generation", async () => {
-    const generate = createMockGenerator(validDeckPlanResponse);
+    const generate = createMockGenerator(validInsightResponse);
     const app = createTestApp(generate);
 
-    const response = await app.request("/v1/deck-plans", {
+    const response = await app.request("/v1/insights", {
       method: "POST",
       headers: {
         ...authorizationHeaders,
         "content-type": "application/json",
-        "content-length": String(512 * 1_024 + 1),
+        "content-length": String(256 * 1_024 + 1),
       },
       body: "{}",
     });
@@ -332,39 +327,6 @@ describe("Voxa Cue API", () => {
       error: { code: "payload_too_large" },
     });
     expect(generate).not.toHaveBeenCalled();
-  });
-
-  it("rejects structurally or semantically invalid generated deck plans", async () => {
-    const invalidShape = createMockGenerator({
-      ...validDeckPlanResponse,
-      unexpected: true,
-    });
-    const invalidTiming = createMockGenerator({
-      ...validDeckPlanResponse,
-      checkpoints: validDeckPlanResponse.checkpoints.map((checkpoint, index) =>
-        index === 1
-          ? { ...checkpoint, targetCumulativeSeconds: 170 }
-          : checkpoint,
-      ),
-    });
-    const invalidReference = createMockGenerator({
-      ...validDeckPlanResponse,
-      checkpoints: validDeckPlanResponse.checkpoints.map((checkpoint, index) =>
-        index === 0 ? { ...checkpoint, id: "invented-checkpoint" } : checkpoint,
-      ),
-    });
-
-    for (const generate of [invalidShape, invalidTiming, invalidReference]) {
-      const app = createTestApp(generate);
-      const response = await app.request(
-        "/v1/deck-plans",
-        jsonRequest(validDeckPlanRequest),
-      );
-      expect(response.status).toBe(502);
-      expect(await response.json()).toMatchObject({
-        error: { code: "invalid_model_response" },
-      });
-    }
   });
 
   it("creates schema-valid insights", async () => {
@@ -465,6 +427,28 @@ describe("Voxa Cue API", () => {
     expect(responseText).toContain("model_request_failed");
     expect(responseText).not.toContain(providerSecret);
     expect(responseText).not.toContain(demoToken);
+  });
+
+  it("preserves a bounded provider retry window without exposing provider details", async () => {
+    const generate = vi.fn<StructuredOutputGenerator>(async (_request) => {
+      throw {
+        status: 429,
+        headers: new Headers({ "retry-after": "900" }),
+        message: "private provider quota details",
+      };
+    });
+    const app = createTestApp(generate);
+
+    const response = await app.request(
+      "/v1/insights",
+      jsonRequest(validInsightRequest),
+    );
+    const responseText = await response.text();
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("300");
+    expect(responseText).toContain("rate_limited");
+    expect(responseText).not.toContain("private provider quota details");
   });
 
   it("returns a sanitized error when insight output violates the contract", async () => {

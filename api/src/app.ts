@@ -11,10 +11,8 @@ import type { StructuredOutputGenerator } from "./openai";
 import {
   coachChatInstructions,
   createCoachChatInput,
-  createDeckPlanInput,
   createInsightInput,
   createRoadmapInput,
-  deckPlanInstructions,
   insightInstructions,
   roadmapInstructions,
 } from "./prompts";
@@ -22,9 +20,6 @@ import {
   coachChatJsonSchema,
   coachChatRequestSchema,
   coachChatResponseSchema,
-  deckPlanJsonSchema,
-  deckPlanRequestSchema,
-  deckPlanResponseSchema,
   insightJsonSchema,
   insightRequestSchema,
   insightResponseSchema,
@@ -35,15 +30,12 @@ import {
 import type {
   CoachChatRequest,
   CoachChatResponse,
-  DeckPlanRequest,
-  DeckPlanResponse,
   InsightRequest,
   InsightResponse,
   RoadmapRequest,
   RoadmapResponse,
 } from "./schemas";
 
-const deckPlanMaximumBytes = 512 * 1_024;
 const insightMaximumBytes = 256 * 1_024;
 const roadmapMaximumBytes = 256 * 1_024;
 const coachChatMaximumBytes = 256 * 1_024;
@@ -57,10 +49,11 @@ type ErrorCode =
   | "model_request_timed_out"
   | "not_found"
   | "payload_too_large"
+  | "rate_limited"
   | "unauthorized"
   | "unsupported_media_type";
 
-type ErrorStatus = 400 | 401 | 404 | 413 | 415 | 422 | 502 | 503 | 504;
+type ErrorStatus = 400 | 401 | 404 | 413 | 415 | 422 | 429 | 502 | 503 | 504;
 
 type ValidationIssue = {
   readonly path: string;
@@ -153,67 +146,6 @@ const parseBody = async <Output>(
   }
 
   return { ok: true, value: parsed.data };
-};
-
-const validateDeckPlanSemantics = (
-  plan: DeckPlanResponse,
-  request: DeckPlanRequest,
-): boolean => {
-  if (plan.title !== request.title) {
-    return false;
-  }
-
-  const validSlideIndexes = new Set(
-    request.slides.map((slide) => slide.slideIndex),
-  );
-  const checkpointIds = new Set<string>();
-  let previousSlideIndex = -1;
-  let previousCumulativeSeconds = 0;
-
-  for (const checkpoint of plan.checkpoints) {
-    if (
-      !validSlideIndexes.has(checkpoint.slideIndex) ||
-      checkpointIds.has(checkpoint.id) ||
-      checkpoint.id !== `slide-${checkpoint.slideIndex}` ||
-      checkpoint.slideIndex <= previousSlideIndex ||
-      checkpoint.targetCumulativeSeconds <= previousCumulativeSeconds
-    ) {
-      return false;
-    }
-
-    const normalizedAnchors = checkpoint.anchorTerms.map((anchor) =>
-      anchor.toLocaleLowerCase("en-US"),
-    );
-    if (new Set(normalizedAnchors).size !== normalizedAnchors.length) {
-      return false;
-    }
-
-    checkpointIds.add(checkpoint.id);
-    previousSlideIndex = checkpoint.slideIndex;
-    previousCumulativeSeconds = checkpoint.targetCumulativeSeconds;
-  }
-
-  return previousCumulativeSeconds === request.targetDurationSeconds;
-};
-
-const generateDeckPlan = async (
-  dependencies: AppDependencies,
-  request: DeckPlanRequest,
-  signal: AbortSignal,
-): Promise<DeckPlanResponse | null> => {
-  const generated = await dependencies.generateStructuredOutput({
-    schemaName: "voxa_cue_deck_plan_v1",
-    instructions: deckPlanInstructions,
-    input: createDeckPlanInput(request),
-    jsonSchema: deckPlanJsonSchema as unknown as Record<string, unknown>,
-    maximumOutputTokens: 6_000,
-    signal,
-  });
-  const parsed = deckPlanResponseSchema.safeParse(generated);
-  if (!parsed.success || !validateDeckPlanSemantics(parsed.data, request)) {
-    return null;
-  }
-  return parsed.data;
 };
 
 const generateInsight = async (
@@ -341,6 +273,29 @@ const runWithModelRequestDeadline = async <Output>(
   }
 };
 
+const providerStatus = (error: unknown): number | null => {
+  if (error === null || typeof error !== "object" || !("status" in error)) {
+    return null;
+  }
+  const status = error.status;
+  return typeof status === "number" && Number.isInteger(status) ? status : null;
+};
+
+const providerRetryAfterSeconds = (error: unknown): number | null => {
+  if (error === null || typeof error !== "object" || !("headers" in error)) {
+    return null;
+  }
+  const headers = error.headers;
+  if (!(headers instanceof Headers)) {
+    return null;
+  }
+  const retryAfter = headers.get("retry-after");
+  if (retryAfter === null || !/^\d+$/u.test(retryAfter)) {
+    return null;
+  }
+  return Math.min(300, Math.max(1, Number(retryAfter)));
+};
+
 const modelFailureResponse = (error: unknown, context: Context): Response => {
   if (isStructuredGenerationTimeoutError(error)) {
     return jsonError(
@@ -348,6 +303,31 @@ const modelFailureResponse = (error: unknown, context: Context): Response => {
       504,
       "model_request_timed_out",
       "The coaching service did not respond within the request budget.",
+      [],
+    );
+  }
+
+  const status = providerStatus(error);
+  if (status === 429) {
+    const retryAfterSeconds = providerRetryAfterSeconds(error);
+    if (retryAfterSeconds !== null) {
+      context.header("Retry-After", String(retryAfterSeconds));
+    }
+    return jsonError(
+      context,
+      429,
+      "rate_limited",
+      "The coaching service is busy. Try again shortly.",
+      [],
+    );
+  }
+
+  if (status === 401 || status === 403 || (status !== null && status >= 500)) {
+    return jsonError(
+      context,
+      503,
+      "model_request_failed",
+      "The coaching service is temporarily unavailable.",
       [],
     );
   }
@@ -366,6 +346,12 @@ const probeBody = (status: "ok" | "ready" | "not_ready", build: string) => ({
   service: serviceName,
   schemaVersion,
   build,
+});
+
+const publicLivenessBody = () => ({
+  status: "ok" as const,
+  service: serviceName,
+  schemaVersion,
 });
 
 const requestIdFor = (context: Context): string => {
@@ -456,7 +442,7 @@ export const createApp = (dependencies: AppDependencies): Hono => {
   });
 
   app.get("/livez", (context) =>
-    context.json(probeBody("ok", dependencies.buildIdentifier)),
+    context.json(publicLivenessBody()),
   );
 
   app.get("/health", (context) =>
@@ -477,38 +463,6 @@ export const createApp = (dependencies: AppDependencies): Hono => {
       ),
       isReady ? 200 : 503,
     );
-  });
-
-  app.post("/v1/deck-plans", async (context) => {
-    const parsedRequest = await parseBody(
-      context,
-      deckPlanMaximumBytes,
-      deckPlanRequestSchema,
-    );
-    if (!parsedRequest.ok) {
-      return parsedRequest.response;
-    }
-
-    try {
-      const plan = await runWithModelRequestDeadline(
-        context.req.raw.signal,
-        dependencies.modelRequestTimeoutMilliseconds,
-        async (signal) =>
-          generateDeckPlan(dependencies, parsedRequest.value, signal),
-      );
-      if (plan === null) {
-        return jsonError(
-          context,
-          502,
-          "invalid_model_response",
-          "The coaching service returned an invalid deck plan.",
-          [],
-        );
-      }
-      return context.json(plan, 200);
-    } catch (error) {
-      return modelFailureResponse(error, context);
-    }
   });
 
   app.post("/v1/insights", async (context) => {
