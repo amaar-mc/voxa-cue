@@ -150,18 +150,20 @@ The Nano drives a 3 V ERM through a DRV2605L in real-time playback mode. `millis
 
 ## Optional API
 
-The Hono API deploys from `api/` to Vercel. A shared closed-prototype bearer token protects readiness and AI routes; only the minimal liveness probe is public. The token is not production user authentication. Zod validates strict requests and maximum body sizes; errors are sanitized. The service rejects audio-shaped payloads before they can reach model code.
+The Hono API deploys from `api/` to Vercel. A shared closed-prototype bearer token protects readiness and AI routes; only the minimal liveness probe is public. The token is not production user authentication. Zod validates strict requests and maximum body sizes; errors are sanitized. Before schema validation, a defense-in-depth JSON guard rejects audio-shaped keys, audio data URIs, direct audio-file URLs, common encoded WAV/MP3/Ogg/FLAC headers, and large base64 blocks. It is a targeted signature filter, not a semantic guarantee about arbitrary text.
 
-- `POST /v1/deck-plans` remains contract-tested for future use but is not called by the current app.
 - `POST /v1/insights` accepts a finalized transcript, aggregate metrics, checkpoint results, and cue-event summaries only after the user confirmation in the app. It returns a schema-constrained summary, strengths, priorities, and drills.
 - `POST /v1/roadmaps` accepts exactly one user-selected finalized transcript, its deterministic session metrics and filler counts, plus transcript-free historical aggregates after a roadmap confirmation. It returns a schema-constrained three-step practice plan.
 - `POST /v1/coach-chat` accepts that selected transcript, its roadmap and measured session context, plus the last one to ten typed turns after a separate chat confirmation. Each call is stateless and the server stores no conversation.
 - `GET /readyz` performs a bounded metadata-only check that the configured provider key can access the configured model. It sends no presentation content and performs no generation.
 
+These are the only three generation routes. PDF and PowerPoint parsing, extracted slide text, speaker notes, even timing, and custom per-slide schedules stay on the iPhone; the API has no presentation-planning route or schema.
+
 The server owns the OpenAI key. The current closed prototype uses
-`gpt-5.6-luna` for cost-sensitive post-session structured coaching. The legacy
-insight route strips the app's session identifier; roadmap and chat requests
-contain no session identifier. The server then calls the
+allowlisted `gpt-5.6-luna` model with explicit `none` reasoning for
+cost-sensitive post-session structured coaching. The
+insight provider payload strips the app's session identifier; roadmap and chat
+requests contain no session identifier. The server then calls the
 Responses API with strict JSON Schema output, `store: false`, zero retries, and
 a bounded abort signal. The iPhone never receives the provider key or prompt
 implementation. Request telemetry is limited to a validated correlation ID,
@@ -189,7 +191,7 @@ and restoration remain release gates.
 | App to insight API | One confirmed finalized transcript, aggregate session metrics, checkpoint results, and cue summaries | Raw audio and prior transcript text |
 | App to roadmap API | One confirmed finalized transcript, deterministic session metrics and filler counts, transcript-free historical aggregates | Raw audio and prior transcript text |
 | App to coach-chat API | The selected transcript, roadmap, metrics, and at most 10 typed turns | Raw audio, prior transcript text, and durable chat history |
-| API to OpenAI | Text needed for the requested structured result | App bearer token, BLE data, raw audio |
+| API to OpenAI | Bounded text needed for the requested post-session result | App bearer token, BLE data, binary audio, presentation files, and slide text |
 
 The developer-only IMU research lab is a separate trust boundary. Diagnostic
 firmware streams the Nano 33 IoT's onboard acceleration and angular velocity to
@@ -207,14 +209,14 @@ artifacts are not loaded by the production app.
 - DRV2605L unavailable: BLE remains available but the firmware returns a driver-fault rejection.
 - API unavailable: real-time coaching is unaffected and new AI insights, roadmaps, or chat replies report unavailable.
 - API request budget exhausted: provider work is aborted and the API returns a sanitized typed 504 response.
-- Invalid model output: the API rejects it with a sanitized 502 response rather than returning unvalidated coaching.
+- Schema-invalid model output, and roadmap output with inconsistent filler evidence or phase order, is rejected with a sanitized 502 response. Free-text coaching remains model-generated and is not represented as deterministically proven.
 - App leaves the active session path: the current prototype requires the screen to remain open and does not claim background recording.
 
 ## Verification surfaces
 
 - Core behavior: Swift package tests under `ios/Packages/VoxaKit/Tests`
 - iPhone integration: generated `VoxaCue` Xcode scheme and device walkthrough
-- API contracts and errors: Vitest suite under `api/test`
+- API contracts and errors: 45 Vitest cases under `api/test`
 - BLE wire contract: `contracts/ble-v1.md` and runtime packet tests
 - Firmware protocol and pulse state machine: native PlatformIO Unity tests
 - Standalone IMU lab: native sensor/packet tests, browser protocol/recorder tests,

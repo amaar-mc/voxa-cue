@@ -2,14 +2,14 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="design/brand/02_primary_logo_white_text.png" />
     <source media="(prefers-color-scheme: light)" srcset="design/brand/01_primary_logo_dark_text.png" />
-    <img src="design/brand/01_primary_logo_dark_text.png" width="560" alt="Voxa" />
+    <img src="design/brand/01_primary_logo_dark_text.png" width="560" alt="Voxa Cue" />
   </picture>
 
   <p><strong>SPEAK · CONNECT · CONTROL</strong></p>
   <p>
     Discreet guidance. Confident delivery.
   </p>
-  <p>Voxa Cue is an AI speech coach measured on your iPhone and felt on your wrist.</p>
+  <p>Voxa Cue is a phone-first speech coach measured on your iPhone and felt on your wrist.</p>
 
   <p>
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6.0-0B756F?style=for-the-badge&logo=swift&logoColor=white" />
@@ -35,14 +35,14 @@
 
 ## The product
 
-Presenters often rush, repeat filler words, or lose track of time precisely when looking at another screen would be most distracting. Voxa Cue closes that feedback gap with a private coaching loop:
+Presenters often rush, repeat filler words, or lose track of time precisely when looking at another screen would be most distracting. Voxa Cue closes that feedback gap with a discreet coaching loop:
 
 1. The iPhone listens during a presentation.
 2. On-device speech and signal processing measure delivery in real time.
 3. A deterministic cue engine decides whether feedback is warranted.
 4. The phone maps that decision to a physical pulse and sends it over Bluetooth Low Energy.
 5. The Cue Band delivers a distinct, discreet vibration.
-6. The app saves the session and turns it into an actionable practice plan.
+6. The app saves the session and can turn it into an actionable practice plan.
 
 <table>
   <tr>
@@ -60,7 +60,7 @@ Presenters often rush, repeat filler words, or lose track of time precisely when
 | Contextual filler bursts | Pace, filler, pause, timing, and talk-ratio analytics |
 | Even or per-slide presentation timing | Pause-aware slide guidance and cue history |
 | 50% and target-time defaults; optional 75% and 90% cues | Descriptive intonation and energy trends |
-| Private haptic delivery acknowledgements | Longitudinal session history |
+| Haptic delivery acknowledgements | Longitudinal history, optional AI roadmap, and bounded coach chat |
 
 ### Guided presentations
 
@@ -74,7 +74,7 @@ During the session, the app shows the current slide and its remaining time. At
 each non-final boundary it can send a configurable long-short-long transition
 pulse. The schedule uses the same pause-aware presentation clock as speech
 metrics, so pausing for Q&A also pauses slide timing. Imported slide content is
-never sent to the wearable or the live API path.
+never sent to the wearable or any API route.
 
 ### A configurable haptic language
 
@@ -133,7 +133,7 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | iPhone → coach-chat API | That selected transcript, its roadmap and metrics, and at most 10 typed chat turns | Raw audio, prior transcript text, and a stored server conversation |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
-The server owns the OpenAI key and calls the Responses API with `gpt-5.6-luna`, strict structured outputs, and `store: false`. The API rejects audio-shaped payloads. `store: false` disables Responses application-state storage, not default abuse-monitoring retention; production retention remains a release decision.
+The server owns the OpenAI key and calls the Responses API with the allowlisted `gpt-5.6-luna` model, explicit `none` reasoning for this bounded low-latency task, strict structured outputs, and `store: false`. The API accepts text-only coaching requests and rejects audio-shaped keys, direct audio references, recognized encoded-audio headers, and large base64 blocks before provider submission. `store: false` disables Responses application-state storage, not default abuse-monitoring retention; production retention remains a release decision.
 
 ## Technology
 
@@ -143,7 +143,7 @@ The server owns the OpenAI key and calls the Responses API with `gpt-5.6-luna`, 
 | Shared iOS logic | Swift 6 package with pure cue, transcript, timing, and analytics modules |
 | API | Hono, strict TypeScript, Zod, OpenAI Responses API with `gpt-5.6-luna`, Vitest, Vercel |
 | Wearable | Arduino Nano 33 IoT with ArduinoBLE, DRV2605L, and PlatformIO; Nano ESP32 remains supported |
-| Contracts | JSON Schema plus a versioned six-byte command and seven-byte status BLE protocol |
+| Contracts | Post-session JSON Schemas plus a versioned six-byte command and seven-byte status BLE protocol |
 
 ## Brand system
 
@@ -209,7 +209,7 @@ In Xcode:
 3. Add `-demoScenario` under **Scheme → Run → Arguments** for deterministic, clearly labeled demo data.
 4. Press **Run**.
 
-The demo requires no microphone, band, or API. Remove `-demoScenario` to exercise the real recording flow.
+The labeled demo requires no microphone, band, or API to inspect saved sessions, analytics, and AI UI fixtures. It does not bypass the live-session connection gate. Remove `-demoScenario`, connect a healthy Cue Band, and use a physical iPhone to exercise the real recording flow.
 
 <details>
 <summary><strong>Configure the optional AI API</strong></summary>
@@ -224,7 +224,7 @@ pnpm api:dev
 Set:
 
 - `OPENAI_API_KEY` to a server-side key
-- `OPENAI_MODEL=gpt-5.6-luna` for the current cost-sensitive structured coaching model
+- `OPENAI_MODEL=gpt-5.6-luna`, the only reviewed model accepted by the current schema
 - `VOXA_BUILD_ID` to the deployment commit SHA or release identifier
 - `VOXA_DEMO_API_TOKEN` to a random bearer token of at least 32 characters
 
@@ -251,7 +251,7 @@ The serial monitor should print `Voxa Cue firmware 1.3 ready`. In the app, open 
 
 ## Demonstration flow
 
-1. Launch with `-demoScenario` for a software-only walkthrough, or connect the physical Cue Band.
+1. Launch with `-demoScenario` for a saved-data software walkthrough, or connect the physical Cue Band for a new live session.
 2. Verify all nine physical haptic patterns in Device Lab.
 3. Start a session using the iPhone microphone.
 4. Set target time, pace range, enabled cues, and intensity.
@@ -268,7 +268,7 @@ The current implementation is exercised across all three layers:
 | API | Strict TypeScript plus contract and failure-path tests |
 | VoxaCore + VoxaRuntime | Swift behavior tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
 | iPhone application | Simulator behavior tests plus unsigned Debug and Release generic-device builds |
-| Firmware | Native protocol and pattern tests plus successful Nano 33 IoT and Nano ESP32 builds |
+| Firmware | Native protocol, pattern, light, and driver-recovery tests plus successful Nano 33 IoT and Nano ESP32 builds |
 | IMU lab | Native packet/sensor tests, labeled-recorder and model-pipeline tests, executable notebook, and a Nano 33 IoT build |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
@@ -279,6 +279,7 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 | Document | Purpose |
 | --- | --- |
 | [Setup guide](docs/SETUP_GUIDE.md) | Exact tools, wiring, secrets, deployment, costs, and physical checks |
+| [Repository audit](docs/REPOSITORY_AUDIT.md) | Security, privacy, UI, backend, firmware, and release findings |
 | [Backend audit](docs/BACKEND_AUDIT.md) | Closed-prototype verdict and public-release gaps |
 | [Product architecture](docs/PRODUCT_ARCHITECTURE.md) | Runtime data flow, trust boundaries, and failure behavior |
 | [BLE protocol v1](contracts/ble-v1.md) | Normative UUIDs, packet bytes, statuses, and replay rules |
@@ -288,6 +289,7 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 | [Support](docs/SUPPORT.md) | Compatibility and troubleshooting |
 | [App Review notes](docs/APP_REVIEW_NOTES.md) | Reviewer walkthrough and AI disclosures |
 | [Release checklist](docs/RELEASE_CHECKLIST.md) | Demo, hardware, privacy, legal, and distribution gates |
+| [Security policy](SECURITY.md) | Private vulnerability reporting and supported scope |
 
 ---
 
