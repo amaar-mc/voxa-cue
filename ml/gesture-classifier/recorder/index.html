@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>Voxa Gesture Recorder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="Voxa Gesture Recorder home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Voxa Gesture Recorder</span>
+        </a>
+        <div class="connection-pill" id="connection-pill" data-tone="idle">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="connection-state">Nano not connected</span>
+        </div>
+      </header>
+
+      <section class="hero" id="top">
+        <div>
+          <p class="eyebrow">Local data collection</p>
+          <h1>Teach Cue the difference between a gesture and a fidget.</h1>
+          <p class="hero-copy">
+            Record prompted wrist movements from the Nano 33 IoT. Your samples stay in this browser until you export them.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button class="button button-primary" id="connect-button" type="button">Connect Nano</button>
+          <button class="button button-secondary" id="disconnect-button" type="button" disabled>Disconnect</button>
+        </div>
+      </section>
+
+      <section class="notice" id="notice" role="status" aria-live="polite"></section>
+
+      <section class="device-strip" aria-label="Device status">
+        <div>
+          <span class="strip-label">Sensor</span>
+          <strong id="sensor-name">Waiting for diagnostic firmware</strong>
+        </div>
+        <div>
+          <span class="strip-label">Address</span>
+          <strong id="sensor-address">—</strong>
+        </div>
+        <div>
+          <span class="strip-label">Stream</span>
+          <strong id="sample-rate">—</strong>
+        </div>
+        <div>
+          <span class="strip-label">Verification</span>
+          <strong class="verification" id="sensor-verification" data-state="idle">Not checked</strong>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <section class="card setup-card" aria-labelledby="setup-title">
+          <div class="section-heading">
+            <div>
+              <p class="section-number">1</p>
+              <h2 id="setup-title">Set up this recording</h2>
+            </div>
+            <span class="local-badge">Local only</span>
+          </div>
+
+          <div class="form-grid">
+            <label>
+              <span>Participant ID</span>
+              <input id="subject-id" type="text" inputmode="text" maxlength="40" placeholder="Example: P014" autocomplete="off" />
+            </label>
+            <label>
+              <span>Session ID</span>
+              <input id="session-id" type="text" inputmode="text" maxlength="40" placeholder="Example: 2026-07-20-A" autocomplete="off" />
+            </label>
+            <label>
+              <span>Recorded wrist</span>
+              <select id="wrist">
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+              </select>
+            </label>
+            <label>
+              <span>Band orientation</span>
+              <select id="orientation">
+                <option value="usb_toward_elbow">USB toward elbow</option>
+                <option value="usb_toward_hand">USB toward hand</option>
+                <option value="custom_consistent">Other, kept consistent</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="label-heading">
+            <div>
+              <h3>Motion labels</h3>
+              <p>Select the movements you can repeat consistently.</p>
+            </div>
+            <label class="repetition-field">
+              <span>Minimum repeats</span>
+              <input id="repetitions" type="number" min="1" max="50" step="1" value="6" />
+            </label>
+          </div>
+
+          <div class="behavior-list" id="behavior-list" aria-label="Motion labels"></div>
+
+          <button class="button button-primary button-wide" id="create-plan-button" type="button" disabled>
+            Create randomized plan
+          </button>
+          <p class="form-footnote">Prompted trial counts are balanced by behavior. Use unique anonymous IDs, never a name or email.</p>
+        </section>
+
+        <section class="card trial-card" aria-labelledby="trial-title">
+          <div class="section-heading trial-heading">
+            <div>
+              <p class="section-number">2</p>
+              <h2 id="trial-title">Record prompted trials</h2>
+            </div>
+            <span class="progress-copy" id="progress-copy">No plan</span>
+          </div>
+
+          <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+
+          <div class="empty-state" id="empty-state">
+            <div class="motion-glyph" aria-hidden="true"><i></i><i></i><i></i></div>
+            <h3>Connect, configure, then create a plan.</h3>
+            <p>Prompts are shuffled to reduce ordering bias.</p>
+          </div>
+
+          <div class="prompt-panel" id="prompt-panel" hidden>
+            <p class="behavior-name" id="behavior-name">Intentional gesture</p>
+            <h3 id="subtype-name">Beat or chop</h3>
+            <p class="instruction" id="instruction">Use one deliberate gesture, then return to rest.</p>
+            <div class="trial-meta">
+              <span id="repetition-copy">Repetition 1 of 6</span>
+              <span id="stream-copy">Waiting to record</span>
+            </div>
+
+            <div class="capture-stage" id="capture-stage" data-state="ready">
+              <strong id="capture-value">Ready</strong>
+              <span id="capture-label">Hold your wrist in a natural speaking position.</span>
+            </div>
+
+            <button class="button button-primary button-wide" id="record-button" type="button" disabled>
+              Record this trial
+            </button>
+          </div>
+
+          <div class="quality-panel" id="quality-panel" hidden>
+            <div class="quality-heading">
+              <div>
+                <p class="quality-kicker" id="quality-kicker">Take passed</p>
+                <h3 id="quality-title">Clean capture</h3>
+              </div>
+              <span class="quality-icon" id="quality-icon" aria-hidden="true">✓</span>
+            </div>
+            <div class="quality-grid">
+              <div><span>Samples</span><strong id="quality-samples">—</strong></div>
+              <div><span>Measured rate</span><strong id="quality-rate">—</strong></div>
+              <div><span>Packet loss</span><strong id="quality-loss">—</strong></div>
+              <div><span>Duration</span><strong id="quality-duration">—</strong></div>
+            </div>
+            <ul class="quality-errors" id="quality-errors"></ul>
+            <div class="review-actions">
+              <button class="button button-primary" id="keep-button" type="button">Keep take</button>
+              <button class="button button-secondary" id="retry-button" type="button">Retry</button>
+              <button class="button button-quiet" id="skip-button" type="button">Skip label</button>
+            </div>
+          </div>
+
+          <div class="complete-panel" id="complete-panel" hidden>
+            <span class="complete-mark" aria-hidden="true">✓</span>
+            <h3>Session complete</h3>
+            <p id="complete-copy">Your accepted trials are ready to export.</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="export-card" aria-labelledby="export-title">
+        <div>
+          <p class="section-number">3</p>
+          <h2 id="export-title">Export the dataset</h2>
+          <p>CSV contains sensor samples. The JSON manifest records labels, collection settings, device details, and quality.</p>
+        </div>
+        <div class="export-actions">
+          <button class="button button-secondary" id="download-manifest-button" type="button" disabled>Download manifest</button>
+          <button class="button button-primary" id="download-csv-button" type="button" disabled>Download CSV</button>
+        </div>
+      </section>
+
+      <footer>
+        No uploads. No cloud processing. Closing this tab clears any data you have not downloaded.
+      </footer>
+    </main>
+
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>
