@@ -10,6 +10,8 @@
 
 namespace voxa::imu {
 
+constexpr std::uint16_t kTargetSampleRateHertz = 50U;
+
 struct SensorReading {
   float accelerationXG;
   float accelerationYG;

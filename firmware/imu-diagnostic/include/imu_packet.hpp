@@ -9,7 +9,7 @@ constexpr std::uint8_t kProtocolVersion = 1U;
 constexpr std::size_t kSamplePacketSize = 20U;
 constexpr std::size_t kInfoPacketSize = 8U;
 constexpr std::uint8_t kFirmwareMajor = 1U;
-constexpr std::uint8_t kFirmwareMinor = 0U;
+constexpr std::uint8_t kFirmwareMinor = 1U;
 
 enum class SensorKind : std::uint8_t {
   kNone = 0U,
