@@ -1,4 +1,10 @@
-# Voxa Cue wearable firmware
+# Voxa Cue Nano wearable firmware
+
+This directory contains the supported Arduino Nano 33 IoT and Nano ESP32
+targets. The compact primary target is the Seeed Studio XIAO nRF54L15 Sense;
+its official Zephyr implementation, wiring, and CMSIS-DAP flashing steps are in
+[`../voxa-wearable-nrf54`](../voxa-wearable-nrf54). Both implementations expose
+the same BLE v1 GATT service, so switching boards requires no iOS change.
 
 Firmware v1.3 turns either an Arduino Nano 33 IoT or Nano ESP32 into the same
 BLE v1 peripheral. Both accept versioned, semantic haptic commands from the
@@ -210,7 +216,7 @@ design procedure. Do not copy register values from a different motor.
 
 - BLE is the only phone-to-wearable transport.
 - Nano 33 IoT uses ArduinoBLE; Nano ESP32 uses NimBLE-Arduino. Both transports
-  implement the same BLE v1 contract.
+  implement the same BLE v1 contract as the XIAO nRF54L15 Zephyr target.
 - The firmware receives physical pattern IDs; cue meaning and speech analysis stay on iPhone.
 - The firmware receives only session mode and a bounded timing percentage for the RGB light.
 - Status has protocol and firmware versions but no fabricated battery value.
