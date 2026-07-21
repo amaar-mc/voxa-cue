@@ -11,6 +11,72 @@ private struct LegacyHapticPreferences: Encodable {
     let intensityByCue: [CueKind: CueIntensity]
 }
 
+private func appRoadmapFixture() -> PracticeRoadmap {
+    PracticeRoadmap(
+        schemaVersion: 1,
+        headline: "Pause before the first claim",
+        summary: "Replace filler starts with silence while preserving your steady pace.",
+        focusFillers: [
+            RoadmapFillerFocus(phrase: "um", count: 1, guidance: "Use one quiet beat instead.")
+        ],
+        steps: [
+            RoadmapStep(phase: .now, title: "Reset", evidence: "One um appeared.", action: "Pause.", measurableTarget: "Zero ums."),
+            RoadmapStep(phase: .next, title: "Pace", evidence: "Pace was stable.", action: "Hold it.", measurableTarget: "80% in range."),
+            RoadmapStep(phase: .then, title: "Voice", evidence: "Pitch was measured.", action: "Stress key words.", measurableTarget: "Practice three claims."),
+        ],
+        nextSessionGoal: RoadmapGoal(title: "Cleaner opening", measurement: "Likely filler count", target: "At most one"),
+        confidenceNote: "Based on one finalized transcript and measured history."
+    )
+}
+
+private func appNetworkRoadmapFixture(headline: String) -> PracticeRoadmap {
+    PracticeRoadmap(
+        schemaVersion: 1,
+        headline: headline,
+        summary: "Replace filler starts with silence while preserving a steady pace.",
+        focusFillers: [
+            RoadmapFillerFocus(phrase: "um", count: 2, guidance: "Use one quiet beat instead.")
+        ],
+        steps: [
+            RoadmapStep(phase: .now, title: "Reset", evidence: "Two ums appeared.", action: "Pause.", measurableTarget: "One or fewer ums."),
+            RoadmapStep(phase: .next, title: "Pace", evidence: "Pace was measured.", action: "Hold it.", measurableTarget: "80% in range."),
+            RoadmapStep(phase: .then, title: "Voice", evidence: "Pitch was measured.", action: "Stress key words.", measurableTarget: "Practice three claims."),
+        ],
+        nextSessionGoal: RoadmapGoal(title: "Cleaner opening", measurement: "Likely filler count", target: "At most one"),
+        confidenceNote: "Based on one finalized transcript and measured history."
+    )
+}
+
+private func appAITestSummary(
+    sessionID: UUID,
+    name: String,
+    startedAt: Date
+) -> SessionSummary {
+    SessionSummary(
+        sessionID: sessionID,
+        name: name,
+        startedAt: startedAt,
+        durationSeconds: 180,
+        targetDurationSeconds: 180,
+        targetMinimumWPM: 130,
+        targetMaximumWPM: 160,
+        speakingSeconds: 144,
+        averageWPM: 148,
+        timeInPaceRange: 0.78,
+        fillerCount: 2,
+        fillersPerSpeakingMinute: 0.83,
+        talkRatio: 0.8,
+        paceStandardDeviationWPM: 10,
+        pauseCount: 5,
+        averagePauseSeconds: 0.9,
+        longestPauseSeconds: 1.6,
+        pitchRangeSemitones: 7,
+        energyRangeDB: 12,
+        cueCount: 1,
+        transcript: "Um, our product keeps feedback private. Um, the next step is deliberate practice."
+    )
+}
+
 @Test("Local deck planning preserves order and lands exactly on target time")
 func localDeckPlanTiming() throws {
     let slides = [
@@ -125,6 +191,214 @@ func appModelHydratesSavedInsights() throws {
 
     #expect(model.sessions == [summary])
     #expect(model.insightBySession[summary.sessionID] == insight)
+}
+
+@MainActor
+@Test("App model hydrates the saved practice roadmap and clears it with its source session")
+func appModelHydratesAndDeletesSavedRoadmap() throws {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    let summary = try #require(DemoFixtures.sessions().first)
+    let snapshot = SavedPracticeRoadmap(
+        sourceSessionID: summary.sessionID,
+        generatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+        roadmap: appRoadmapFixture()
+    )
+    try dataStore.saveSession(
+        summary: summary,
+        segments: [],
+        samples: [],
+        cueEvents: [],
+        checkpointResults: []
+    )
+    try dataStore.saveRoadmap(snapshot)
+    let suiteName = "VoxaCueTests.saved-roadmap-hydration"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+
+    let model = AppModel(
+        dataStore: dataStore,
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    #expect(model.practiceRoadmap == snapshot)
+
+    model.deleteSession(summary)
+
+    #expect(model.practiceRoadmap == nil)
+    #expect(model.coachMessages.isEmpty)
+}
+
+@MainActor
+@Test("Empty coach messages never start a request or enter conversation state")
+func emptyCoachMessageIsIgnored() async throws {
+    let suiteName = "VoxaCueTests.empty-coach-message"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    await model.sendCoachMessage("   ")
+
+    #expect(model.coachMessages.isEmpty)
+    #expect(model.isSendingCoachMessage == false)
+}
+
+@MainActor
+@Test("The latest roadmap request wins when an older response arrives later")
+func latestRoadmapGenerationWinsRace() async throws {
+    DelayedRoadmapChatURLProtocol.state.reset()
+    let summary = appAITestSummary(
+        sessionID: UUID(uuidString: "C37A7194-B352-422B-910D-745039189FA5")!,
+        name: "Roadmap race",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let (model, _) = try makeDelayedAIModel(
+        summary: summary,
+        savedRoadmap: nil,
+        preferenceSuite: "VoxaCueTests.roadmap-generation-race"
+    )
+
+    let first = Task { await model.generateRoadmap(for: summary) }
+    for _ in 0..<100 where DelayedRoadmapChatURLProtocol.state.count(path: "/v1/roadmaps") < 1 {
+        try await Task.sleep(nanoseconds: 2_000_000)
+    }
+    let second = Task { await model.generateRoadmap(for: summary) }
+    await second.value
+    await first.value
+
+    #expect(model.practiceRoadmap?.roadmap.headline == "Second roadmap")
+    #expect(model.isGeneratingRoadmap == false)
+}
+
+@MainActor
+@Test("Closing coach chat discards a late response and bounds local turns")
+func clearingCoachConversationInvalidatesInFlightReply() async throws {
+    DelayedRoadmapChatURLProtocol.state.reset()
+    let summary = appAITestSummary(
+        sessionID: UUID(uuidString: "25A31C7E-E7A7-4692-BBDE-E123A42E12AB")!,
+        name: "Coach race",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let (model, _) = try makeDelayedAIModel(
+        summary: summary,
+        savedRoadmap: appNetworkRoadmapFixture(headline: "Coach source"),
+        preferenceSuite: "VoxaCueTests.coach-clear-race"
+    )
+
+    let send = Task { await model.sendCoachMessage("How should I practice?") }
+    for _ in 0..<100 where DelayedRoadmapChatURLProtocol.state.count(path: "/v1/coach-chat") < 1 {
+        try await Task.sleep(nanoseconds: 2_000_000)
+    }
+    #expect(DelayedRoadmapChatURLProtocol.state.count(path: "/v1/coach-chat") == 1)
+
+    model.clearCoachConversation()
+    await send.value
+
+    #expect(model.coachMessages.isEmpty)
+    #expect(model.isSendingCoachMessage == false)
+}
+
+@MainActor
+@Test("Deleting a session discards an in-flight roadmap response")
+func deletingSessionInvalidatesInFlightRoadmap() async throws {
+    DelayedRoadmapChatURLProtocol.state.reset()
+    let summary = appAITestSummary(
+        sessionID: UUID(uuidString: "7B639B49-2AB8-40C2-B250-7D20BB9DAEA9")!,
+        name: "Roadmap deletion",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let (model, dataStore) = try makeDelayedAIModel(
+        summary: summary,
+        savedRoadmap: nil,
+        preferenceSuite: "VoxaCueTests.roadmap-deletion-race"
+    )
+
+    let generation = Task { await model.generateRoadmap(for: summary) }
+    for _ in 0..<100 where DelayedRoadmapChatURLProtocol.state.count(path: "/v1/roadmaps") < 1 {
+        try await Task.sleep(nanoseconds: 2_000_000)
+    }
+    model.deleteSession(summary)
+    await generation.value
+
+    #expect(model.practiceRoadmap == nil)
+    #expect(try dataStore.fetchLatestRoadmap() == nil)
+    #expect(try dataStore.fetchSessions().isEmpty)
+}
+
+@MainActor
+@Test("Deleting a session discards an in-flight coach reply")
+func deletingSessionInvalidatesInFlightCoachReply() async throws {
+    DelayedRoadmapChatURLProtocol.state.reset()
+    let summary = appAITestSummary(
+        sessionID: UUID(uuidString: "39E9435E-6771-45AA-B8BF-E40FCA1F5067")!,
+        name: "Coach deletion",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let (model, _) = try makeDelayedAIModel(
+        summary: summary,
+        savedRoadmap: appNetworkRoadmapFixture(headline: "Coach deletion source"),
+        preferenceSuite: "VoxaCueTests.coach-deletion-race"
+    )
+
+    let send = Task { await model.sendCoachMessage("How should I practice?") }
+    for _ in 0..<100 where DelayedRoadmapChatURLProtocol.state.count(path: "/v1/coach-chat") < 1 {
+        try await Task.sleep(nanoseconds: 2_000_000)
+    }
+    model.deleteSession(summary)
+    await send.value
+
+    #expect(model.practiceRoadmap == nil)
+    #expect(model.coachMessages.isEmpty)
+}
+
+@MainActor
+@Test("Deleting any aggregate contributor clears the visible roadmap")
+func deletingRoadmapContributorClearsAppState() throws {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    let source = try #require(DemoFixtures.sessions().first)
+    let contributor = try #require(DemoFixtures.sessions().last)
+    for summary in [source, contributor] {
+        try dataStore.saveSession(
+            summary: summary,
+            segments: [],
+            samples: [],
+            cueEvents: [],
+            checkpointResults: []
+        )
+    }
+    try dataStore.saveRoadmap(
+        SavedPracticeRoadmap(
+            sourceSessionID: source.sessionID,
+            generatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+            roadmap: appRoadmapFixture()
+        )
+    )
+    let suiteName = "VoxaCueTests.roadmap-contributor-deletion"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: dataStore,
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: false,
+        preferences: preferences
+    )
+
+    model.deleteSession(contributor)
+
+    #expect(model.practiceRoadmap == nil)
+    #expect(model.coachMessages.isEmpty)
 }
 
 @MainActor
@@ -530,10 +804,16 @@ func demoModeAvoidsCoachingAPI() async throws {
 
     let preparedPlan = try await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
     await model.generateInsight(for: summary)
+    await model.generateRoadmap(for: summary)
+    for index in 1...6 {
+        await model.sendCoachMessage("Demo coaching question \(index)")
+    }
 
     #expect(preparedPlan.source == .local)
     #expect(preparedPlan.plan.checkpoints.last?.targetCumulativeSeconds == 90)
     #expect(model.insightBySession[summary.sessionID] == DemoFixtures.insight())
+    #expect(model.practiceRoadmap?.roadmap == DemoFixtures.roadmap())
+    #expect(model.coachMessages.count == 10)
 }
 
 @MainActor
@@ -1143,6 +1423,121 @@ func localDeckPlanRejectsOversizedPresentations() {
         rejected = true
     }
     #expect(rejected)
+}
+
+@MainActor
+private func makeDelayedAIModel(
+    summary: SessionSummary,
+    savedRoadmap: PracticeRoadmap?,
+    preferenceSuite: String
+) throws -> (AppModel, VoxaDataStore) {
+    let dataStore = try VoxaDataStore(inMemory: true)
+    try dataStore.saveSession(
+        summary: summary,
+        segments: [],
+        samples: [],
+        cueEvents: [],
+        checkpointResults: []
+    )
+    if let savedRoadmap {
+        try dataStore.saveRoadmap(
+            SavedPracticeRoadmap(
+                sourceSessionID: summary.sessionID,
+                generatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+                roadmap: savedRoadmap
+            )
+        )
+    }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [DelayedRoadmapChatURLProtocol.self]
+    let apiClient = VoxaAPIClient(
+        baseURL: URL(string: "https://api.example.test")!,
+        bearerToken: "roadmap-chat-race-token-with-32-characters",
+        session: URLSession(configuration: configuration),
+        requestTimeoutSeconds: 28
+    )
+    let preferences = try #require(UserDefaults(suiteName: preferenceSuite))
+    preferences.removePersistentDomain(forName: preferenceSuite)
+    return (
+        AppModel(
+            dataStore: dataStore,
+            speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+            cueBandClient: CueBandClient(),
+            apiClient: apiClient,
+            demoMode: false,
+            preferences: preferences
+        ),
+        dataStore
+    )
+}
+
+private final class DelayedAIRequestState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counts: [String: Int] = [:]
+
+    func reset() {
+        lock.withLock { counts = [:] }
+    }
+
+    func record(path: String) -> Int {
+        lock.withLock {
+            counts[path, default: 0] += 1
+            return counts[path, default: 0]
+        }
+    }
+
+    func count(path: String) -> Int {
+        lock.withLock { counts[path, default: 0] }
+    }
+}
+
+private final class DelayedRoadmapChatURLProtocol: URLProtocol, @unchecked Sendable {
+    static let state = DelayedAIRequestState()
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        let requestIndex = Self.state.record(path: url.path)
+        let body: Data
+        switch url.path {
+        case "/v1/roadmaps":
+            Thread.sleep(forTimeInterval: requestIndex == 1 ? 0.18 : 0.03)
+            let headline = requestIndex == 1 ? "First roadmap" : "Second roadmap"
+            body = Data(
+                """
+                {"schemaVersion":1,"headline":"\(headline)","summary":"Replace filler starts with silence while preserving a steady pace.","focusFillers":[{"phrase":"um","count":2,"guidance":"Use one quiet beat instead."}],"steps":[{"phase":"now","title":"Reset","evidence":"Two ums appeared.","action":"Pause.","measurableTarget":"One or fewer ums."},{"phase":"next","title":"Pace","evidence":"Pace was measured.","action":"Hold it.","measurableTarget":"80% in range."},{"phase":"then","title":"Voice","evidence":"Pitch was measured.","action":"Stress key words.","measurableTarget":"Practice three claims."}],"nextSessionGoal":{"title":"Cleaner opening","measurement":"Likely filler count","target":"At most one"},"confidenceNote":"Based on one finalized transcript and measured history."}
+                """.utf8
+            )
+        case "/v1/coach-chat":
+            Thread.sleep(forTimeInterval: 0.12)
+            body = Data(
+                #"{"schemaVersion":1,"reply":"Practice the opening with one silent beat before each claim.","suggestedPrompts":[]}"#.utf8
+            )
+        default:
+            client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
+            return
+        }
+        guard let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 private final class UnexpectedRequestURLProtocol: URLProtocol, @unchecked Sendable {
