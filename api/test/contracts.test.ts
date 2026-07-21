@@ -3,7 +3,12 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { deckPlanJsonSchema, insightJsonSchema } from "../src/schemas";
+import {
+  coachChatJsonSchema,
+  deckPlanJsonSchema,
+  insightJsonSchema,
+  roadmapJsonSchema,
+} from "../src/schemas";
 
 const readContract = async (fileName: string): Promise<Record<string, unknown>> => {
   const filePath = resolve(process.cwd(), "../contracts", fileName);
@@ -34,5 +39,17 @@ describe("shared response contracts", () => {
     const contract = await readContract("insight-v1.schema.json");
 
     expect(insightJsonSchema).toEqual(removeContractMetadata(contract));
+  });
+
+  it("keeps the roadmap Structured Output schema aligned with contracts", async () => {
+    const contract = await readContract("roadmap-v1.schema.json");
+
+    expect(roadmapJsonSchema).toEqual(removeContractMetadata(contract));
+  });
+
+  it("keeps the coach-chat Structured Output schema aligned with contracts", async () => {
+    const contract = await readContract("coach-chat-v1.schema.json");
+
+    expect(coachChatJsonSchema).toEqual(removeContractMetadata(contract));
   });
 });
