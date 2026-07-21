@@ -26,14 +26,31 @@ If permission was denied, Voxa Cue stops before recording. It never silently upl
 1. Confirm the Nano is powered and the serial monitor printed `Voxa Cue firmware 1.3 ready`.
 2. Open **Settings → Device Lab**, disconnect and reconnect the band. The advertised peripheral name is `Voxa Cue`.
 3. If the band is missing, power-cycle the Nano and retry nearby with Bluetooth enabled.
-4. If BLE connects but the motor does not run, inspect the DRV2605L wiring and startup output. A missing or faulted driver rejects commands instead of pretending they completed.
+4. If BLE connects but the motor does not run, inspect the DRV2605L wiring and
+   startup output. A missing or faulted driver rejects commands instead of
+   pretending they completed. After the wiring or power recovers, firmware
+   retries detection once per second while idle; send a fresh test command.
 5. Run the packet-level smoke test in `firmware/voxa-wearable/README.md` with a BLE inspector.
 
-Presentation recording and local analytics remain usable without the band. Haptic cues require a Ready BLE connection.
+A Ready BLE connection is required to enter session setup and start a real
+presentation. If the band disconnects after recording starts, on-device
+recording and local analytics continue while haptic delivery reports failure.
+`-demoScenario` loads labeled deterministic saved data for a UI walkthrough; it
+does not bypass the Ready-band requirement or start a simulated live session.
+
+For the session light, wire red to D6, blue to D7, and green to D8. Protocol v1
+does not require pairing, bonding, or application-layer authentication. Keep
+the prototype supervised, disconnect other BLE tools before using the iPhone
+app, and do not treat its UUID or sequence number as a security control.
 
 ## AI coaching is unavailable
 
-Live coaching does not require AI or a network connection. For optional AI features, confirm the build has a valid HTTPS `VOXA_API_BASE_URL`, a matching bearer token of at least 32 characters, and a reachable deployment. The API's authenticated `/health` endpoint must return `status: ok`.
+Live coaching does not require AI or a network connection. The submitted
+Release build disables the shared-token prototype API. For optional AI features
+in an internal Debug build, confirm the build has a valid HTTPS
+`VOXA_API_BASE_URL`, a matching bearer token of at least 32 characters, and a
+reachable deployment. The API's authenticated `/health` endpoint must return
+`status: ok`.
 
 If the API is unavailable, post-session AI coaching remains unavailable while the transcript and metrics stay saved on the phone. Live coaching is unaffected.
 

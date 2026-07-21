@@ -29,7 +29,7 @@ pnpm verify
 
 `pnpm verify` checks the strict TypeScript API, Swift packages and app, privacy manifest, and native plus Nano 33 IoT and Nano ESP32 firmware.
 
-## 3. Run the app without the wearable
+## 3. Install the app on an iPhone
 
 ```sh
 pnpm ios:generate
@@ -43,9 +43,17 @@ In Xcode:
 1. Select the `VoxaCue` scheme and a physical iPhone.
 2. Connect and unlock the iPhone, trust the Mac, and enable Developer Mode if prompted.
 3. Open the Voxa Cue target, choose **Signing & Capabilities**, and select your Apple development team with automatic signing.
-4. Open **Product → Scheme → Edit Scheme → Run → Arguments** and make sure `-demoScenario` is absent for real recording. Add it only for a labeled software demo.
+4. Open **Product → Scheme → Edit Scheme → Run → Arguments** and make sure
+   `-demoScenario` is absent for real recording. Add it only to load labeled
+   deterministic saved data for an attended UI walkthrough.
 5. Press Run. Xcode signs, installs, and launches the app through the cable.
-6. Allow microphone, speech-recognition, and Bluetooth permissions, then start a session and place the phone nearby.
+6. Allow microphone, speech-recognition, and Bluetooth permissions. Complete
+   the wearable setup in step 4, connect it from Today, and only then start a
+   real session and place the phone nearby.
+
+A Ready Cue Band is required to enter session setup and start real recording.
+`-demoScenario` does not bypass that gate or create a simulated live session; it
+only loads labeled deterministic saved data for a UI walkthrough.
 
 The iPhone built-in microphone is enforced. Connecting a headset or changing the input route stops live analysis instead of silently analyzing the wrong microphone. Raw audio is discarded and never persisted.
 
@@ -69,6 +77,20 @@ Disconnect power before wiring:
 | `A5` | `SCL` | I2C clock |
 | — | `OUT+`, `OUT-` | ERM motor leads |
 
+Wire a common-cathode session RGB LED with one 220–330 Ω resistor on every
+color leg:
+
+| Nano 33 IoT | RGB LED | Connection |
+| --- | --- | --- |
+| `D6` | Red | Red channel through resistor |
+| `D7` | Blue | Blue channel through resistor; reserved and off in the current gradient |
+| `D8` | Green | Green channel through resistor |
+| `GND` | Common cathode | Shared LED return |
+
+The optional emergency buzzer uses D9 only as a 3.3 V-compatible active-buzzer
+signal input or through a correctly sized transistor driver. Never drive a
+high-current raw buzzer directly from D9.
+
 Never connect the motor directly to a GPIO, 3V3, or GND. Then flash:
 
 ```sh
@@ -86,7 +108,13 @@ uvx --with pip platformio device list
 uvx --with pip platformio run -e nano_33_iot --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
 ```
 
-Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.3 ready`. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting, then run a short timed session to verify green, yellow, orange, solid red, flashing-red overtime, and off-at-end behavior. With a 3.3 V-compatible active-buzzer signal input on D9, explicitly enable the emergency buzzer and verify one two-second tone at 30 seconds overtime with no heartbeat retrigger.
+Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.3 ready`. If DRV2605L detection initially fails, firmware retries once per second while idle; fix the wiring or power and send a fresh command after readiness recovers. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting, then run a short timed session to verify green, yellow, orange, solid red, flashing-red overtime, and off-at-end behavior. With a 3.3 V-compatible active-buzzer signal input on D9, explicitly enable the emergency buzzer and verify one two-second tone at 30 seconds overtime with no heartbeat retrigger.
+
+BLE protocol v1 does not require pairing, bonding, or application-layer
+authentication. Keep this closed prototype supervised and disconnect Chrome,
+LightBlue, or any other central before connecting the iPhone app. The current
+UUID and sequence checks are not security controls; authenticated device
+enrollment and rate and actuator-duty limits are required before public use.
 
 ## 5. Test the standalone IMU lab
 
@@ -141,7 +169,7 @@ Live transcription, filler detection, pace, timing, pitch, energy, cue selection
 | Value | Where it belongs | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Vercel or `api/.env.local` only | Calls the OpenAI Responses API |
-| `OPENAI_MODEL=gpt-5.6-luna` | Vercel or `api/.env.local` | Cost-sensitive structured coaching model |
+| `OPENAI_MODEL=gpt-5.6-luna` | Vercel or `api/.env.local` | Allowlisted cost-sensitive coaching model; requests use explicit `none` reasoning |
 | `VOXA_BUILD_ID` | Vercel or `api/.env.local` | Exposes the deployed revision in probes |
 | `VOXA_DEMO_API_TOKEN` | Server and ignored `ios/Local.xcconfig` | Closed-demo bearer token; generate at least 32 random characters |
 | `VOXA_API_BASE_URL` | Ignored `ios/Local.xcconfig` | HTTPS origin of the deployed API |
