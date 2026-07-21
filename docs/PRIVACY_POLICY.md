@@ -44,7 +44,7 @@ Microphone and Speech Recognition permissions are required for live coaching. Bl
 
 ## Sharing, sale, and tracking
 
-Voxa Cue does not sell personal information, share data for cross-context behavioral advertising, track users across apps or websites, or use third-party advertising or analytics SDKs. The iPhone app does not access contacts, photos, precise location, health data, or motion data. A separate developer-only IMU lab can stream an attached sensor directly to a local desktop Chrome page; it is not part of the distributed iPhone app and does not upload that data.
+Voxa Cue does not sell personal information, share data for cross-context behavioral advertising, track users across apps or websites, or use third-party advertising or analytics SDKs. The iPhone app does not access contacts, photos, precise location, health data, or motion data. A separate developer-only IMU lab can stream the Nano 33 IoT's onboard motion sensor directly to a local desktop Chrome page. Its labeled recorder creates local CSV and JSON files only after the researcher starts and accepts a trial, and it has no automatic upload path. The optional Google Colab training workflow uploads only files the researcher explicitly selects to a Google-hosted runtime, so participant consent must cover that transfer. The lab is not part of the distributed iPhone app.
 
 ## Children and sensitive use
 

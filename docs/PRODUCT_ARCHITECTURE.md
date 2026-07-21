@@ -183,6 +183,14 @@ and restoration remain release gates.
 | App to insight API | Confirmed finalized transcript, metrics, and cue summaries | Raw audio |
 | API to OpenAI | Text needed for the requested structured result | App bearer token, BLE data, raw audio |
 
+The developer-only IMU research lab is a separate trust boundary. Diagnostic
+firmware streams the Nano 33 IoT's onboard acceleration and angular velocity to
+desktop Chrome over a distinct BLE service. The labeled recorder writes
+pseudonymous CSV and manifest files to the researcher's computer; it has no app,
+API, OpenAI, or automatic upload path. The optional Colab workflow uploads only
+researcher-selected CSVs to a Google-hosted runtime. Experimental model
+artifacts are not loaded by the production app.
+
 ## Failure behavior
 
 - Microphone or speech permission denied: the app fails before recording and explains the missing access.
@@ -201,5 +209,6 @@ and restoration remain release gates.
 - API contracts and errors: Vitest suite under `api/test`
 - BLE wire contract: `contracts/ble-v1.md` and runtime packet tests
 - Firmware protocol and pulse state machine: native PlatformIO Unity tests
-- Standalone IMU lab: native sensor/packet tests plus browser protocol and movement-classifier tests
+- Standalone IMU lab: native sensor/packet tests, browser protocol/recorder tests,
+  schema and leakage-safe model tests, and an executable training notebook
 - Physical integration: BLE smoke test, motor calibration, and wear test in `firmware/voxa-wearable/README.md`
