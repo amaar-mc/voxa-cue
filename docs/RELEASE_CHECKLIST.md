@@ -15,7 +15,9 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] A 60-second live session produces finalized transcript text, local voice-activity timing, pace, contextual filler, pause, talk-ratio, pitch-range, and energy-range results without retaining an audio file.
 - [ ] A complete phone-microphone session works with the API disabled.
 - [ ] Authenticated `/readyz` confirms that the deployed OpenAI key can access the configured model without sending presentation content.
-- [ ] The API receives no raw-audio fields and rejects an attempted audio payload.
+- [ ] Captured API traffic contains no raw audio, and representative direct
+  audio-shaped keys, URLs, data URIs, encoded headers, and large base64 blocks
+  are rejected before provider submission.
 - [ ] AI coaching remains locked behind a confirmation dialog naming the transcript, aggregate metrics, and cue-delivery history.
 - [ ] Roadmap generation requires its own confirmation and sends exactly one selected finalized transcript, deterministic session metrics and filler counts, and transcript-free historical aggregates; captured traffic contains no prior transcript text.
 - [ ] Coach chat requires a separate confirmation and sends only that selected transcript, its roadmap and metrics, and the last one to ten typed turns. Closing chat or deleting any saved session clears the transient conversation.
@@ -25,6 +27,11 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] `uvx --with pip platformio run -e nano_esp32` succeeds.
 - [ ] The exact demo Nano, driver, motor, wiring, enclosure, and power source pass the 15-minute wear test in the firmware README.
 - [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, all nine physical haptic patterns, firmware 1.1 calm-wave/deadline support, firmware 1.2 session-light progress, pause, overtime, disconnect, and timeout behavior, and firmware 1.3 one-shot D9 buzzer timing without heartbeat retrigger.
+- [ ] The app blocks entry to session setup until a Ready Cue Band is connected.
+- [ ] Physical RGB verification confirms D6 red, D7 blue, and D8 green, with a
+  green-to-yellow-to-orange-to-red progression and flashing red overtime.
+- [ ] A forced DRV2605L fault confirms fail-low behavior and successful bounded
+  one-second recovery attempts without a reboot.
 - [ ] Airplane-mode testing confirms that live coaching and BLE haptics continue without the API.
 - [ ] No real API key or bearer token is present in Git history, source, generated project files, logs, screenshots, or demo materials.
 - [ ] `-demoScenario` screens and metrics are verbally identified as deterministic demo data whenever used.
@@ -33,10 +40,15 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 
 - [ ] Required release input — legal operator name and business address for the privacy policy and terms.
 - [ ] Required release input — monitored support email address and escalation owner.
+- [ ] Required release input — enable GitHub private vulnerability reporting or
+  publish a monitored private security mailbox and response owner.
 - [ ] Required release input — public HTTPS privacy-policy, terms, and support URLs that render without authentication.
 - [ ] Required release input — Apple Developer team ID, distribution certificate, provisioning profile, and final App Store Connect app record.
 - [ ] Required release input — stable production API origin, hosting owner, alerting owner, and incident-response contact.
 - [ ] Required release input — production per-user or per-device authentication with revocation and key rotation. The embedded shared demo bearer token is acceptable only for the closed prototype.
+- [ ] Required release input — authenticated BLE enrollment, trusted peripheral
+  identity, replay-resistant commands, an explicit re-pair/reset path, and
+  connection, command-rate, and motor duty-cycle limits.
 - [ ] Required release input — OpenAI production project, approved structured-output model, per-user rate limits, abuse controls, spend ceilings, budget alerts, and a documented decision between default abuse-monitoring retention, Modified Abuse Monitoring, or Zero Data Retention.
 - [ ] Required release input — final App Store name, subtitle, description, keywords, category, age rating, copyright, review contact, screenshots, and optional preview video.
 - [ ] Required release input — named hardware manufacturer, final bill of materials, battery and charger design, enclosure, labeling, warranty, return path, and applicable electrical/product compliance evidence.
@@ -62,6 +74,13 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Validate that acoustic features are not represented as medical, emotion, identity, or disability judgments.
 - [ ] Calibrate Soft, Medium, and Strong on the production ERM and enclosure while preserving `soft < medium < strong <= 127`.
 - [ ] Test BLE reconnect, sequence rollover, band reboot, driver fault, command burst, and phone interruption behavior.
+- [ ] Require a recent successful haptic-driver health or actuation check before
+  session start and fail closed after a reported driver fault.
+- [ ] Add and validate an independent hardware watchdog, current and thermal
+  protection, and a hard motor cut-off for the final power path.
+- [ ] Version the SwiftData schema; test migrations, file-protection class,
+  backup exclusions, restore behavior, and non-destructive store recovery on a
+  shipping build.
 - [ ] Complete battery runtime, charging, thermal, skin-contact, drop, ingress, and continuous-wear testing before distributing an untethered wearable.
 - [ ] Confirm support can diagnose a failure without requesting presentation transcripts or secrets.
 
