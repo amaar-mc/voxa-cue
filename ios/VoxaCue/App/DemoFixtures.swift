@@ -88,4 +88,48 @@ enum DemoFixtures {
             confidenceNote: "Deterministic coaching fixture for product demonstration; it is not based on captured audio."
         )
     }
+
+    static func roadmap() -> PracticeRoadmap {
+        PracticeRoadmap(
+            schemaVersion: 1,
+            headline: "Give the strongest ideas more room",
+            summary: "Your pace is controlled. The next gain is replacing filler starts with silence and holding a beat after important claims.",
+            focusFillers: [
+                RoadmapFillerFocus(
+                    phrase: "um",
+                    count: 2,
+                    guidance: "Use one quiet beat before beginning the next sentence."
+                )
+            ],
+            steps: [
+                RoadmapStep(
+                    phase: .now,
+                    title: "Clean the opening",
+                    evidence: "Two likely filler starts appeared in the selected transcript.",
+                    action: "Rehearse the first minute and pause before every new claim.",
+                    measurableTarget: "Use one or fewer likely fillers."
+                ),
+                RoadmapStep(
+                    phase: .next,
+                    title: "Hold the pace",
+                    evidence: "Most sampled time remained inside the selected pace range.",
+                    action: "Mark three breath points and keep them in every rehearsal.",
+                    measurableTarget: "Reach 80% of sampled time in range."
+                ),
+                RoadmapStep(
+                    phase: .then,
+                    title: "Shape key moments",
+                    evidence: "Pitch and energy variation were measurable across the session.",
+                    action: "Choose one word to emphasize in each headline sentence.",
+                    measurableTarget: "Practice five headline sentences twice."
+                ),
+            ],
+            nextSessionGoal: RoadmapGoal(
+                title: "A calmer first minute",
+                measurement: "Likely fillers and pace consistency",
+                target: "One or fewer fillers and at least 80% in pace"
+            ),
+            confidenceNote: "Deterministic roadmap fixture for product demonstration; it is not based on captured audio."
+        )
+    }
 }

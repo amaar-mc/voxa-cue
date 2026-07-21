@@ -198,6 +198,8 @@ final class AppModel {
     private var startingSessionID: UUID?
     private var deviceLabTimeoutTask: Task<Void, Never>?
     private var pendingSession: LiveSessionController?
+    private var roadmapGenerationID: UUID?
+    private var coachConversationID = UUID()
 
     private static let cueSequencePreferenceKey = "voxaCueNextCommandSequence"
     private static let hapticPreferencesKey = "voxaCueHapticPreferencesV1"
@@ -218,6 +220,10 @@ final class AppModel {
     var selectedSummary: SessionSummary?
     var insightBySession: [UUID: CoachingInsight] = [:]
     var isGeneratingInsight = false
+    var practiceRoadmap: SavedPracticeRoadmap?
+    var isGeneratingRoadmap = false
+    var coachMessages: [CoachMessage] = []
+    var isSendingCoachMessage = false
     var coachingAPIState: CoachingAPIState
     var onboardingPresentation: OnboardingPresentation?
     var hapticPreferences: HapticPreferences {
@@ -518,6 +524,15 @@ final class AppModel {
         if insightLoadFailed {
             lastError = "One or more saved coaching insights could not be loaded."
         }
+        do {
+            let savedRoadmap = try dataStore.fetchLatestRoadmap()
+            practiceRoadmap = savedRoadmap.flatMap { snapshot in
+                sessions.contains(where: { $0.sessionID == snapshot.sourceSessionID }) ? snapshot : nil
+            }
+        } catch {
+            practiceRoadmap = nil
+            lastError = "Your saved practice roadmap could not be loaded."
+        }
     }
 
     func generateInsight(for summary: SessionSummary) async {
@@ -543,7 +558,7 @@ final class AppModel {
                 let context = try dataStore.fetchInsightContext(sessionID: summary.sessionID)
                 insight = try await apiClient.createInsight(
                     summary: summary,
-                    checkpoints: [],
+                    checkpoints: context.checkpoints,
                     cueEvents: context.cueEvents
                 )
             } else {
@@ -561,6 +576,133 @@ final class AppModel {
             coachingAPIState = .unavailable(message: message)
             lastError = message
         }
+    }
+
+    func generateRoadmap(for summary: SessionSummary) async {
+        guard !deletedSessionIDs.contains(summary.sessionID),
+              sessions.contains(where: { $0.sessionID == summary.sessionID }),
+              !summary.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        let generationID = UUID()
+        roadmapGenerationID = generationID
+        isGeneratingRoadmap = true
+        defer {
+            if roadmapGenerationID == generationID {
+                roadmapGenerationID = nil
+                isGeneratingRoadmap = false
+            }
+        }
+        do {
+            let roadmap: PracticeRoadmap
+            if demoMode {
+                roadmap = DemoFixtures.roadmap()
+            } else if let apiClient {
+                let profile = CoachingProfile.rehearsalV1()
+                let fillerBreakdown = presentationFillerBreakdown(
+                    summary.transcript,
+                    highConfidenceFillers: profile.highConfidenceFillers,
+                    contextualFillers: profile.optionalFillers
+                )
+                roadmap = try await apiClient.createRoadmap(
+                    summary: summary,
+                    history: makeLongTermAnalytics(sessions: sessions),
+                    fillerBreakdown: fillerBreakdown
+                )
+            } else {
+                throw VoxaAPIError.invalidPayload
+            }
+            guard roadmapGenerationID == generationID,
+                  !deletedSessionIDs.contains(summary.sessionID),
+                  sessions.contains(where: { $0.sessionID == summary.sessionID }) else {
+                return
+            }
+            let snapshot = SavedPracticeRoadmap(
+                sourceSessionID: summary.sessionID,
+                generatedAt: Date(),
+                roadmap: roadmap
+            )
+            try dataStore.saveRoadmap(snapshot)
+            practiceRoadmap = snapshot
+            clearCoachConversation()
+        } catch {
+            guard roadmapGenerationID == generationID,
+                  !Task.isCancelled,
+                  (error as? VoxaAPIError) != .cancelled else {
+                return
+            }
+            let message = coachingErrorMessage(error)
+            coachingAPIState = .unavailable(message: message)
+            lastError = message
+        }
+    }
+
+    func sendCoachMessage(_ content: String) async {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.count <= 1_000,
+              !isSendingCoachMessage,
+              let snapshot = practiceRoadmap,
+              let summary = sessions.first(where: { $0.sessionID == snapshot.sourceSessionID }),
+              !deletedSessionIDs.contains(summary.sessionID) else {
+            return
+        }
+        let userMessage = CoachMessage(id: UUID(), role: .user, content: trimmed)
+        coachMessages = Array((coachMessages + [userMessage]).suffix(10))
+        let boundedMessages = coachMessages
+        let conversationID = coachConversationID
+        isSendingCoachMessage = true
+        defer {
+            if coachConversationID == conversationID {
+                isSendingCoachMessage = false
+            }
+        }
+        do {
+            let reply: CoachReply
+            if demoMode {
+                reply = CoachReply(
+                    schemaVersion: 1,
+                    reply: "For the next rehearsal, focus on the first minute: replace filler starts with a quiet beat and aim to stay inside your selected pace range.",
+                    suggestedPrompts: ["Give me a two-minute drill", "How should I open?"]
+                )
+            } else if let apiClient {
+                let profile = CoachingProfile.rehearsalV1()
+                reply = try await apiClient.sendCoachMessage(
+                    summary: summary,
+                    fillerBreakdown: presentationFillerBreakdown(
+                        summary.transcript,
+                        highConfidenceFillers: profile.highConfidenceFillers,
+                        contextualFillers: profile.optionalFillers
+                    ),
+                    roadmap: snapshot.roadmap,
+                    messages: boundedMessages
+                )
+            } else {
+                throw VoxaAPIError.invalidPayload
+            }
+            guard coachConversationID == conversationID,
+                  practiceRoadmap?.sourceSessionID == summary.sessionID,
+                  !deletedSessionIDs.contains(summary.sessionID) else {
+                return
+            }
+            coachMessages = Array(
+                (coachMessages + [CoachMessage(id: UUID(), role: .assistant, content: reply.reply)])
+                    .suffix(10)
+            )
+        } catch {
+            guard coachConversationID == conversationID,
+                  !Task.isCancelled,
+                  (error as? VoxaAPIError) != .cancelled else {
+                return
+            }
+            lastError = coachingErrorMessage(error)
+        }
+    }
+
+    func clearCoachConversation() {
+        coachConversationID = UUID()
+        coachMessages = []
+        isSendingCoachMessage = false
     }
 
     func createDeckPlan(
@@ -607,6 +749,10 @@ final class AppModel {
             deletedSessionIDs.formUnion(sessions.map(\.sessionID))
             sessions = []
             insightBySession = [:]
+            roadmapGenerationID = nil
+            isGeneratingRoadmap = false
+            practiceRoadmap = nil
+            clearCoachConversation()
         } catch {
             lastError = "Local data could not be deleted."
         }
@@ -618,6 +764,10 @@ final class AppModel {
             deletedSessionIDs.insert(summary.sessionID)
             sessions.removeAll { $0.sessionID == summary.sessionID }
             insightBySession.removeValue(forKey: summary.sessionID)
+            roadmapGenerationID = nil
+            isGeneratingRoadmap = false
+            practiceRoadmap = nil
+            clearCoachConversation()
             if selectedSummary?.sessionID == summary.sessionID {
                 selectedSummary = nil
             }
