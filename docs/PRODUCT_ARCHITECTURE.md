@@ -4,7 +4,7 @@
 
 The iPhone is the only microphone, recorder, speech processor, real-time decision engine, session store, and BLE central in the MVP. There is no Raspberry Pi, external microphone, or phone-to-Pi transport.
 
-AI is intentionally outside the live haptic loop. Live decisions are deterministic and on-device; the optional API produces coaching only after a presenter explicitly confirms transcript transmission. This keeps presentation feedback private, predictable, and independent of network latency.
+AI is intentionally outside the live haptic loop. Live decisions are deterministic and on-device; each optional remote insight, roadmap, or coach-chat feature requires its own confirmation before sending its bounded text context. This keeps presentation feedback private, predictable, and independent of network latency.
 
 Guided presentation mode is also local. The app can parse a PDF or PowerPoint
 file, build either an even or presenter-authored per-slide schedule, and feed
@@ -108,7 +108,10 @@ to avoid stacked wrist feedback.
 ### Local persistence
 
 SwiftData stores session summaries, finalized transcript segments, metric
-samples, cue events, and generated coaching insights. Optional fields preserve
+samples, cue events, generated coaching insights, and the latest practice
+roadmap tied to its source session. Deleting any session invalidates that
+aggregate roadmap. Chat turns remain transient in memory and are cleared when
+chat closes or any saved session is deleted. Optional fields preserve
 the difference between zero and “not measured” for pause, pace-variability, and
 intonation metrics. Timed guidance does not claim that a presenter changed
 slides, so it persists generic cue delivery evidence rather than fabricated
@@ -151,11 +154,14 @@ The Hono API deploys from `api/` to Vercel. A shared closed-prototype bearer tok
 
 - `POST /v1/deck-plans` remains contract-tested for future use but is not called by the current app.
 - `POST /v1/insights` accepts a finalized transcript, aggregate metrics, checkpoint results, and cue-event summaries only after the user confirmation in the app. It returns a schema-constrained summary, strengths, priorities, and drills.
+- `POST /v1/roadmaps` accepts exactly one user-selected finalized transcript, its deterministic session metrics and filler counts, plus transcript-free historical aggregates after a roadmap confirmation. It returns a schema-constrained three-step practice plan.
+- `POST /v1/coach-chat` accepts that selected transcript, its roadmap and measured session context, plus the last one to ten typed turns after a separate chat confirmation. Each call is stateless and the server stores no conversation.
 - `GET /readyz` performs a bounded metadata-only check that the configured provider key can access the configured model. It sends no presentation content and performs no generation.
 
 The server owns the OpenAI key. The current closed prototype uses
-`gpt-5.6-luna` for cost-sensitive post-session structured coaching. It strips
-the app's session identifier before provider processing, then calls the
+`gpt-5.6-luna` for cost-sensitive post-session structured coaching. The legacy
+insight route strips the app's session identifier; roadmap and chat requests
+contain no session identifier. The server then calls the
 Responses API with strict JSON Schema output, `store: false`, zero retries, and
 a bounded abort signal. The iPhone never receives the provider key or prompt
 implementation. Request telemetry is limited to a validated correlation ID,
@@ -180,7 +186,9 @@ and restoration remain release gates.
 | Microphone to app memory | PCM buffers during an active session | Retained audio files |
 | Imported presentation to app memory | Slide order, bounded text, and selected timings | Network upload or wearable transfer |
 | App to Cue Band | Cue ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
-| App to insight API | Confirmed finalized transcript, metrics, and cue summaries | Raw audio |
+| App to insight API | One confirmed finalized transcript, aggregate session metrics, checkpoint results, and cue summaries | Raw audio and prior transcript text |
+| App to roadmap API | One confirmed finalized transcript, deterministic session metrics and filler counts, transcript-free historical aggregates | Raw audio and prior transcript text |
+| App to coach-chat API | The selected transcript, roadmap, metrics, and at most 10 typed turns | Raw audio, prior transcript text, and durable chat history |
 | API to OpenAI | Text needed for the requested structured result | App bearer token, BLE data, raw audio |
 
 The developer-only IMU research lab is a separate trust boundary. Diagnostic
@@ -197,7 +205,7 @@ artifacts are not loaded by the production app.
 - On-device speech assets unavailable: the live session does not start; there is no cloud-audio fallback.
 - Cue Band disconnected: speech processing, metrics, and persistence continue; haptic delivery reports failure.
 - DRV2605L unavailable: BLE remains available but the firmware returns a driver-fault rejection.
-- API unavailable: real-time coaching is unaffected and new AI insight generation reports unavailable.
+- API unavailable: real-time coaching is unaffected and new AI insights, roadmaps, or chat replies report unavailable.
 - API request budget exhausted: provider work is aborted and the API returns a sanitized typed 504 response.
 - Invalid model output: the API rejects it with a sanitized 502 response rather than returning unvalidated coaching.
 - App leaves the active session path: the current prototype requires the screen to remain open and does not claim background recording.

@@ -119,7 +119,7 @@ flowchart LR
     class API optional;
 ```
 
-The live path never waits for a network request. If Bluetooth disconnects, recording and analytics continue. The optional API is used only for post-session coaching after explicit consent.
+The live path never waits for a network request. If Bluetooth disconnects, recording and analytics continue. The optional API is used only for user-triggered post-session coaching after a separate confirmation for each remote feature.
 
 ### Data boundaries
 
@@ -128,10 +128,12 @@ The live path never waits for a network request. If Bluetooth disconnects, recor
 | Microphone → app memory | PCM buffers during an active session | Retained audio files |
 | Imported presentation → app memory | Slide order, local text, and selected timings | Network upload or wearable transfer |
 | iPhone → Cue Band | Physical pattern ID, intensity, repeat count, sequence, session mode, timing percentage | Audio, transcript, identity |
-| iPhone → insight API | Confirmed transcript, aggregate metrics, and cue summaries | Raw audio |
+| iPhone → insight API | One confirmed finalized transcript, aggregate session metrics, and cue summaries | Raw audio and prior transcript text |
+| iPhone → roadmap API | One selected finalized transcript, its deterministic metrics and filler counts, and transcript-free historical aggregates | Raw audio and prior transcript text |
+| iPhone → coach-chat API | That selected transcript, its roadmap and metrics, and at most 10 typed chat turns | Raw audio, prior transcript text, and a stored server conversation |
 | Voxa API → OpenAI | Text required for the requested structured result | App bearer token, BLE data, raw audio |
 
-The API rejects audio-shaped payloads and requests structured outputs with provider application-state storage disabled. OpenAI abuse-monitoring retention remains an explicit production release decision.
+The server owns the OpenAI key and calls the Responses API with `gpt-5.6-luna`, strict structured outputs, and `store: false`. The API rejects audio-shaped payloads. `store: false` disables Responses application-state storage, not default abuse-monitoring retention; production retention remains a release decision.
 
 ## Technology
 
@@ -212,7 +214,7 @@ The demo requires no microphone, band, or API. Remove `-demoScenario` to exercis
 <details>
 <summary><strong>Configure the optional AI API</strong></summary>
 
-The app records, analyzes speech, and drives haptics without the API. Optional post-session coaching requires a server-side OpenAI key.
+The app records, analyzes speech, and drives haptics without the API. Optional post-session roadmaps and coach chat require a server-side OpenAI key and explicit in-app confirmation before their context is sent.
 
 ```sh
 cp api/.env.example api/.env.local
@@ -226,7 +228,7 @@ Set:
 - `VOXA_BUILD_ID` to the deployment commit SHA or release identifier
 - `VOXA_DEMO_API_TOKEN` to a random bearer token of at least 32 characters
 
-Deploy with `api/` as the Vercel project root. `GET /livez` is a public minimal liveness probe; `/health`, `/readyz`, and AI routes require `Authorization: Bearer <token>`. This shared token is only for the closed prototype and is not production user authentication.
+Deploy with `api/` as the Vercel project root. `GET /livez` is a public minimal liveness probe; `/health`, `/readyz`, and AI routes require `Authorization: Bearer <token>`. This shared token is only for the closed prototype. Release AI remains disabled until it is replaced with per-user authentication, rate limits, and spend ceilings.
 
 For an AI-enabled app build, copy `ios/Config/BuildSettings.xcconfig.example` to ignored `ios/Local.xcconfig`, then set the deployed HTTPS origin and matching bearer token. Provider credentials never belong in the app.
 
@@ -254,7 +256,8 @@ The serial monitor should print `Voxa Cue firmware 1.3 ready`. In the app, open 
 3. Start a session using the iPhone microphone.
 4. Set target time, pace range, enabled cues, and intensity.
 5. Present while Voxa Cue measures delivery and acknowledges any haptic commands.
-6. End the session to inspect analytics, transcript evidence, priorities, and drills.
+6. End the session to inspect analytics and transcript evidence.
+7. In **Insights**, separately confirm roadmap generation or coach chat when demonstrating optional AI.
 
 ## Verification
 
