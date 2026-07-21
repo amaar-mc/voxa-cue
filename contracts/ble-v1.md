@@ -1,9 +1,11 @@
 # Voxa Cue BLE Protocol v1
 
-The phone is the BLE central. Production Nano 33 IoT and supported Nano ESP32
-firmware advertise as `Voxa Cue`. Centrals discover compatible devices by the
-service UUID, never by the display name. All multi-byte integers are
-little-endian.
+The phone is the BLE central. The production XIAO nRF54L15 Sense Zephyr target
+and the supported Nano 33 IoT and Nano ESP32 targets advertise as `Voxa Cue`.
+Centrals discover compatible devices by the service UUID, never by the display
+name. All three targets implement the same packets and acknowledgement rules,
+so changing wearable hardware requires no iOS protocol change. All multi-byte
+integers are little-endian.
 
 ## Security boundary
 

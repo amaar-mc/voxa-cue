@@ -34,7 +34,7 @@ TranscriptAccumulator + rolling metrics
 CueEngine v1 (pace, fillers, elapsed time)
        |
        v
-CoreBluetooth central -- haptic + timing --> Nano 33 IoT peripheral
+CoreBluetooth central -- haptic + timing --> XIAO nRF54L15 peripheral
        ^                                      |                 |
        |                                      v                 v
 seven-byte status <-- accepted/completed -- DRV2605L RTP      RGB progress
@@ -122,7 +122,14 @@ one local operation.
 
 ## BLE and wearable
 
-The app is the BLE central; the Nano 33 IoT or supported Nano ESP32 advertises as `Voxa Cue`. The v1 GATT service has a write-with-response haptic command characteristic, a read/notify status characteristic, and an optional write-with-response session-light characteristic introduced in firmware 1.2. UUIDs and byte layouts are normative in `contracts/ble-v1.md`.
+The app is the BLE central. The primary compact wearable is a Seeed Studio XIAO
+nRF54L15 Sense running Zephyr; the Nano 33 IoT and Nano ESP32 remain supported
+development targets. Every target advertises as `Voxa Cue` and implements the
+same BLE v1 service, so selecting the XIAO requires no iOS change. The GATT
+service has a write-with-response haptic command characteristic, a read/notify
+status characteristic, and an optional write-with-response session-light
+characteristic introduced in firmware 1.2. UUIDs and byte layouts are normative
+in `contracts/ble-v1.md`.
 
 A command is exactly six little-endian bytes: protocol version, monotonic 16-bit
 sequence, physical pattern ID, intensity, and repeat count. Firmware 1.1 adds
@@ -146,7 +153,12 @@ HIGH for exactly two seconds. The firmware latches that event so heartbeat
 writes cannot retrigger it, while older firmware receives ordinary overtime
 mode 3 instead.
 
-The Nano drives a 3 V ERM through a DRV2605L in real-time playback mode. `millis()` advances a fixed-size pulse state machine; the main loop never blocks for a full pattern and allocates no Arduino `String` in the command or playback path.
+The XIAO drives a 3 V ERM through a DRV2605L on its D4/D5 I2C bus. The ERM is
+never driven from a GPIO. The Zephyr target preserves the fixed-size,
+nonblocking pulse state machine and exact BLE acknowledgement behavior of the
+Arduino targets. Its D6, D7, and D8 outputs drive the resistor-limited RGB
+channels; D9 is only a 3.3 V-compatible buzzer control signal. The supported
+Nano firmware retains its Arduino implementation and identical wire contract.
 
 ## Optional API
 
@@ -221,4 +233,5 @@ artifacts are not loaded by the production app.
 - Firmware protocol and pulse state machine: native PlatformIO Unity tests
 - Standalone IMU lab: native sensor/packet tests, browser protocol/recorder tests,
   schema and leakage-safe model tests, and an executable training notebook
-- Physical integration: BLE smoke test, motor calibration, and wear test in `firmware/voxa-wearable/README.md`
+- Physical integration: XIAO wiring and CMSIS-DAP steps in `docs/SETUP_GUIDE.md`;
+  BLE smoke test, motor calibration, and wear test in the firmware guides
