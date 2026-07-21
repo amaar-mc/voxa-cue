@@ -172,6 +172,7 @@ voxa-cue/
 │   ├── VoxaCue/                 SwiftUI application
 │   ├── VoxaCueTests/            App coordination behavior tests
 │   └── project.yml              XcodeGen project definition
+├── ml/gesture-classifier/       Local BLE recorder and experimental ML pipeline
 ├── tools/                       BLE and IMU browser diagnostics
 └── package.json                 Unified build and verification commands
 ```
@@ -187,7 +188,10 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-That single command type-checks, tests, and builds the API, runs package and simulator app tests, validates both Debug and credential-free Release iOS builds, lints the privacy manifest, and verifies native plus both Nano firmware targets.
+That single command type-checks, tests, and builds the API, runs package and
+simulator app tests, validates both Debug and credential-free Release iOS
+builds, lints the privacy manifest, verifies both Nano firmware paths, and
+executes the isolated gesture-model test and notebook pipeline.
 
 ### Launch the iPhone app
 
@@ -262,7 +266,7 @@ The current implementation is exercised across all three layers:
 | VoxaCore + VoxaRuntime | Swift behavior tests for metrics, timing, cue logic, microphone-route enforcement, BLE bytes, persistence, and API payloads |
 | iPhone application | Simulator behavior tests plus unsigned Debug and Release generic-device builds |
 | Firmware | Native protocol and pattern tests plus successful Nano 33 IoT and Nano ESP32 builds |
-| IMU lab | Native packet/sensor tests, browser classifier tests, and a Nano 33 IoT build |
+| IMU lab | Native packet/sensor tests, labeled-recorder and model-pipeline tests, executable notebook, and a Nano 33 IoT build |
 | Release configuration | Privacy manifest lint plus a built Info.plist check proving the shared demo token is empty |
 
 Physical BLE, motor calibration, microphone placement, and wear testing are intentionally tracked as hardware gates in the release checklist.
@@ -276,6 +280,7 @@ Physical BLE, motor calibration, microphone placement, and wear testing are inte
 | [Product architecture](docs/PRODUCT_ARCHITECTURE.md) | Runtime data flow, trust boundaries, and failure behavior |
 | [BLE protocol v1](contracts/ble-v1.md) | Normative UUIDs, packet bytes, statuses, and replay rules |
 | [Firmware guide](firmware/voxa-wearable/README.md) | Wiring, flashing, calibration, and safety |
+| [Gesture ML lab](ml/gesture-classifier/README.md) | Labeled collection, quality gates, grouped evaluation, and model export |
 | [Privacy policy](docs/PRIVACY_POLICY.md) | Prototype data practices |
 | [Support](docs/SUPPORT.md) | Compatibility and troubleshooting |
 | [App Review notes](docs/APP_REVIEW_NOTES.md) | Reviewer walkthrough and AI disclosures |

@@ -21,6 +21,10 @@
     "firmware:build": "pnpm firmware:build:nano33 && pnpm firmware:build:esp32",
     "imu:test": "uvx --with pip platformio test -e native -d firmware/imu-diagnostic && node --test tools/imu-debug/*.test.mjs",
     "imu:build": "uvx --with pip platformio run -e nano_33_iot -d firmware/imu-diagnostic",
-    "verify": "pnpm api:typecheck && pnpm api:test && pnpm api:build && pnpm ios:test && pnpm ios:app-test && pnpm ios:build && pnpm ios:release-verify && pnpm ble:debug:test && pnpm firmware:test && pnpm firmware:build && pnpm imu:test && pnpm imu:build"
+    "ml:lint": "cd ml/gesture-classifier && uv run ruff check . && uv run ruff format --check src tests notebooks/*.py && uv run mypy src",
+    "ml:test": "cd ml/gesture-classifier && uv run pytest && node --check recorder/app.mjs && node --test recorder/*.test.mjs && sh -n recorder/serve.sh",
+    "ml:notebook:test": "uv run --project ml/gesture-classifier python ml/gesture-classifier/notebooks/verify_notebook.py",
+    "ml:verify": "pnpm ml:lint && pnpm ml:test && pnpm ml:notebook:test",
+    "verify": "pnpm api:typecheck && pnpm api:test && pnpm api:build && pnpm ios:test && pnpm ios:app-test && pnpm ios:build && pnpm ios:release-verify && pnpm ble:debug:test && pnpm firmware:test && pnpm firmware:build && pnpm imu:test && pnpm imu:build && pnpm ml:verify"
   }
 }
