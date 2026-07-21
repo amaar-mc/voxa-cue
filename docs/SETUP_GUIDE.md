@@ -9,7 +9,7 @@ Required:
 - macOS with Xcode 27 beta at `/Applications/Xcode-beta.app`
 - an iPhone running iOS 26 or later for real speech and BLE testing
 - Node.js 22 or later, pnpm 10.32.1, XcodeGen, and `uvx`
-- Arduino Nano 33 IoT, DRV2605L breakout, 3 V ERM motor, and a data-capable Micro-USB cable
+- Seeed Studio XIAO nRF54L15 Sense, DRV2605L breakout, 3 V ERM motor, and a data-capable USB-C cable
 
 ```sh
 brew install node pnpm xcodegen
@@ -27,7 +27,9 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-`pnpm verify` checks the strict TypeScript API, Swift packages and app, privacy manifest, and native plus Nano 33 IoT and Nano ESP32 firmware.
+`pnpm verify` checks the strict TypeScript API, Swift packages and app, privacy
+manifest, native firmware logic, the XIAO nRF54L15 Zephyr build, and the
+supported Nano 33 IoT and Nano ESP32 builds.
 
 ## 3. Install the app on an iPhone
 
@@ -67,48 +69,79 @@ That command generates the Xcode project, signs a Debug build, installs it, and 
 
 ## 4. Wire and flash the Cue Band
 
-Disconnect power before wiring:
+The compact production prototype uses the XIAO nRF54L15 Sense. Disconnect USB
+and every other power source before wiring.
 
-| Nano 33 IoT | DRV2605L | Connection |
+| XIAO nRF54L15 Sense | DRV2605L | Connection |
 | --- | --- | --- |
 | `3V3` | `VIN` | Bench power |
 | `GND` | `GND` | Common ground |
-| `A4` | `SDA` | I2C data |
-| `A5` | `SCL` | I2C clock |
+| `D4` / `P1.10` | `SDA` | I2C data |
+| `D5` / `P1.11` | `SCL` | I2C clock |
 | — | `OUT+`, `OUT-` | ERM motor leads |
 
 Wire a common-cathode session RGB LED with one 220–330 Ω resistor on every
 color leg:
 
-| Nano 33 IoT | RGB LED | Connection |
+| XIAO nRF54L15 Sense | RGB LED | Connection |
 | --- | --- | --- |
-| `D6` | Red | Red channel through resistor |
-| `D7` | Blue | Blue channel through resistor; reserved and off in the current gradient |
-| `D8` | Green | Green channel through resistor |
+| `D6` / `P2.08` | Red | Red channel through resistor |
+| `D7` / `P2.07` | Blue | Blue channel through resistor; reserved and off in the current gradient |
+| `D8` / `P2.01` | Green | Green channel through resistor |
 | `GND` | Common cathode | Shared LED return |
 
-The optional emergency buzzer uses D9 only as a 3.3 V-compatible active-buzzer
-signal input or through a correctly sized transistor driver. Never drive a
+Wire the optional emergency buzzer separately:
+
+| XIAO nRF54L15 Sense | Active-buzzer module | Connection |
+| --- | --- | --- |
+| `D9` / `P2.04` | Signal input | Active HIGH control |
+| `3V3` | `VCC` | Module power only when rated for 3.3 V |
+| `GND` | `GND` | Common ground |
+
+D9 is a control signal only. Use a 3.3 V-compatible high-impedance
+active-buzzer input or a correctly sized transistor driver. Never drive a
 high-current raw buzzer directly from D9.
 
-Never connect the motor directly to a GPIO, 3V3, or GND. Then flash:
+The XIAO GPIO and power domain are 3.3 V only. Keep all grounds common, verify
+the specific DRV2605L breakout accepts 3.3 V on `VIN`, and never expose a GPIO
+to 5 V. Never omit the RGB current-limiting resistors. The ERM motor connects
+only to `OUT+` and `OUT-` on the DRV2605L, never directly to a GPIO, `3V3`, or
+`GND`.
+
+Connect the XIAO with a USB-C data cable, then build and flash:
 
 ```sh
-cd firmware/voxa-wearable
-uvx --with pip platformio test -e native
-uvx --with pip platformio run -e nano_33_iot
-uvx --with pip platformio run -e nano_33_iot --target upload
-uvx --with pip platformio device monitor --baud 115200
+pnpm firmware:build:xiao
+pnpm firmware:flash:xiao
 ```
 
-If upload-port discovery fails:
+The board's onboard SAMD11 CMSIS-DAP probe programs the nRF54L15 directly.
+PlatformIO should discover it automatically. Do not double-press reset and do
+not wait for a UF2 drive. If discovery fails, confirm the cable carries data,
+disconnect other debug probes, reconnect the XIAO, and verify that PlatformIO
+lists the `Seeed Studio XIAO nrf54 CMSIS-DAP` device:
 
 ```sh
 uvx --with pip platformio device list
-uvx --with pip platformio run -e nano_33_iot --target upload --upload-port /dev/cu.usbmodemYOUR_PORT
 ```
 
-Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmware to 3.0.0 or newer with Arduino IDE's Firmware Updater, then flash Voxa firmware again. The monitor must print `Voxa Cue firmware 1.3 ready`. If DRV2605L detection initially fails, firmware retries once per second while idle; fix the wiring or power and send a fresh command after readiness recovers. Connect inside **Settings → Device Lab**; do not pair from iOS Bluetooth Settings. Send all nine physical test patterns before presenting, then run a short timed session to verify green, yellow, orange, solid red, flashing-red overtime, and off-at-end behavior. With a 3.3 V-compatible active-buzzer signal input on D9, explicitly enable the emergency buzzer and verify one two-second tone at 30 seconds overtime with no heartbeat retrigger.
+The XIAO Zephyr firmware preserves the exact BLE v1 UUIDs and packet layouts
+used by the Nano targets. No iOS rebuild, setting, or pairing migration is
+required. Connect inside **Settings → Device Lab**; do not pair from iOS
+Bluetooth Settings. If DRV2605L detection fails, BLE remains available and the
+band rejects haptic commands with `driver fault`; fix power or the D4/D5 wiring
+and send a fresh command after readiness recovers. Send all nine physical test
+patterns before presenting, then run a short timed session to verify green,
+yellow, orange, solid red, flashing-red overtime, and off-at-end behavior. With
+a 3.3 V-compatible active-buzzer signal input on D9, explicitly enable the
+emergency buzzer and verify one two-second tone at 30 seconds overtime with no
+heartbeat retrigger.
+
+The Nano 33 IoT and Nano ESP32 remain supported as larger development targets.
+Their wiring and upload commands are in
+[`firmware/voxa-wearable/README.md`](../firmware/voxa-wearable/README.md). The
+Nano 33 IoT still requires NINA-W102 connectivity firmware 3.0.0 or newer; that
+requirement does not apply to the XIAO.
 
 BLE protocol v1 does not require pairing, bonding, or application-layer
 authentication. Keep this closed prototype supervised and disconnect Chrome,

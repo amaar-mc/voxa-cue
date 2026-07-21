@@ -6,7 +6,8 @@ Voxa Cue is currently a closed M&TSI prototype. Support is provided through the 
 
 - iPhone running iOS 26.0 or later
 - Voxa Cue iPhone app version 1.0.0 (build 1)
-- Arduino Nano 33 IoT running Voxa Cue firmware 1.3; Nano ESP32 remains supported
+- Seeed Studio XIAO nRF54L15 Sense running the Voxa Cue Zephyr firmware;
+  Nano 33 IoT and Nano ESP32 remain supported development targets
 - DRV2605L haptic driver and a 3 V ERM motor
 - Optional HTTPS access to the deployed Voxa Cue API for post-session insights
 
@@ -23,14 +24,17 @@ If permission was denied, Voxa Cue stops before recording. It never silently upl
 
 ## Cue Band will not connect or vibrate
 
-1. Confirm the Nano is powered and the serial monitor printed `Voxa Cue firmware 1.3 ready`.
+1. Confirm the wearable is powered. For the XIAO, confirm its USB-C data cable
+   exposes `Seeed Studio XIAO nrf54 CMSIS-DAP` in
+   `uvx --with pip platformio device list` and reflash with
+   `pnpm firmware:flash:xiao` if needed.
 2. Open **Settings → Device Lab**, disconnect and reconnect the band. The advertised peripheral name is `Voxa Cue`.
-3. If the band is missing, power-cycle the Nano and retry nearby with Bluetooth enabled.
+3. If the band is missing, power-cycle the wearable and retry nearby with Bluetooth enabled.
 4. If BLE connects but the motor does not run, inspect the DRV2605L wiring and
    startup output. A missing or faulted driver rejects commands instead of
    pretending they completed. After the wiring or power recovers, firmware
    retries detection once per second while idle; send a fresh test command.
-5. Run the packet-level smoke test in `firmware/voxa-wearable/README.md` with a BLE inspector.
+5. Run the packet-level smoke test in the matching firmware README with a BLE inspector.
 
 A Ready BLE connection is required to enter session setup and start a real
 presentation. If the band disconnects after recording starts, on-device
@@ -38,10 +42,17 @@ recording and local analytics continue while haptic delivery reports failure.
 `-demoScenario` loads labeled deterministic saved data for a UI walkthrough; it
 does not bypass the Ready-band requirement or start a simulated live session.
 
-For the session light, wire red to D6, blue to D7, and green to D8. Protocol v1
-does not require pairing, bonding, or application-layer authentication. Keep
-the prototype supervised, disconnect other BLE tools before using the iPhone
-app, and do not treat its UUID or sequence number as a security control.
+For the XIAO, wire DRV2605L SDA to D4 (`P1.10`) and SCL to D5 (`P1.11`), then
+wire red to D6, blue to D7, green to D8, and the optional active-buzzer signal
+to D9. Use 3.3 V only, one 220–330 Ω resistor per RGB leg, and a transistor
+stage for any buzzer that is not a 3.3 V-compatible high-impedance input. The
+ERM motor must connect only to the DRV2605L output. The XIAO and Nano targets
+share BLE v1, so changing the wearable does not require an iOS change.
+
+Protocol v1 does not require pairing, bonding, or application-layer
+authentication. Keep the prototype supervised, disconnect other BLE tools
+before using the iPhone app, and do not treat its UUID or sequence number as a
+security control.
 
 ## AI coaching is unavailable
 
