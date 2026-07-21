@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   coachChatJsonSchema,
-  deckPlanJsonSchema,
+  environmentSchema,
   insightJsonSchema,
   roadmapJsonSchema,
 } from "../src/schemas";
@@ -29,12 +29,6 @@ const removeContractMetadata = (
 };
 
 describe("shared response contracts", () => {
-  it("keeps the deck-plan Structured Output schema aligned with contracts", async () => {
-    const contract = await readContract("deck-plan-v1.schema.json");
-
-    expect(deckPlanJsonSchema).toEqual(removeContractMetadata(contract));
-  });
-
   it("keeps the insight Structured Output schema aligned with contracts", async () => {
     const contract = await readContract("insight-v1.schema.json");
 
@@ -51,5 +45,27 @@ describe("shared response contracts", () => {
     const contract = await readContract("coach-chat-v1.schema.json");
 
     expect(coachChatJsonSchema).toEqual(removeContractMetadata(contract));
+  });
+});
+
+describe("runtime environment contract", () => {
+  const validEnvironment = {
+    OPENAI_API_KEY: "server-side-test-key",
+    OPENAI_MODEL: "gpt-5.6-luna",
+    VOXA_BUILD_ID: "test-build",
+    VOXA_DEMO_API_TOKEN: "a-secure-demo-token-with-32-characters",
+  };
+
+  it("accepts the reviewed cost-sensitive model", () => {
+    expect(environmentSchema.safeParse(validEnvironment).success).toBe(true);
+  });
+
+  it("rejects an unreviewed model override", () => {
+    expect(
+      environmentSchema.safeParse({
+        ...validEnvironment,
+        OPENAI_MODEL: "unreviewed-model",
+      }).success,
+    ).toBe(false);
   });
 });

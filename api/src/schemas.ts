@@ -9,74 +9,6 @@ const boundedNumber = (minimum: number, maximum: number) =>
 const normalizedEnglishPhrase = (phrase: string): string =>
   phrase.toLocaleLowerCase("en-US").replaceAll(/\s+/gu, " ").trim();
 
-const deckSlideSchema = z
-  .object({
-    slideIndex: z.number().int().min(0).max(99),
-    title: z.string().trim().max(200),
-    visibleText: z.string().trim().max(10_000),
-    speakerNotes: z.string().trim().max(10_000),
-  })
-  .strict()
-  .refine(
-    (slide) =>
-      slide.title.length > 0 ||
-      slide.visibleText.length > 0 ||
-      slide.speakerNotes.length > 0,
-    { message: "Each slide must include a title, visible text, or speaker notes." },
-  );
-
-export const deckPlanRequestSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    locale: z.literal("en-US"),
-    title: trimmedString(1, 200),
-    targetDurationSeconds: z.number().int().min(30).max(7_200),
-    slides: z.array(deckSlideSchema).min(1).max(100),
-  })
-  .strict()
-  .superRefine((request, context) => {
-    const indexes = new Set<number>();
-    let previousIndex = -1;
-
-    request.slides.forEach((slide, index) => {
-      if (indexes.has(slide.slideIndex)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate slideIndex ${slide.slideIndex}.`,
-          path: ["slides", index, "slideIndex"],
-        });
-      }
-      if (slide.slideIndex <= previousIndex) {
-        context.addIssue({
-          code: "custom",
-          message: "Slides must be ordered by increasing slideIndex.",
-          path: ["slides", index, "slideIndex"],
-        });
-      }
-      indexes.add(slide.slideIndex);
-      previousIndex = slide.slideIndex;
-    });
-  });
-
-export const deckCheckpointSchema = z
-  .object({
-    id: trimmedString(1, 80),
-    slideIndex: z.number().int().min(0),
-    label: trimmedString(1, 120),
-    targetCumulativeSeconds: z.number().int().min(1),
-    semanticSummary: trimmedString(1, 400),
-    anchorTerms: z.array(trimmedString(1, 80)).min(2).max(12),
-  })
-  .strict();
-
-export const deckPlanResponseSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    title: trimmedString(1, 200),
-    checkpoints: z.array(deckCheckpointSchema).min(1).max(100),
-  })
-  .strict();
-
 const targetSchema = z
   .object({
     durationSeconds: z.number().int().min(30).max(7_200),
@@ -412,14 +344,12 @@ export const coachChatResponseSchema = z
 export const environmentSchema = z
   .object({
     OPENAI_API_KEY: trimmedString(1, 500),
-    OPENAI_MODEL: trimmedString(1, 100),
+    OPENAI_MODEL: z.literal("gpt-5.6-luna"),
     VOXA_BUILD_ID: trimmedString(1, 100),
     VOXA_DEMO_API_TOKEN: trimmedString(32, 500),
   })
   .strict();
 
-export type DeckPlanRequest = z.infer<typeof deckPlanRequestSchema>;
-export type DeckPlanResponse = z.infer<typeof deckPlanResponseSchema>;
 export type InsightRequest = z.infer<typeof insightRequestSchema>;
 export type InsightResponse = z.infer<typeof insightResponseSchema>;
 export type RoadmapSession = z.infer<typeof roadmapSessionSchema>;
@@ -429,46 +359,6 @@ export type RoadmapResponse = z.infer<typeof roadmapResponseSchema>;
 export type CoachChatRequest = z.infer<typeof coachChatRequestSchema>;
 export type CoachChatResponse = z.infer<typeof coachChatResponseSchema>;
 export type RuntimeEnvironment = z.infer<typeof environmentSchema>;
-
-export const deckPlanJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["schemaVersion", "title", "checkpoints"],
-  properties: {
-    schemaVersion: { const: 1 },
-    title: { type: "string", minLength: 1, maxLength: 200 },
-    checkpoints: {
-      type: "array",
-      minItems: 1,
-      maxItems: 100,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "id",
-          "slideIndex",
-          "label",
-          "targetCumulativeSeconds",
-          "semanticSummary",
-          "anchorTerms",
-        ],
-        properties: {
-          id: { type: "string", minLength: 1, maxLength: 80 },
-          slideIndex: { type: "integer", minimum: 0 },
-          label: { type: "string", minLength: 1, maxLength: 120 },
-          targetCumulativeSeconds: { type: "integer", minimum: 1 },
-          semanticSummary: { type: "string", minLength: 1, maxLength: 400 },
-          anchorTerms: {
-            type: "array",
-            minItems: 2,
-            maxItems: 12,
-            items: { type: "string", minLength: 1, maxLength: 80 },
-          },
-        },
-      },
-    },
-  },
-} as const;
 
 export const insightJsonSchema = {
   type: "object",
