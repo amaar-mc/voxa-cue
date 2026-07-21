@@ -1,0 +1,56 @@
+[project]
+name = "voxa-gesture-classifier"
+version = "0.1.0"
+description = "Leakage-safe IMU gesture and fidget classification experiments for Voxa Cue"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "matplotlib>=3.9,<4",
+  "numpy>=2.0,<2.5",
+  "pandas>=2.2,<3",
+  "scikit-learn>=1.6,<2",
+  "scipy>=1.13,<2",
+  "seaborn>=0.13,<1",
+  "skops>=0.10,<1",
+]
+
+[project.scripts]
+voxa-gesture-validate = "voxa_gesture.cli:main"
+
+[dependency-groups]
+dev = [
+  "ipykernel>=6.29,<7",
+  "mypy>=1.13,<2",
+  "nbclient>=0.10,<1",
+  "nbformat>=5.10,<6",
+  "pandas-stubs>=2.2,<3",
+  "pytest>=8.3,<9",
+  "ruff>=0.9,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voxa_gesture"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["voxa_gesture"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "skops.*", "scipy.*"]
+ignore_missing_imports = true
