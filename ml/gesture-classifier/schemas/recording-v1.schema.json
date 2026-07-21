@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voxacue.dev/schemas/imu-recording-row-v1.json",
+  "title": "Voxa Cue labeled IMU recording row v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "subject_id",
+    "session_id",
+    "trial_id",
+    "trial_started_at_utc",
+    "behavior",
+    "subtype",
+    "wrist",
+    "orientation",
+    "repetition",
+    "prompt_event_ms",
+    "device_ms",
+    "sequence",
+    "sample_index",
+    "elapsed_ms",
+    "host_elapsed_ms",
+    "accel_x_g",
+    "accel_y_g",
+    "accel_z_g",
+    "gyro_x_dps",
+    "gyro_y_dps",
+    "gyro_z_dps",
+    "sensor_kind",
+    "sensor_address",
+    "firmware",
+    "target_sample_rate_hz",
+    "healthy"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "subject_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$" },
+    "session_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$" },
+    "trial_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "trial_started_at_utc": { "type": "string", "format": "date-time" },
+    "behavior": { "enum": ["rest", "intentional_gesture", "fidget"] },
+    "subtype": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "wrist": { "enum": ["left", "right"] },
+    "orientation": { "enum": ["usb_toward_hand", "usb_toward_elbow", "custom_consistent"] },
+    "repetition": { "type": "integer", "minimum": 1 },
+    "prompt_event_ms": { "type": "integer", "minimum": 0, "maximum": 3500 },
+    "device_ms": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 65535 },
+    "sample_index": { "type": "integer", "minimum": 0 },
+    "elapsed_ms": { "type": "number", "minimum": 0 },
+    "host_elapsed_ms": { "type": "number", "minimum": 0 },
+    "accel_x_g": { "type": "number", "minimum": -16, "maximum": 16 },
+    "accel_y_g": { "type": "number", "minimum": -16, "maximum": 16 },
+    "accel_z_g": { "type": "number", "minimum": -16, "maximum": 16 },
+    "gyro_x_dps": { "type": "number", "minimum": -2000, "maximum": 2000 },
+    "gyro_y_dps": { "type": "number", "minimum": -2000, "maximum": 2000 },
+    "gyro_z_dps": { "type": "number", "minimum": -2000, "maximum": 2000 },
+    "sensor_kind": { "const": "LSM6 family" },
+    "sensor_address": { "const": "0x6A" },
+    "firmware": { "const": "1.1" },
+    "target_sample_rate_hz": { "const": 50 },
+    "healthy": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "behavior": { "const": "rest" } } },
+      "then": { "properties": { "subtype": { "const": "still" } } }
+    },
+    {
+      "if": { "properties": { "behavior": { "const": "intentional_gesture" } } },
+      "then": {
+        "properties": {
+          "subtype": { "enum": ["beat", "open_palm", "point", "sweep", "count"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "behavior": { "const": "fidget" } } },
+      "then": {
+        "properties": {
+          "subtype": {
+            "enum": ["wrist_twist", "strap_touch", "hand_clasp", "object_fidget", "self_touch"]
+          }
+        }
+      }
+    }
+  ]
+}
