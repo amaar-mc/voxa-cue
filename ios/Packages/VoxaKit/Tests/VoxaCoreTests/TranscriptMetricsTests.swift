@@ -331,6 +331,22 @@ func timedFillerMatchingCountsCrossSegmentContextualRepetition() {
     #expect(offsets == [1, 2, 3])
 }
 
+@Test("Presentation filler breakdown preserves contextual decisions and ranks repeated phrases")
+func presentationFillerBreakdownRanksDeterministicMatches() {
+    let breakdown = presentationFillerBreakdown(
+        "Like, I mean, this works. I like the result. Um, like, we should continue, you know.",
+        highConfidenceFillers: ["um"],
+        contextualFillers: ["like", "i mean", "you know"]
+    )
+
+    #expect(breakdown == [
+        FillerFrequency(phrase: "like", count: 2),
+        FillerFrequency(phrase: "i mean", count: 1),
+        FillerFrequency(phrase: "um", count: 1),
+        FillerFrequency(phrase: "you know", count: 1),
+    ])
+}
+
 @Test("Pause analytics include only internal speech gaps above the measurement floor")
 func pauseAnalyticsUsesInternalSpeechGaps() {
     let intervals = [
