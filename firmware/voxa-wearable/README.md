@@ -38,8 +38,8 @@ Wire the session light separately:
 | Nano | RGB LED | Purpose |
 | --- | --- | --- |
 | `D6` | Red through 220–330 Ω | Red channel |
-| `D7` | Green through 220–330 Ω | Green channel |
-| `D8` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
+| `D7` | Blue through 220–330 Ω | Blue channel; reserved and off in the current gradient |
+| `D8` | Green through 220–330 Ω | Green channel |
 | `GND` | Common cathode | Shared LED return |
 
 Wire the optional overtime buzzer separately:
@@ -121,7 +121,10 @@ to the newly appeared `/dev/cu.usbmodem...` port.
 
 On startup the serial monitor prints either `Voxa Cue firmware 1.3 ready` or a
 DRV2605L detection failure. A missing driver does not crash BLE; commands are
-rejected with the protocol's `driver fault` error.
+rejected with the protocol's `driver fault` error. While playback is idle, the
+firmware retries DRV2605L detection once per second. After the driver recovers,
+send a fresh command with a new sequence number; a previously rejected command
+is never replayed automatically.
 
 The production firmware has no direct-GPIO or MOSFET motor-output mode. Every
 haptic command requires a detected DRV2605L on the default I2C bus and is
@@ -216,3 +219,18 @@ design procedure. Do not copy register values from a different motor.
 - Rebooting clears sequence history. The phone must continue increasing its
   16-bit sequence counter across ordinary BLE reconnects and must not replay
   commands generated before a reconnect.
+
+## Prototype BLE security boundary
+
+BLE protocol v1 does not require pairing, bonding, an encrypted link, or
+application-layer authentication. Service UUID discovery and sequence-number
+checks provide compatibility and duplicate suppression, not device identity or
+authorization. A nearby central that knows the UUIDs can connect and write
+haptic or session-light commands while the peripheral is available.
+
+Use this firmware only in the closed, supervised prototype environment and
+disconnect LightBlue, Chrome, or any other central before connecting the iPhone
+app. A public product must add authenticated device enrollment, trusted device
+identity, replay-resistant authenticated commands, and enforced connection,
+rate, and actuator-duty limits. Do not describe the current BLE transport as
+private or secure merely because the feedback is discreet.

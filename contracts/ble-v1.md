@@ -5,6 +5,20 @@ firmware advertise as `Voxa Cue`. Centrals discover compatible devices by the
 service UUID, never by the display name. All multi-byte integers are
 little-endian.
 
+## Security boundary
+
+Protocol v1 is an unauthenticated control protocol for a closed, supervised
+prototype. It does not require BLE pairing or bonding, link encryption, or
+application-layer authentication. UUID discovery establishes compatibility,
+and the monotonic sequence rejects stale or duplicate commands; neither proves
+the identity of the phone or band. A nearby central that knows the UUIDs can
+connect and write commands while the peripheral is available.
+
+A public protocol revision must add authenticated device enrollment and
+identity, replay-resistant authenticated commands, and connection, rate, and
+actuator-duty limits. Implementations must not present protocol v1 as a private
+or secure transport.
+
 ## GATT
 
 | Role | UUID | Properties |
@@ -55,7 +69,7 @@ accepts exactly three bytes:
 | --- | --- | --- |
 | 0 | `uint8` | Protocol version; must equal `1` |
 | 1 | `uint8` | Mode: `0` off, `1` active, `2` paused, `3` overtime, `4` overtime plus one-shot buzzer |
-| 2 | `uint8` | Presentation time progress, clamped to `0...100` |
+| 2 | `uint8` | Presentation time progress; must be in `0...100` |
 
 The app writes active `0` when recording begins, sends updated progress plus a
 heartbeat during the session, freezes the percentage in paused mode, sends
@@ -76,7 +90,8 @@ Apps connected to firmware earlier than `1.3` must downgrade mode `4` to
 ordinary overtime mode `3`.
 
 Session-light writes are idempotent and have no status notification. The GATT
-write response confirms transport only. Malformed values are ignored. The LED
+write response confirms transport only. Values above `100` and all other
+malformed packets are ignored rather than clamped. The LED
 turns off when the central disconnects or no valid heartbeat arrives for five
 seconds. Apps must treat the characteristic as optional so firmware 1.1 and
 earlier retain full haptic compatibility.
@@ -94,4 +109,8 @@ Exactly seven bytes:
 | 5 | `uint8` | Firmware major |
 | 6 | `uint8` | Firmware minor |
 
-The peripheral sends `accepted` before playback and `completed` afterward. It rejects duplicate completed sequence numbers without replaying the motor. The app never replays commands generated before a reconnect.
+The peripheral sends `accepted` before playback and `completed` afterward. It
+rejects duplicate completed sequence numbers without replaying the motor. A
+driver fault rejects the command; while idle, firmware retries driver detection
+once per second, and the app may send a fresh command with a new sequence after
+readiness recovers. The app never replays commands generated before a reconnect.
