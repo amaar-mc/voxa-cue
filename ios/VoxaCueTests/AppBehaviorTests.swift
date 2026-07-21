@@ -77,92 +77,6 @@ private func appAITestSummary(
     )
 }
 
-@Test("Local deck planning preserves order and lands exactly on target time")
-func localDeckPlanTiming() throws {
-    let slides = [
-        DeckSlide(
-            id: UUID(),
-            index: 1,
-            title: "Problem",
-            body: "Presenters lose useful feedback when pressure changes their delivery.",
-            notes: "Explain the current workflow."
-        ),
-        DeckSlide(
-            id: UUID(),
-            index: 2,
-            title: "Voxa Cue",
-            body: "Private live haptics help speakers adjust pace, fillers, and timing.",
-            notes: "Close with the coaching loop."
-        )
-    ]
-
-    let plan = try LocalDeckPlanner.makePlan(
-        title: "Pitch",
-        targetDurationSeconds: 180,
-        slides: slides
-    )
-
-    #expect(plan.checkpoints.map(\.slideIndex) == [1, 2])
-    #expect(plan.checkpoints[0].targetCumulativeSeconds < 180)
-    #expect(plan.checkpoints[1].targetCumulativeSeconds == 180)
-    #expect(plan.checkpoints.allSatisfy { $0.anchorTerms.count >= 2 })
-}
-
-@Test("Sparse slides receive conservative fallback anchors")
-func localDeckPlanFallbackAnchors() throws {
-    let slides = [
-        DeckSlide(
-            id: UUID(),
-            index: 1,
-            title: "Go",
-            body: "Now",
-            notes: "End"
-        )
-    ]
-
-    let plan = try LocalDeckPlanner.makePlan(
-        title: "Brief",
-        targetDurationSeconds: 30,
-        slides: slides
-    )
-
-    #expect(plan.checkpoints[0].anchorTerms == ["slide", "topic"])
-}
-
-@Test("Retiming a prepared deck is local and preserves coaching anchors")
-func preparedDeckRetimingPreservesContent() {
-    let original = DeckPlan(
-        schemaVersion: 1,
-        title: "Investor pitch",
-        checkpoints: [
-            DeckCheckpoint(
-                id: "slide-1",
-                slideIndex: 1,
-                label: "Problem",
-                targetCumulativeSeconds: 60,
-                semanticSummary: "Presenters lose feedback under pressure.",
-                anchorTerms: ["presenters", "pressure"]
-            ),
-            DeckCheckpoint(
-                id: "slide-2",
-                slideIndex: 2,
-                label: "Product",
-                targetCumulativeSeconds: 180,
-                semanticSummary: "Voxa Cue closes the coaching loop.",
-                anchorTerms: ["coaching", "haptics"]
-            )
-        ]
-    )
-
-    let retimed = LocalDeckPlanner.retime(plan: original, targetDurationSeconds: 120)
-
-    #expect(retimed.title == original.title)
-    #expect(retimed.schemaVersion == original.schemaVersion)
-    #expect(retimed.checkpoints.map(\.targetCumulativeSeconds) == [40, 120])
-    #expect(retimed.checkpoints.map(\.semanticSummary) == original.checkpoints.map(\.semanticSummary))
-    #expect(retimed.checkpoints.map(\.anchorTerms) == original.checkpoints.map(\.anchorTerms))
-}
-
 @MainActor
 @Test("App model hydrates saved insights with session history")
 func appModelHydratesSavedInsights() throws {
@@ -808,25 +722,12 @@ func demoModeAvoidsCoachingAPI() async throws {
         preferences: preferences
     )
     let summary = try #require(model.sessions.first)
-    let slides = [
-        DeckSlide(
-            id: UUID(),
-            index: 1,
-            title: "Solution",
-            body: "Voxa Cue turns live delivery metrics into private haptic feedback.",
-            notes: "Explain the coaching loop."
-        )
-    ]
-
-    let preparedPlan = try await model.createDeckPlan(title: "Demo pitch", targetDurationSeconds: 90, slides: slides)
     await model.generateInsight(for: summary)
     await model.generateRoadmap(for: summary)
     for index in 1...6 {
         await model.sendCoachMessage("Demo coaching question \(index)")
     }
 
-    #expect(preparedPlan.source == .local)
-    #expect(preparedPlan.plan.checkpoints.last?.targetCumulativeSeconds == 90)
     #expect(model.insightBySession[summary.sessionID] == DemoFixtures.insight())
     #expect(model.practiceRoadmap?.roadmap == DemoFixtures.roadmap())
     #expect(model.coachMessages.count == 10)
@@ -1036,7 +937,44 @@ func temporaryInactivityPreservesSessionStartup() async throws {
         model.handleSceneEnteredBackground()
         return
     }
-    Issue.record("Temporary inactivity must not cancel permission or countdown preparation")
+    Issue.record("Temporary inactivity must not cancel permission preparation")
+}
+
+@MainActor
+@Test("Inactivity during the visible countdown cancels microphone startup")
+func countdownInactivityCancelsSessionStartup() async throws {
+    let suiteName = "VoxaCueTests.countdown-inactivity"
+    let preferences = try #require(UserDefaults(suiteName: suiteName))
+    preferences.removePersistentDomain(forName: suiteName)
+    let model = AppModel(
+        dataStore: try VoxaDataStore(inMemory: true),
+        speechPipeline: LiveSpeechPipeline(audioEngine: AVAudioEngine()),
+        cueBandClient: CueBandClient(),
+        apiClient: nil,
+        demoMode: true,
+        preferences: preferences
+    )
+    model.beginSession(configuration: behaviorTestSessionConfiguration(emergencyBuzzerEnabled: false))
+    let controller = try #require(model.activeSession)
+
+    for _ in 0..<20 {
+        if case .countdown = controller.phase { break }
+        await Task.yield()
+    }
+    guard case .countdown = controller.phase else {
+        Issue.record("Session did not enter countdown")
+        model.handleSceneEnteredBackground()
+        return
+    }
+
+    model.handleSceneBecameInactive()
+    await Task.yield()
+
+    guard case .failed = controller.phase else {
+        Issue.record("Countdown must not continue while Voxa Cue is inactive")
+        model.handleSceneEnteredBackground()
+        return
+    }
 }
 
 @MainActor
@@ -1414,31 +1352,6 @@ func timedSlideCuesDoNotPersistObservedCheckpoints() async throws {
 
     let context = try dataStore.fetchInsightContext(sessionID: controller.id)
     #expect(context.checkpoints.isEmpty)
-}
-
-@Test("Local deck plans reject presentations above the supported slide limit")
-func localDeckPlanRejectsOversizedPresentations() {
-    let slides = (0..<150).map { index in
-        DeckSlide(
-            id: UUID(),
-            index: index,
-            title: String(repeating: "Long title ", count: 20) + "\(index)",
-            body: "Distinctive content for slide \(index) and the presentation narrative.",
-            notes: "Explain evidence number \(index)."
-        )
-    }
-
-    var rejected = false
-    do {
-        _ = try LocalDeckPlanner.makePlan(
-            title: "Large pitch",
-            targetDurationSeconds: 180,
-            slides: slides
-        )
-    } catch {
-        rejected = true
-    }
-    #expect(rejected)
 }
 
 @MainActor
