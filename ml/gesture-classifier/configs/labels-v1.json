@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "behaviors": [
+    {
+      "id": "rest",
+      "label": "Rest",
+      "instruction": "Speak naturally. When prompted, keep the recorded wrist relaxed and still.",
+      "subtypes": [
+        { "id": "still", "label": "Still" }
+      ]
+    },
+    {
+      "id": "intentional_gesture",
+      "label": "Intentional gesture",
+      "instruction": "When prompted, use one deliberate gesture to emphasize a spoken point, then return to rest.",
+      "subtypes": [
+        { "id": "beat", "label": "Beat or chop" },
+        { "id": "open_palm", "label": "Open palm" },
+        { "id": "point", "label": "Point" },
+        { "id": "sweep", "label": "Horizontal sweep" },
+        { "id": "count", "label": "Count or enumerate" }
+      ]
+    },
+    {
+      "id": "fidget",
+      "label": "Fidget",
+      "instruction": "When prompted, make the non-presentational movement once, then return to rest.",
+      "subtypes": [
+        { "id": "wrist_twist", "label": "Wrist twist" },
+        { "id": "strap_touch", "label": "Touch or adjust strap" },
+        { "id": "hand_clasp", "label": "Rub or clasp hands" },
+        { "id": "object_fidget", "label": "Fidget with clicker or object" },
+        { "id": "self_touch", "label": "Touch sleeve, face, or hair" }
+      ]
+    }
+  ]
+}

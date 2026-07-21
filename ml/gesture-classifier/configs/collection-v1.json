@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "countdownSeconds": 3,
+  "trialDurationSeconds": 4,
+  "motionPromptMilliseconds": 1500,
+  "motionPromptDisplayMilliseconds": 700,
+  "repetitionsPerSubtype": 6,
+  "minimumCaptureFraction": 0.8,
+  "maximumPacketLossFraction": 0.05,
+  "recommendedSessionsPerSubject": 3,
+  "recommendedNaturalValidationMinutes": 3,
+  "modelingSampleRateHertz": 50,
+  "windowSeconds": 2,
+  "hopSeconds": 0.5
+}
