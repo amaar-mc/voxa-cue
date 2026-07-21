@@ -23,15 +23,26 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Coach chat requires a separate confirmation and sends only that selected transcript, its roadmap and metrics, and the last one to ten typed turns. Closing chat or deleting any saved session clears the transient conversation.
 - [ ] Roadmap output remains tied to its source session and is removed when any contributing session or all local data is deleted.
 - [ ] `uvx --with pip platformio test -e native` passes all firmware tests.
+- [ ] `pnpm firmware:build:xiao` succeeds for the official XIAO nRF54L15
+  Zephyr target.
 - [ ] `uvx --with pip platformio run -e nano_33_iot` succeeds.
 - [ ] `uvx --with pip platformio run -e nano_esp32` succeeds.
-- [ ] The exact demo Nano, driver, motor, wiring, enclosure, and power source pass the 15-minute wear test in the firmware README.
+- [ ] `pnpm firmware:flash:xiao` programs the exact demonstration board through
+  its onboard CMSIS-DAP probe without a UF2 or manual bootloader step.
+- [ ] The exact demo XIAO, driver, motor, wiring, enclosure, and power source
+  pass the 15-minute wear test described in the firmware guide.
+- [ ] XIAO wiring is independently checked before power: D4/P1.10 SDA,
+  D5/P1.11 SCL, D6 red, D7 blue, D8 green, and D9 active-buzzer control; all
+  logic is 3.3 V, every RGB channel has a 220–330 Ω resistor, and the ERM is
+  powered only by the DRV2605L output.
 - [ ] BLE smoke testing confirms accepted and completed acknowledgements, duplicate rejection, all nine physical haptic patterns, firmware 1.1 calm-wave/deadline support, firmware 1.2 session-light progress, pause, overtime, disconnect, and timeout behavior, and firmware 1.3 one-shot D9 buzzer timing without heartbeat retrigger.
 - [ ] The app blocks entry to session setup until a Ready Cue Band is connected.
 - [ ] Physical RGB verification confirms D6 red, D7 blue, and D8 green, with a
   green-to-yellow-to-orange-to-red progression and flashing red overtime.
 - [ ] A forced DRV2605L fault confirms fail-low behavior and successful bounded
   one-second recovery attempts without a reboot.
+- [ ] The same iOS build connects to the XIAO and a supported Nano through BLE
+  v1 without a board-specific app setting or protocol migration.
 - [ ] Airplane-mode testing confirms that live coaching and BLE haptics continue without the API.
 - [ ] No real API key or bearer token is present in Git history, source, generated project files, logs, screenshots, or demo materials.
 - [ ] `-demoScenario` screens and metrics are verbally identified as deterministic demo data whenever used.
