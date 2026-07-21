@@ -7,11 +7,15 @@ import type {
   StructuredOutputGenerator,
 } from "../src/openai";
 import {
+  validCoachChatRequest,
+  validCoachChatResponse,
   demoToken,
   validDeckPlanRequest,
   validDeckPlanResponse,
   validInsightRequest,
   validInsightResponse,
+  validRoadmapRequest,
+  validRoadmapResponse,
 } from "./fixtures";
 
 const authorizationHeaders = {
@@ -90,10 +94,18 @@ describe("Voxa Cue API", () => {
     const postResponse = await app.request("/v1/deck-plans", {
       method: "POST",
     });
+    const roadmapResponse = await app.request("/v1/roadmaps", {
+      method: "POST",
+    });
+    const chatResponse = await app.request("/v1/coach-chat", {
+      method: "POST",
+    });
 
     expect(healthResponse.status).toBe(401);
     expect(healthResponse.headers.get("www-authenticate")).toContain("Bearer");
     expect(postResponse.status).toBe(401);
+    expect(roadmapResponse.status).toBe(401);
+    expect(chatResponse.status).toBe(401);
     expect(generate).not.toHaveBeenCalled();
   });
 
@@ -471,5 +483,280 @@ describe("Voxa Cue API", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "invalid_model_response" },
     });
+  });
+
+  it("creates a roadmap from one transcript and transcript-free history", async () => {
+    const generate = createMockGenerator(validRoadmapResponse);
+    const app = createTestApp(generate);
+
+    const response = await app.request(
+      "/v1/roadmaps",
+      jsonRequest(validRoadmapRequest),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(validRoadmapResponse);
+    const request = generate.mock.calls[0]?.[0];
+    expect(request?.schemaName).toBe("voxa_cue_roadmap_v1");
+    expect(request?.maximumOutputTokens).toBe(2_200);
+    expect(request?.instructions).toContain("untrusted evidence");
+    expect(request?.instructions).toContain("medical");
+    expect(request?.input).toContain(validRoadmapRequest.session.transcript);
+    expect(request?.input.match(/"transcript"/gu)).toHaveLength(1);
+    expect(request?.input).not.toContain("sessionId");
+  });
+
+  it("rejects identifiers, prior transcripts, duplicate fillers, and audio before roadmap generation", async () => {
+    const generate = createMockGenerator(validRoadmapResponse);
+    const app = createTestApp(generate);
+    const responses = await Promise.all([
+      app.request(
+        "/v1/roadmaps",
+        jsonRequest({ ...validRoadmapRequest, sessionId: "private-session" }),
+      ),
+      app.request(
+        "/v1/roadmaps",
+        jsonRequest({
+          ...validRoadmapRequest,
+          history: {
+            ...validRoadmapRequest.history,
+            transcript: "A prior transcript must never be accepted.",
+          },
+        }),
+      ),
+      app.request(
+        "/v1/roadmaps",
+        jsonRequest({
+          ...validRoadmapRequest,
+          session: {
+            ...validRoadmapRequest.session,
+            fillerBreakdown: [
+              { phrase: "Um", count: 1 },
+              { phrase: "um", count: 2 },
+            ],
+          },
+        }),
+      ),
+      app.request(
+        "/v1/roadmaps",
+        jsonRequest({
+          ...validRoadmapRequest,
+          session: {
+            ...validRoadmapRequest.session,
+            audioBase64: "UklGRg==",
+          },
+        }),
+      ),
+      app.request(
+        "/v1/roadmaps",
+        jsonRequest({
+          ...validRoadmapRequest,
+          history: {
+            ...validRoadmapRequest.history,
+            measuredPauseSessionCount:
+              validRoadmapRequest.history.sessionCount + 1,
+          },
+        }),
+      ),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([
+      422, 422, 422, 400, 422,
+    ]);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("accepts explicit null longitudinal measurements", async () => {
+    const generate = createMockGenerator(validRoadmapResponse);
+    const app = createTestApp(generate);
+    const response = await app.request(
+      "/v1/roadmaps",
+      jsonRequest({
+        ...validRoadmapRequest,
+        history: {
+          ...validRoadmapRequest.history,
+          averagePaceStandardDeviationWpm: null,
+          averagePitchRangeSemitones: null,
+          averageEnergyRangeDb: null,
+          pausesPerPresentationMinute: null,
+          averagePauseSeconds: null,
+          longestPauseSeconds: null,
+          measuredIntonationSessionCount: 0,
+          measuredPauseSessionCount: 0,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(validRoadmapResponse);
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
+  it("rejects filler breakdowns that disagree with the deterministic session total", async () => {
+    const generate = createMockGenerator(validRoadmapResponse);
+    const app = createTestApp(generate);
+    const response = await app.request(
+      "/v1/roadmaps",
+      jsonRequest({
+        ...validRoadmapRequest,
+        session: {
+          ...validRoadmapRequest.session,
+          metrics: {
+            ...validRoadmapRequest.session.metrics,
+            fillerCount:
+              validRoadmapRequest.session.metrics.fillerCount + 1,
+          },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized roadmap and chat payloads before generation", async () => {
+    const generate = createMockGenerator(validRoadmapResponse);
+    const app = createTestApp(generate);
+    const oversizedRequest = async (path: string): Promise<Response> =>
+      await app.request(path, {
+        method: "POST",
+        headers: {
+          ...authorizationHeaders,
+          "content-type": "application/json",
+          "content-length": String(256 * 1_024 + 1),
+        },
+        body: "{}",
+      });
+
+    const [roadmapResponse, chatResponse] = await Promise.all([
+      oversizedRequest("/v1/roadmaps"),
+      oversizedRequest("/v1/coach-chat"),
+    ]);
+
+    expect(roadmapResponse.status).toBe(413);
+    expect(chatResponse.status).toBe(413);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rejects roadmap output that changes deterministic filler evidence or step order", async () => {
+    const wrongFiller = createMockGenerator({
+      ...validRoadmapResponse,
+      focusFillers: [
+        { phrase: "um", count: 99, guidance: "Pause instead." },
+      ],
+    });
+    const wrongOrder = createMockGenerator({
+      ...validRoadmapResponse,
+      steps: [
+        validRoadmapResponse.steps[1],
+        validRoadmapResponse.steps[0],
+        validRoadmapResponse.steps[2],
+      ],
+    });
+
+    const fillerResponse = await createTestApp(wrongFiller).request(
+      "/v1/roadmaps",
+      jsonRequest(validRoadmapRequest),
+    );
+    const orderResponse = await createTestApp(wrongOrder).request(
+      "/v1/roadmaps",
+      jsonRequest(validRoadmapRequest),
+    );
+
+    expect(fillerResponse.status).toBe(502);
+    expect(orderResponse.status).toBe(502);
+  });
+
+  it("creates a bounded stateless coach reply", async () => {
+    const generate = createMockGenerator(validCoachChatResponse);
+    const app = createTestApp(generate);
+
+    const response = await app.request(
+      "/v1/coach-chat",
+      jsonRequest(validCoachChatRequest),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(validCoachChatResponse);
+    const request = generate.mock.calls[0]?.[0];
+    expect(request?.schemaName).toBe("voxa_cue_coach_chat_v1");
+    expect(request?.maximumOutputTokens).toBe(700);
+    expect(request?.instructions).toContain("untrusted data");
+    expect(request?.instructions).toContain("public-speaking");
+    expect(request?.instructions).toContain("medical");
+    expect(request?.input).toContain(
+      validCoachChatRequest.messages[0]?.content,
+    );
+    expect(request?.input.match(/"transcript"/gu)).toHaveLength(1);
+  });
+
+  it("requires chat to end with a user message and stay inside history bounds", async () => {
+    const generate = createMockGenerator(validCoachChatResponse);
+    const app = createTestApp(generate);
+    const assistantLast = await app.request(
+      "/v1/coach-chat",
+      jsonRequest({
+        ...validCoachChatRequest,
+        messages: [{ role: "assistant", content: "Previous reply." }],
+      }),
+    );
+    const tooManyMessages = await app.request(
+      "/v1/coach-chat",
+      jsonRequest({
+        ...validCoachChatRequest,
+        messages: Array.from({ length: 11 }, (_value, index) => ({
+          role: index % 2 === 0 ? "user" : "assistant",
+          content: `Message ${index}`,
+        })),
+      }),
+    );
+    const mismatchedRoadmap = await app.request(
+      "/v1/coach-chat",
+      jsonRequest({
+        ...validCoachChatRequest,
+        roadmap: {
+          ...validCoachChatRequest.roadmap,
+          focusFillers: [
+            { phrase: "um", count: 99, guidance: "Pause instead." },
+          ],
+        },
+      }),
+    );
+    const oversizedMessage = await app.request(
+      "/v1/coach-chat",
+      jsonRequest({
+        ...validCoachChatRequest,
+        messages: [{ role: "user", content: "x".repeat(1_001) }],
+      }),
+    );
+
+    expect(assistantLast.status).toBe(422);
+    expect(tooManyMessages.status).toBe(422);
+    expect(mismatchedRoadmap.status).toBe(422);
+    expect(oversizedMessage.status).toBe(422);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rejects audio-shaped chat context and malformed coach output", async () => {
+    const validGenerator = createMockGenerator(validCoachChatResponse);
+    const audioResponse = await createTestApp(validGenerator).request(
+      "/v1/coach-chat",
+      jsonRequest({
+        ...validCoachChatRequest,
+        recording: "https://example.test/private.m4a",
+      }),
+    );
+    const malformedGenerator = createMockGenerator({
+      ...validCoachChatResponse,
+      suggestedPrompts: ["one", "two", "three", "four"],
+    });
+    const malformedResponse = await createTestApp(malformedGenerator).request(
+      "/v1/coach-chat",
+      jsonRequest(validCoachChatRequest),
+    );
+
+    expect(audioResponse.status).toBe(400);
+    expect(malformedResponse.status).toBe(502);
+    expect(validGenerator).not.toHaveBeenCalled();
   });
 });
