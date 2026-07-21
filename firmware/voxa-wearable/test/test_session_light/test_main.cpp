@@ -60,8 +60,8 @@ void malformedSessionLightPacketsAreRejected() {
 
 void nanoSessionLightPinsMatchThePhysicalRgbChannels() {
   TEST_ASSERT_EQUAL_UINT8(6U, voxa::kNanoSessionLightPins.red);
-  TEST_ASSERT_EQUAL_UINT8(7U, voxa::kNanoSessionLightPins.green);
-  TEST_ASSERT_EQUAL_UINT8(8U, voxa::kNanoSessionLightPins.blue);
+  TEST_ASSERT_EQUAL_UINT8(8U, voxa::kNanoSessionLightPins.green);
+  TEST_ASSERT_EQUAL_UINT8(7U, voxa::kNanoSessionLightPins.blue);
 }
 
 void activeColorMovesThroughGreenYellowOrangeRed() {

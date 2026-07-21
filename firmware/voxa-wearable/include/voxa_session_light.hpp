@@ -23,7 +23,7 @@ struct RgbPinAssignment {
   std::uint8_t blue;
 };
 
-constexpr RgbPinAssignment kNanoSessionLightPins{6U, 7U, 8U};
+constexpr RgbPinAssignment kNanoSessionLightPins{6U, 8U, 7U};
 
 struct SessionLightCommand {
   std::uint8_t protocolVersion;
