@@ -1,6 +1,6 @@
 # Voxa Cue Privacy Policy
 
-Effective July 15, 2026
+Effective July 21, 2026
 
 Voxa Cue is a closed prototype created by a student team for the University of Pennsylvania Management & Technology Summer Institute (M&TSI). This policy describes the behavior of the Voxa Cue iPhone app, optional Voxa Cue API, and BLE Cue Band in this repository. The prototype has no user accounts, advertising, analytics SDK, or production payment flow. Debug builds include a clearly labeled local StoreKit test and Demo Pro switch; neither makes a charge.
 
@@ -32,7 +32,15 @@ Live audio and live haptic decisions never use the Voxa Cue API.
 
 Remote coaching is never automatic. A per-session AI insight sends its finalized transcript, aggregate metrics, and cue-event summaries only after its confirmation. Building or refreshing a roadmap has a separate confirmation and sends exactly one user-selected finalized transcript, that session's deterministic metrics and filler counts, and transcript-free historical aggregates. It never sends prior transcript text. Opening coach chat requires another confirmation; each message then sends the selected transcript, its roadmap and metrics, and at most the last 10 turns the presenter typed or received. Raw audio is never included.
 
-The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, and does not include a database. The server owns the OpenAI key; it is never shipped in the iPhone app or firmware. The legacy insight route strips its session identifier, while roadmap and chat requests contain no session identifier. The API sends only the required text to `gpt-5.6-luna` through the OpenAI Responses API with application-state storage disabled (`store: false`). The Voxa Cue API does not intentionally persist request bodies, generated roadmaps, or chat responses.
+The API authenticates requests with an app bearer token, validates payloads,
+rejects direct audio-shaped content, and does not include a database. The server
+owns the OpenAI key; it is never shipped in the iPhone app or firmware. The
+insight provider payload strips its session identifier, while roadmap and chat
+requests contain no session identifier. The API sends only the required text to
+the allowlisted `gpt-5.6-luna` model through the OpenAI Responses API with
+explicit `none` reasoning and application-state storage disabled
+(`store: false`). The Voxa Cue API does not intentionally persist request
+bodies, generated roadmaps, or chat responses.
 
 `store: false` is not a zero-retention guarantee. Under OpenAI's default API controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project is approved and configured for Zero Data Retention or Modified Abuse Monitoring. Hosting providers may also retain request metadata under their configured logging and security controls. The team must verify and disclose the deployed provider settings before any public release. See [OpenAI's API data controls](https://platform.openai.com/docs/guides/your-data).
 
@@ -40,7 +48,23 @@ The API authenticates requests with an app bearer token, validates payloads, rej
 
 Bluetooth is used only to discover the Cue Band, send versioned haptic pattern commands, send a bounded session mode and elapsed-time percentage for the RGB progress light, and receive delivery acknowledgements. The wearable receives no audio, transcript text, presentation content, or identity.
 
-Microphone and Speech Recognition permissions are required for live coaching. Bluetooth permission is required only for wearable haptics. Denying microphone or speech access prevents a live recording session; the rest of the app and saved local history remain available.
+Microphone, Speech Recognition, and Bluetooth permissions are required to start
+a real live-coaching session, and the app requires a Ready Cue Band before
+entering session setup. If the band disconnects after recording begins,
+on-device speech processing continues while haptic deliveries report failure.
+Denying microphone or speech access prevents live recording; saved local
+history remains available. The `-demoScenario` development launch argument is
+limited to labeled deterministic saved data for a UI walkthrough. It does not
+bypass the Ready-band requirement or run a simulated live microphone session.
+
+The closed prototype's BLE protocol does not require pairing, bonding, link
+encryption, or application-layer authentication. The app and firmware use
+service UUIDs and a sequence counter for compatibility and duplicate
+suppression, not device identity or authorization. A nearby central that knows
+the UUIDs could connect and send haptic or light commands while the band is
+available. The BLE packets contain no audio, transcript, presentation content,
+or user identity, but authenticated device enrollment and abuse limits are
+required before public distribution.
 
 ## Sharing, sale, and tracking
 
