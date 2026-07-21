@@ -51,37 +51,6 @@ public actor VoxaAPIClient {
         try await get(path: "/readyz", response: VoxaAPIHealth.self)
     }
 
-    public func createDeckPlan(
-        title: String,
-        targetDurationSeconds: Int,
-        slides: [DeckSlide]
-    ) async throws -> DeckPlan {
-        let payload = DeckPlanRequest(
-            schemaVersion: 1,
-            locale: "en-US",
-            title: title,
-            targetDurationSeconds: targetDurationSeconds,
-            slides: slides.map {
-                DeckSlideRequest(
-                    slideIndex: $0.index,
-                    title: $0.title,
-                    visibleText: $0.body,
-                    speakerNotes: $0.notes
-                )
-            }
-        )
-        let plan: DeckPlan = try await post(path: "/v1/deck-plans", payload: payload, response: DeckPlan.self)
-        guard deckPlanIsValid(
-            plan,
-            expectedTitle: title,
-            targetDurationSeconds: targetDurationSeconds,
-            validSlideIndexes: Set(slides.map(\.index))
-        ) else {
-            throw VoxaAPIError.contractMismatch(requestID: nil)
-        }
-        return plan
-    }
-
     public func createInsight(
         summary: SessionSummary,
         checkpoints: [SessionCheckpointResult],
@@ -329,38 +298,6 @@ public actor VoxaAPIClient {
     }
 }
 
-private func deckPlanIsValid(
-    _ plan: DeckPlan,
-    expectedTitle: String,
-    targetDurationSeconds: Int,
-    validSlideIndexes: Set<Int>
-) -> Bool {
-    guard plan.schemaVersion == 1,
-          plan.title == expectedTitle,
-          !plan.checkpoints.isEmpty,
-          plan.checkpoints.count <= 100,
-          plan.checkpoints.last?.targetCumulativeSeconds == targetDurationSeconds else {
-        return false
-    }
-    var ids = Set<String>()
-    var previousSlideIndex = -1
-    var previousTarget = 0
-    for checkpoint in plan.checkpoints {
-        guard validSlideIndexes.contains(checkpoint.slideIndex),
-              ids.insert(checkpoint.id).inserted,
-              checkpoint.slideIndex > previousSlideIndex,
-              checkpoint.targetCumulativeSeconds > previousTarget,
-              !checkpoint.label.isEmpty,
-              !checkpoint.semanticSummary.isEmpty,
-              (2...12).contains(checkpoint.anchorTerms.count) else {
-            return false
-        }
-        previousSlideIndex = checkpoint.slideIndex
-        previousTarget = checkpoint.targetCumulativeSeconds
-    }
-    return true
-}
-
 private func boundedMetric(_ value: Double, lowerBound: Double, upperBound: Double) -> Double {
     min(max(value, lowerBound), upperBound)
 }
@@ -438,21 +375,6 @@ private func insightMetrics(summary: SessionSummary) -> InsightMetrics {
         completedOnTime: summary.timingOutcome == .onTarget
             && summary.durationSeconds <= summary.targetDurationSeconds
     )
-}
-
-private struct DeckPlanRequest: Encodable {
-    let schemaVersion: Int
-    let locale: String
-    let title: String
-    let targetDurationSeconds: Int
-    let slides: [DeckSlideRequest]
-}
-
-private struct DeckSlideRequest: Encodable {
-    let slideIndex: Int
-    let title: String
-    let visibleText: String
-    let speakerNotes: String
 }
 
 private struct InsightRequest: Encodable {

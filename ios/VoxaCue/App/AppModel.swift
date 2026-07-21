@@ -4,23 +4,6 @@ import Observation
 import VoxaCore
 import VoxaRuntime
 
-enum DeckPlanSource: Equatable {
-    case coachingAPI
-    case local
-
-    var label: String {
-        switch self {
-        case .coachingAPI: "AI prepared"
-        case .local: "Prepared locally"
-        }
-    }
-}
-
-struct PreparedDeckPlan: Equatable {
-    let plan: DeckPlan
-    let source: DeckPlanSource
-}
-
 enum CoachingAPIState: Equatable {
     case localOnly
     case configured
@@ -705,21 +688,6 @@ final class AppModel {
         isSendingCoachMessage = false
     }
 
-    func createDeckPlan(
-        title: String,
-        targetDurationSeconds: Int,
-        slides: [DeckSlide]
-    ) async throws -> PreparedDeckPlan {
-        return PreparedDeckPlan(
-            plan: try LocalDeckPlanner.makePlan(
-                title: title,
-                targetDurationSeconds: targetDurationSeconds,
-                slides: slides
-            ),
-            source: .local
-        )
-    }
-
     func checkCoachingAPI() async {
         guard !demoMode, let apiClient else {
             coachingAPIState = .localOnly
@@ -932,58 +900,4 @@ private func coachingErrorMessage(_ error: any Error) -> String {
     case .invalidResponse:
         return "The coaching service returned an unreadable response. Try again."
     }
-}
-
-enum LocalDeckPlanner {
-    static func makePlan(
-        title: String,
-        targetDurationSeconds: Int,
-        slides: [DeckSlide]
-    ) throws -> DeckPlan {
-        try buildTimedDeckPlan(
-            title: title,
-            slides: slides,
-            allocation: .even(totalSeconds: targetDurationSeconds)
-        )
-    }
-
-    static func retime(plan: DeckPlan, targetDurationSeconds: Int) -> DeckPlan {
-        let boundedTargetDuration = max(1, targetDurationSeconds)
-        guard !plan.checkpoints.isEmpty else { return plan }
-        let maximumCheckpointCount = min(plan.checkpoints.count, boundedTargetDuration)
-        let selectedCheckpoints = (0..<maximumCheckpointCount).map { index in
-            let upperBound = (index + 1) * plan.checkpoints.count / maximumCheckpointCount
-            return plan.checkpoints[max(0, upperBound - 1)]
-        }
-        let originalTarget = max(1, plan.checkpoints.last?.targetCumulativeSeconds ?? 1)
-        var previousTarget = 0
-        let retimedCheckpoints = selectedCheckpoints.enumerated().map { index, checkpoint in
-            let remainingCheckpoints = selectedCheckpoints.count - index - 1
-            let scaledTarget = Int(
-                (Double(checkpoint.targetCumulativeSeconds) / Double(originalTarget)
-                    * Double(boundedTargetDuration)).rounded()
-            )
-            let target = index == selectedCheckpoints.count - 1
-                ? boundedTargetDuration
-                : min(
-                    boundedTargetDuration - remainingCheckpoints,
-                    max(previousTarget + 1, scaledTarget)
-                )
-            previousTarget = target
-            return DeckCheckpoint(
-                id: checkpoint.id,
-                slideIndex: checkpoint.slideIndex,
-                label: checkpoint.label,
-                targetCumulativeSeconds: target,
-                semanticSummary: checkpoint.semanticSummary,
-                anchorTerms: checkpoint.anchorTerms
-            )
-        }
-        return DeckPlan(
-            schemaVersion: plan.schemaVersion,
-            title: plan.title,
-            checkpoints: retimedCheckpoints
-        )
-    }
-
 }
