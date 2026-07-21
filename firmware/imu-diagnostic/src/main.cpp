@@ -13,7 +13,8 @@ constexpr char kDeviceName[] = "Voxa IMU Lab";
 constexpr char kServiceUuid[] = "7A3E1001-7C7B-4E25-9A5A-8D7C9F1A0001";
 constexpr char kSampleUuid[] = "7A3E1002-7C7B-4E25-9A5A-8D7C9F1A0001";
 constexpr char kInfoUuid[] = "7A3E1003-7C7B-4E25-9A5A-8D7C9F1A0001";
-constexpr std::uint32_t kSampleIntervalMilliseconds = 40U;
+constexpr std::uint32_t kSampleIntervalMilliseconds =
+    1000U / voxa::imu::kTargetSampleRateHertz;
 constexpr std::uint32_t kRetryIntervalMilliseconds = 2000U;
 
 BLEService motionService(kServiceUuid);
@@ -26,7 +27,8 @@ BLECharacteristic infoCharacteristic(
 
 voxa::imu::ImuSensor sensor(Wire);
 voxa::imu::SensorInfo sensorInfo{voxa::imu::SensorKind::kNone, 0U,
-                                 voxa::imu::SensorState::kNotFound, 25U};
+                                 voxa::imu::SensorState::kNotFound,
+                                 voxa::imu::kTargetSampleRateHertz};
 std::uint16_t sequence = 0U;
 std::uint32_t nextSampleMilliseconds = 0U;
 std::uint32_t nextRetryMilliseconds = 0U;
@@ -55,10 +57,21 @@ void initializeSensor() {
   Serial.println(sensorInfo.address, HEX);
 }
 
+void publishMotionSample(const voxa::imu::MotionSample& sample) {
+  std::uint8_t bytes[voxa::imu::kSamplePacketSize]{};
+  if (voxa::imu::serializeSample(sample, bytes, sizeof(bytes))) {
+    sampleCharacteristic.writeValue(bytes, static_cast<int>(sizeof(bytes)));
+  }
+}
+
 void publishSample(std::uint32_t nowMilliseconds) {
   voxa::imu::SensorReading reading{};
   const bool readSucceeded = sensor.read(&reading);
   if (!readSucceeded) {
+    ++sequence;
+    publishMotionSample(voxa::imu::MotionSample{
+        sequence, nowMilliseconds, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+        false});
     sensorInfo.state = voxa::imu::SensorState::kReadFault;
     publishInfo();
     nextRetryMilliseconds = nowMilliseconds + kRetryIntervalMilliseconds;
@@ -77,10 +90,7 @@ void publishSample(std::uint32_t nowMilliseconds) {
       reading.gyroZDegreesPerSecond,
       true,
   };
-  std::uint8_t bytes[voxa::imu::kSamplePacketSize]{};
-  if (voxa::imu::serializeSample(sample, bytes, sizeof(bytes))) {
-    sampleCharacteristic.writeValue(bytes, static_cast<int>(sizeof(bytes)));
-  }
+  publishMotionSample(sample);
 }
 
 }  // namespace
@@ -126,7 +136,10 @@ void loop() {
   if (sensorInfo.state == voxa::imu::SensorState::kReady &&
       timeReached(nowMilliseconds, nextSampleMilliseconds)) {
     publishSample(nowMilliseconds);
-    nextSampleMilliseconds = nowMilliseconds + kSampleIntervalMilliseconds;
+    nextSampleMilliseconds += kSampleIntervalMilliseconds;
+    if (timeReached(nowMilliseconds, nextSampleMilliseconds)) {
+      nextSampleMilliseconds = nowMilliseconds + kSampleIntervalMilliseconds;
+    }
   }
   delay(1U);
 }

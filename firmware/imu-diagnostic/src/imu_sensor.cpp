@@ -9,7 +9,6 @@
 namespace voxa::imu {
 namespace {
 
-constexpr std::uint16_t kSampleRateHertz = 25U;
 constexpr std::uint8_t kMpuWhoAmIRegister = 0x75U;
 constexpr std::uint8_t kMpuPowerManagementRegister = 0x6BU;
 constexpr std::uint8_t kMpuSampleDividerRegister = 0x19U;
@@ -24,7 +23,7 @@ constexpr std::uint8_t kLsmWhoAmIRegister = 0x0FU;
 constexpr std::uint8_t kLsmAccelControlRegister = 0x10U;
 constexpr std::uint8_t kLsmGyroControlRegister = 0x11U;
 constexpr std::uint8_t kLsmDataStartRegister = 0x22U;
-constexpr float kLsmAccelGPerCount = 0.000061F;
+constexpr float kLsmAccelGPerCount = 0.000122F;
 constexpr float kLsmGyroDegreesPerSecondPerCount = 0.0175F;
 
 std::int16_t signedBigEndian(const std::uint8_t* bytes) {
@@ -53,7 +52,7 @@ bool isLsm6Identity(std::uint8_t identity) {
 ImuSensor::ImuSensor(TwoWire& wire)
     : wire_(wire),
       info_{SensorKind::kNone, 0U, SensorState::kNotFound,
-            kSampleRateHertz} {}
+            kTargetSampleRateHertz} {}
 
 SensorInfo ImuSensor::begin() {
   wire_.begin();
@@ -75,12 +74,13 @@ SensorInfo ImuSensor::begin() {
   for (std::uint8_t address = 0x08U; address <= 0x77U; ++address) {
     if (addressResponds(address) && address != 0x5AU) {
       info_ = {SensorKind::kUnsupported, address, SensorState::kUnsupported,
-               kSampleRateHertz};
+               kTargetSampleRateHertz};
       return info_;
     }
   }
 
-  info_ = {SensorKind::kNone, 0U, SensorState::kNotFound, kSampleRateHertz};
+  info_ = {
+      SensorKind::kNone, 0U, SensorState::kNotFound, kTargetSampleRateHertz};
   return info_;
 }
 
@@ -158,7 +158,7 @@ bool ImuSensor::detectMpu6050(std::uint8_t address) {
     return false;
   }
   info_ = {SensorKind::kMpu6050, address, SensorState::kReadFault,
-           kSampleRateHertz};
+           kTargetSampleRateHertz};
   return true;
 }
 
@@ -172,14 +172,14 @@ bool ImuSensor::detectLsm6Family(std::uint8_t address) {
     return false;
   }
   info_ = {SensorKind::kLsm6Family, address, SensorState::kReadFault,
-           kSampleRateHertz};
+           kTargetSampleRateHertz};
   return true;
 }
 
 bool ImuSensor::configureDetectedSensor() {
   if (info_.kind == SensorKind::kMpu6050) {
     return writeRegister(info_.address, kMpuPowerManagementRegister, 0x01U) &&
-           writeRegister(info_.address, kMpuSampleDividerRegister, 0x27U) &&
+           writeRegister(info_.address, kMpuSampleDividerRegister, 0x13U) &&
            writeRegister(info_.address, kMpuConfigurationRegister, 0x03U) &&
            writeRegister(info_.address, kMpuGyroConfigurationRegister,
                          0x08U) &&
@@ -187,7 +187,7 @@ bool ImuSensor::configureDetectedSensor() {
                          0x08U);
   }
   if (info_.kind == SensorKind::kLsm6Family) {
-    return writeRegister(info_.address, kLsmAccelControlRegister, 0x40U) &&
+    return writeRegister(info_.address, kLsmAccelControlRegister, 0x48U) &&
            writeRegister(info_.address, kLsmGyroControlRegister, 0x44U);
   }
   return false;
@@ -244,7 +244,7 @@ bool ImuSensor::readLsm6Family(SensorReading* output) {
 }
 
 void ImuSensor::scanBus() {
-  Serial.println("I2C scan (external SDA=A4, SCL=A5):");
+  Serial.println("I2C scan (onboard plus A4/SDA, A5/SCL bus):");
   bool foundAny = false;
   for (std::uint8_t address = 0x08U; address <= 0x77U; ++address) {
     if (!addressResponds(address)) {
