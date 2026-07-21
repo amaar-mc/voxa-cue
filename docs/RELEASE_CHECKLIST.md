@@ -17,6 +17,9 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Authenticated `/readyz` confirms that the deployed OpenAI key can access the configured model without sending presentation content.
 - [ ] The API receives no raw-audio fields and rejects an attempted audio payload.
 - [ ] AI coaching remains locked behind a confirmation dialog naming the transcript, aggregate metrics, and cue-delivery history.
+- [ ] Roadmap generation requires its own confirmation and sends exactly one selected finalized transcript, deterministic session metrics and filler counts, and transcript-free historical aggregates; captured traffic contains no prior transcript text.
+- [ ] Coach chat requires a separate confirmation and sends only that selected transcript, its roadmap and metrics, and the last one to ten typed turns. Closing chat or deleting any saved session clears the transient conversation.
+- [ ] Roadmap output remains tied to its source session and is removed when any contributing session or all local data is deleted.
 - [ ] `uvx --with pip platformio test -e native` passes all firmware tests.
 - [ ] `uvx --with pip platformio run -e nano_33_iot` succeeds.
 - [ ] `uvx --with pip platformio run -e nano_esp32` succeeds.
@@ -33,8 +36,8 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Required release input — public HTTPS privacy-policy, terms, and support URLs that render without authentication.
 - [ ] Required release input — Apple Developer team ID, distribution certificate, provisioning profile, and final App Store Connect app record.
 - [ ] Required release input — stable production API origin, hosting owner, alerting owner, and incident-response contact.
-- [ ] Required release input — production authentication design. The embedded shared demo bearer token is acceptable only for the closed prototype and must not be treated as a user authentication or durable public secret.
-- [ ] Required release input — OpenAI production project, approved structured-output model, usage limits, budget alerts, and a documented decision between default abuse-monitoring retention, Modified Abuse Monitoring, or Zero Data Retention.
+- [ ] Required release input — production per-user or per-device authentication with revocation and key rotation. The embedded shared demo bearer token is acceptable only for the closed prototype.
+- [ ] Required release input — OpenAI production project, approved structured-output model, per-user rate limits, abuse controls, spend ceilings, budget alerts, and a documented decision between default abuse-monitoring retention, Modified Abuse Monitoring, or Zero Data Retention.
 - [ ] Required release input — final App Store name, subtitle, description, keywords, category, age rating, copyright, review contact, screenshots, and optional preview video.
 - [ ] Required release input — named hardware manufacturer, final bill of materials, battery and charger design, enclosure, labeling, warranty, return path, and applicable electrical/product compliance evidence.
 - [ ] Required release input — supported locales. Current transcription and API contracts are fixed to `en-US`.
@@ -44,7 +47,8 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 - [ ] Replace the closed-prototype contact language in the privacy policy, terms, and support page with the final operator and monitored contact.
 - [ ] Verify App Store privacy answers against the deployed API, hosting logs, OpenAI controls, crash reporting, and any SDKs present in the submitted binary.
 - [ ] Verify `PrivacyInfo.xcprivacy` reasons and collected-data declarations against the final binary and current Apple requirements.
-- [ ] Confirm the post-session confirmation text still matches the exact insight request body.
+- [ ] Confirm the insight, roadmap, and coach-chat confirmation text matches each exact request body and clearly distinguishes the selected transcript from transcript-free history.
+- [ ] Keep Release AI compile-disabled until production authentication, rate limits, and spend ceilings pass review.
 - [ ] Publish an account-deletion flow only if accounts are introduced. The current app has no account to delete.
 - [ ] Replace or remove the Debug-only local StoreKit and Demo Pro preview before public distribution. If payments are introduced, configure production products, restoration, entitlement validation, subscription terms, and App Store disclosures.
 - [ ] Complete export-compliance, content-rights, age-rating, and hardware-accessory questionnaires with final production facts.
