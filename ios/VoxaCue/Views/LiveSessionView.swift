@@ -240,6 +240,8 @@ struct LiveSessionView: View {
                 Text(session.metrics.elapsedSeconds.clockString)
                     .font(.system(.largeTitle, design: .rounded, weight: .light).monospacedDigit())
                     .foregroundStyle(CueTheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
                     .contentTransition(reduceMotion ? .identity : .numericText())
                 Text("of \(session.configuration.targetDurationSeconds.clockString)")
                     .font(.cueCaption)
