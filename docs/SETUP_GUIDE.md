@@ -130,9 +130,9 @@ prototype Insights gate on that iPhone and are labeled as non-charging tests.
 Release builds ignore and remove the Demo Pro preference and expose no prototype
 purchase path.
 
-## 7. Optional AI coaching API
+## 7. Optional AI service
 
-This service is not in the live haptic loop. It is used only for a post-session practice plan after the user explicitly confirms transcript upload.
+This service is not in the live haptic loop. It supports confirmed post-session insights, a personalized roadmap, and bounded coach chat. Roadmap consent sends one selected finalized transcript, its deterministic metrics and filler counts, and transcript-free historical aggregates. Chat has a separate confirmation and sends that transcript, its roadmap and metrics, and at most 10 recent typed turns. Raw audio and prior transcript text never enter these paths.
 
 Live transcription, filler detection, pace, timing, pitch, energy, cue selection, BLE, and session storage continue to work without it.
 
@@ -197,7 +197,9 @@ VOXA_API_BASE_URL = https:$(URL_SLASH)$(URL_SLASH)YOUR_DEPLOYMENT_HOST
 VOXA_DEMO_API_TOKEN = YOUR_DEMO_TOKEN
 ```
 
-Regenerate the project, run the Debug build, then open **Settings → Check AI coaching**. Release builds intentionally disable the shared demo-token API until it is replaced with user- or device-scoped production authentication.
+Regenerate the project, run the Debug build, then open **Settings → Check AI coaching**. Generate a session transcript, open **Insights**, confirm **Build my roadmap**, then separately confirm **Ask Cue** to test chat. The roadmap is stored locally against its source session; because it includes historical aggregates, deleting any saved session invalidates it. Chat is transient and clears when closed or when any saved session is deleted.
+
+Release builds intentionally disable the shared demo-token API. Do not enable Release AI until per-user or per-device authentication, rate limits, abuse controls, and spend ceilings are deployed and verified.
 
 ## Current costs
 
@@ -220,4 +222,4 @@ OpenAI cost formula: `(input tokens × $1 + output tokens × $6) ÷ 1,000,000`. 
 2. Walk through each enabled cue and confirm one accepted and one completed BLE status.
 3. Disconnect the band mid-session; recording must continue and reconnect must not replay stale cues.
 4. Wear-test all intensities for 15 minutes and check heat, enclosure contact, and pattern clarity.
-5. Keep `docs/BACKEND_AUDIT.md` release gates closed until public authentication, quotas, and rate limits are implemented.
+5. Keep `docs/BACKEND_AUDIT.md` release gates closed until public authentication, quotas, rate limits, abuse controls, and spend ceilings are implemented.

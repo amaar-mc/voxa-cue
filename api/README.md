@@ -1,6 +1,6 @@
 # Voxa Cue API
 
-Server-only AI routes for the Voxa Cue iOS companion app. Live speech analysis and haptic decisions stay on the iPhone; this service receives presentation text or finalized session data only. It rejects audio fields and does not expose the OpenAI key to the app.
+Server-only AI routes for the Voxa Cue iOS companion app. Live speech analysis and haptic decisions stay on the iPhone. Post-session routes accept tightly bounded text only after an in-app confirmation, reject audio fields, and never expose the OpenAI key to the app.
 
 ## Run locally
 
@@ -77,11 +77,17 @@ The response matches `contracts/deck-plan-v1.schema.json`. Checkpoints reference
 
 The response matches `contracts/insight-v1.schema.json`. Provider failures return sanitized `502` errors and request-budget expirations return a typed `504 model_request_timed_out`; neither exposes prompts, credentials, or provider error bodies.
 
+`POST /v1/roadmaps` accepts up to 256 KiB. Its strict request contains one selected finalized transcript, that session's target and deterministic metrics, a deterministic filler breakdown, and transcript-free historical aggregates. It accepts no session identifier, name, prior transcript, or audio field. The response matches `contracts/roadmap-v1.schema.json`: a concise summary, zero to three filler focuses whose phrase and count must match the supplied breakdown, three ordered `now`/`next`/`then` steps, and a measurable next-session goal.
+
+`POST /v1/coach-chat` accepts up to 256 KiB. It receives the same selected session context, its validated roadmap, and one to ten typed `user` or `assistant` turns of at most 1,000 characters each; the final turn must be from the user. It is stateless and returns a bounded reply plus up to three suggested prompts matching `contracts/coach-chat-v1.schema.json`. It receives no prior transcript text or raw audio.
+
 ## Operations and privacy
 
-The API accepts only canonical UUID `X-Request-Id` values and creates a UUID when the header is missing or malformed. Responses echo the safe identifier. Structured request logs contain only request ID, method, path without query parameters, status, and latency; authorization headers and request bodies are never logged. The insight route validates the app session identifier but strips it before creating provider input. The OpenAI adapter uses zero SDK retries, a 22-second provider timeout, and an abortable 25-second route budget within Vercel's 30-second function limit. JSON responses include no-store and standard browser hardening headers.
+The API accepts only canonical UUID `X-Request-Id` values and creates a UUID when the header is missing or malformed. Responses echo the safe identifier. Structured request logs contain only request ID, method, path without query parameters, status, and latency; authorization headers and request bodies are never logged. The legacy insight route strips its app session identifier before provider input, while roadmap and chat contracts accept no identifier. The OpenAI adapter uses zero SDK retries, a 22-second provider timeout, and an abortable 25-second route budget within Vercel's 30-second function limit. JSON responses include no-store and standard browser hardening headers.
 
-The adapter sets `store: false`, which disables Responses API application-state storage. It does not by itself disable OpenAI's default abuse-monitoring logs. Before public release, configure and disclose the production project's actual retention mode, including any approved Modified Abuse Monitoring or Zero Data Retention controls.
+The server calls the OpenAI Responses API with `gpt-5.6-luna`, strict JSON Schema output, and `store: false`. This disables Responses application-state storage but does not by itself disable OpenAI's default abuse-monitoring logs. Before public release, configure and disclose the production project's actual retention mode, including any approved Modified Abuse Monitoring or Zero Data Retention controls.
+
+The shared bearer token is sufficient only for the closed prototype. The Release app keeps AI disabled until per-user authentication, rate limits, abuse controls, and spend ceilings are implemented.
 
 ## Verify
 
