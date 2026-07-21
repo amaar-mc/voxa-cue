@@ -10,6 +10,7 @@ import {
   SERVICE_UUID,
   decodeInfo,
   decodeSample,
+  requireHealthySample,
 } from "./protocol.mjs";
 
 const elements = {
@@ -155,7 +156,7 @@ function receiveSampleEvent(event) {
   const characteristic = /** @type {BluetoothRemoteGATTCharacteristic} */ (event.target);
   if (characteristic.value === undefined) return;
   try {
-    const decoded = decodeSample(characteristic.value);
+    const decoded = requireHealthySample(decodeSample(characteristic.value));
     const receivedAtMilliseconds = performance.now();
     samples.push({ ...decoded, receivedAtMilliseconds });
     const historyStart = receivedAtMilliseconds - 15_000;

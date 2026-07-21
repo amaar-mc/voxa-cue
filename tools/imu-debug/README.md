@@ -6,7 +6,7 @@ production haptic protocol.
 
 ## Run it
 
-1. Wire the IMU to `3V3`, `GND`, `A4/SDA`, and `A5/SCL`.
+1. Use the Nano 33 IoT's onboard IMU. No external sensor is required.
 2. Build and flash the diagnostic firmware using its README.
 3. Start the dashboard:
 
@@ -24,7 +24,7 @@ browsers.
 
 ## What the movement rating means
 
-The rating is a heuristic, not a trained model. Every 40 ms sample contributes
+The rating is a heuristic, not a trained model. Every 20 ms sample contributes
 to a rolling four-second window:
 
 1. `dynamic acceleration = abs(length(accel XYZ) - 1 g)` removes gravity while
@@ -48,6 +48,10 @@ not population-validated cutoffs. Collect labeled presentation clips and tune
 them before using the classifier as a product claim. The exact implementation
 and behavior tests live in `motion-classifier.mjs` and
 `motion-classifier.test.mjs`.
+
+For labeled gesture-versus-fidget collection and the trained classifier
+workflow, use `ml/gesture-classifier`. This engineering dashboard does not
+produce training labels or validated model claims.
 
 ## Test the browser-side logic
 
