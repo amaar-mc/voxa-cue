@@ -1,8 +1,6 @@
 import type {
   CoachChatRequest,
   CoachChatResponse,
-  DeckPlanRequest,
-  DeckPlanResponse,
   InsightRequest,
   InsightResponse,
   RoadmapRequest,
@@ -10,50 +8,6 @@ import type {
 } from "../src/schemas";
 
 export const demoToken = "test-demo-token-with-at-least-32-chars";
-
-export const validDeckPlanRequest: DeckPlanRequest = {
-  schemaVersion: 1,
-  locale: "en-US",
-  title: "Voxa Cue Product Pitch",
-  targetDurationSeconds: 180,
-  slides: [
-    {
-      slideIndex: 0,
-      title: "The problem",
-      visibleText: "Presenters lose pace and timing under pressure.",
-      speakerNotes: "Explain why feedback currently arrives too late.",
-    },
-    {
-      slideIndex: 1,
-      title: "Voxa Cue",
-      visibleText: "Private real-time haptic coaching.",
-      speakerNotes: "Show the wearable and explain the coaching loop.",
-    },
-  ],
-};
-
-export const validDeckPlanResponse: DeckPlanResponse = {
-  schemaVersion: 1,
-  title: "Voxa Cue Product Pitch",
-  checkpoints: [
-    {
-      id: "slide-0",
-      slideIndex: 0,
-      label: "Problem",
-      targetCumulativeSeconds: 75,
-      semanticSummary: "Presenters struggle with pace and time under pressure.",
-      anchorTerms: ["feedback arrives late", "presentation pressure"],
-    },
-    {
-      id: "slide-1",
-      slideIndex: 1,
-      label: "Solution",
-      targetCumulativeSeconds: 180,
-      semanticSummary: "Voxa Cue supplies private haptic coaching in real time.",
-      anchorTerms: ["haptic coaching", "wearable feedback"],
-    },
-  ],
-};
 
 export const validInsightRequest: InsightRequest = {
   schemaVersion: 1,
