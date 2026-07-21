@@ -1,0 +1,50 @@
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	voxa_outputs {
+		compatible = "gpio-leds";
+
+		voxa_red: red {
+			gpios = <&gpio2 8 GPIO_ACTIVE_HIGH>;
+			label = "Voxa RGB red (D6)";
+		};
+
+		voxa_blue: blue {
+			gpios = <&gpio2 7 GPIO_ACTIVE_HIGH>;
+			label = "Voxa RGB blue (D7)";
+		};
+
+		voxa_green: green {
+			gpios = <&gpio2 1 GPIO_ACTIVE_HIGH>;
+			label = "Voxa RGB green (D8)";
+		};
+
+		voxa_buzzer: buzzer {
+			gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+			label = "Voxa active buzzer (D9)";
+		};
+	};
+
+	aliases {
+		voxa-red = &voxa_red;
+		voxa-blue = &voxa_blue;
+		voxa-green = &voxa_green;
+		voxa-buzzer = &voxa_buzzer;
+	};
+};
+
+/* D6/D7 default to UART21 and D8/D9 default to SPI00 on this board. */
+&uart21 {
+	status = "disabled";
+};
+
+&spi00 {
+	status = "disabled";
+};
+
+/* XIAO D4 = P1.10 SDA and D5 = P1.11 SCL. */
+&i2c22 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
