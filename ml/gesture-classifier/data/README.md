@@ -10,4 +10,3 @@ name in a filename or label.
 
 Share a dataset only after participants have consented and identifying notes
 have been removed.
-
