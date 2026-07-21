@@ -3,8 +3,14 @@ import VoxaCore
 
 struct InsightsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var window: InsightWindow = .all
     @State private var showingProPaywall = false
+    @State private var pendingRoadmapSession: SessionSummary?
+    @State private var confirmingRoadmap = false
+    @State private var confirmingCoach = false
+    @State private var showingRoadmap = false
+    @State private var showingCoach = false
 
     var body: some View {
         ScrollView {
@@ -28,6 +34,7 @@ struct InsightsView: View {
                     }
                 } else {
                     windowPicker
+                    practiceRoadmapCard
                     if filteredSessions.isEmpty {
                         rangeEmptyState
                     } else {
@@ -35,7 +42,6 @@ struct InsightsView: View {
                         metricsGrid
                         voiceAndRhythmCard
                         measurementCoverageCard
-                        coachingFocus
                         recentSessions
                     }
                 }
@@ -49,6 +55,58 @@ struct InsightsView: View {
         .sheet(isPresented: $showingProPaywall) {
             VoxaProPaywallView(entitlementStore: model.proEntitlementStore)
         }
+        .navigationDestination(isPresented: $showingRoadmap) {
+            if let snapshot = model.practiceRoadmap {
+                RoadmapView(
+                    snapshot: snapshot,
+                    sourceSessionName: roadmapSourceSession?.name ?? "Practice session",
+                    isDemoMode: model.demoMode,
+                    coachAvailable: roadmapCanBeRequested,
+                    askCoachAction: requestCoachConsent
+                )
+            }
+        }
+        .sheet(isPresented: $showingCoach, onDismiss: clearTransientCoachConversation) {
+            if let snapshot = model.practiceRoadmap {
+                CoachChatView(
+                    snapshot: snapshot,
+                    sourceSessionName: roadmapSourceSession?.name ?? "Practice session",
+                    isDemoMode: model.demoMode
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .confirmationDialog(
+            roadmapConfirmationTitle,
+            isPresented: $confirmingRoadmap,
+            titleVisibility: .visible
+        ) {
+            Button(model.practiceRoadmap == nil ? "Build roadmap" : "Refresh roadmap") {
+                guard let session = pendingRoadmapSession else { return }
+                pendingRoadmapSession = nil
+                Task { await model.generateRoadmap(for: session) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingRoadmapSession = nil
+            }
+        } message: {
+            Text(roadmapConsentCopy)
+        }
+        .confirmationDialog(
+            model.demoMode ? "Open demo coach?" : "Ask Cue about this session?",
+            isPresented: $confirmingCoach,
+            titleVisibility: .visible
+        ) {
+            Button(model.demoMode ? "Open demo coach" : "Share context and continue") {
+                model.clearCoachConversation()
+                showingCoach = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(coachConsentCopy)
+        }
+        .animation(CueMotion.settle(reduceMotion: reduceMotion), value: model.isGeneratingRoadmap)
     }
 
     private var windowPicker: some View {
@@ -225,90 +283,270 @@ struct InsightsView: View {
     }
 
     @ViewBuilder
-    private var coachingFocus: some View {
-        if let selection = latestInsight {
-            PremiumCard(padding: 20) {
-                VStack(alignment: .leading, spacing: 16) {
-                    ViewThatFits(in: .horizontal) {
-                        HStack {
-                            Label("Next practice focus", systemImage: "sparkles")
-                                .font(.cueCaption)
-                                .foregroundStyle(CueTheme.signal)
-                            Spacer()
-                            coachingSourcePill
-                        }
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("Next practice focus", systemImage: "sparkles")
-                                .font(.cueCaption)
-                                .foregroundStyle(CueTheme.signal)
-                            coachingSourcePill
-                        }
-                    }
-                    Text(selection.insight.priorities.first?.title ?? "Keep building your baseline")
-                        .font(.cueSection)
-                        .foregroundStyle(CueTheme.ink)
-                    Text(selection.insight.priorities.first?.nextAction ?? selection.insight.overallSummary)
-                        .font(.cueBody)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                        .lineSpacing(3)
-                    Button {
-                        model.selectedSummary = selection.session
-                    } label: {
-                        Label("Open \(selection.session.name)", systemImage: "arrow.up.right")
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                            .foregroundStyle(CueTheme.signal)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(SpringPressStyle())
-                }
-            }
+    private var practiceRoadmapCard: some View {
+        if let snapshot = model.practiceRoadmap {
+            generatedRoadmapCard(snapshot)
         } else {
-            PremiumCard(padding: 20) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Label("Next practice focus", systemImage: "sparkles")
+            roadmapPromptCard
+        }
+    }
+
+    private func generatedRoadmapCard(_ snapshot: SavedPracticeRoadmap) -> some View {
+        HeroCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 12) {
+                    Label("Practice roadmap", systemImage: "map")
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.signal)
-                    Text("Turn a session into a focused drill")
-                        .font(.cueSection)
-                        .foregroundStyle(CueTheme.ink)
-                    Text(coachingAvailabilityCopy)
-                        .font(.cueBody)
-                        .foregroundStyle(CueTheme.secondaryInk)
-                        .lineSpacing(3)
-                    if let latest = model.sessions.first {
-                        Button {
-                            model.selectedSummary = latest
+                    Spacer(minLength: 8)
+                    if model.isGeneratingRoadmap {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(CueTheme.signal)
+                            .accessibilityLabel("Refreshing roadmap")
+                    } else {
+                        Menu {
+                            Button("Refresh roadmap", systemImage: "arrow.clockwise") {
+                                requestRoadmapConsent()
+                            }
                         } label: {
-                            Label("Open latest session", systemImage: "arrow.up.right")
-                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                .foregroundStyle(CueTheme.signal)
-                                .frame(minHeight: 44)
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(CueTheme.secondaryInk)
+                                .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(SpringPressStyle())
+                        .accessibilityLabel("Roadmap actions")
+                        .disabled(!roadmapCanBeRequested)
+                        .opacity(roadmapCanBeRequested ? 1 : 0.46)
                     }
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(snapshot.roadmap.headline)
+                        .font(.cueSection)
+                        .foregroundStyle(CueTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(snapshot.roadmap.summary)
+                        .font(.cueBody)
+                        .foregroundStyle(CueTheme.secondaryInk)
+                        .lineLimit(3)
+                        .lineSpacing(3)
+                }
+
+                if let filler = snapshot.roadmap.focusFillers.first {
+                    HStack(spacing: 9) {
+                        Image(systemName: "quote.bubble")
+                            .foregroundStyle(CueTheme.haptic)
+                            .accessibilityHidden(true)
+                        Text("Focus: “\(filler.phrase)” · \(filler.count)×")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundStyle(CueTheme.ink)
+                    }
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .background(CueTheme.haptic.opacity(0.10))
+                    .clipShape(Capsule())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Focus phrase \(filler.phrase), detected \(filler.count) times")
+                }
+
+                if let step = snapshot.roadmap.steps.first(where: { $0.phase == .now }) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        CueSectionLabel(text: "Now", color: CueTheme.signal)
+                        Text(step.title)
+                            .font(.system(.body, design: .rounded, weight: .semibold))
+                            .foregroundStyle(CueTheme.ink)
+                        Text(step.action)
+                            .font(.cueCaption)
+                            .foregroundStyle(CueTheme.secondaryInk)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(CueTheme.signalSoft.opacity(0.66))
+                    .clipShape(RoundedRectangle(cornerRadius: CueTheme.Radius.small, style: .continuous))
+                }
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        roadmapActionButton(
+                            title: "View roadmap",
+                            symbol: "arrow.right",
+                            filled: true,
+                            disabled: false,
+                            action: { showingRoadmap = true }
+                        )
+                        roadmapActionButton(
+                            title: "Ask Cue",
+                            symbol: "message",
+                            filled: false,
+                            disabled: !roadmapCanBeRequested,
+                            action: requestCoachConsent
+                        )
+                    }
+                    VStack(spacing: 10) {
+                        roadmapActionButton(
+                            title: "View roadmap",
+                            symbol: "arrow.right",
+                            filled: true,
+                            disabled: false,
+                            action: { showingRoadmap = true }
+                        )
+                        roadmapActionButton(
+                            title: "Ask Cue",
+                            symbol: "message",
+                            filled: false,
+                            disabled: !roadmapCanBeRequested,
+                            action: requestCoachConsent
+                        )
+                    }
+                }
+
+                HStack(spacing: 7) {
+                    Image(systemName: model.demoMode ? "testtube.2" : "lock.shield")
+                    Text(model.demoMode ? "Deterministic demo" : "Based on \(roadmapSourceSession?.name ?? "one selected session")")
+                }
+                .font(.cueCaption)
+                .foregroundStyle(model.demoMode ? CueTheme.amber : CueTheme.secondaryInk)
+            }
+        }
+        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.985)))
+    }
+
+    private var roadmapPromptCard: some View {
+        PremiumCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Practice roadmap", systemImage: "map")
+                    .font(.cueCaption)
+                    .foregroundStyle(CueTheme.signal)
+                Text("Know what to practice next")
+                    .font(.cueSection)
+                    .foregroundStyle(CueTheme.ink)
+                Text(roadmapAvailabilityCopy)
+                    .font(.cueBody)
+                    .foregroundStyle(CueTheme.secondaryInk)
+                    .lineSpacing(3)
+
+                if roadmapCanBeRequested, latestTranscriptSession != nil {
+                    VoxaAsyncButton(
+                        title: model.demoMode ? "Build demo roadmap" : "Build my roadmap",
+                        loadingTitle: "Building roadmap…",
+                        symbol: "arrow.right",
+                        isLoading: model.isGeneratingRoadmap,
+                        action: requestRoadmapConsent
+                    )
+                } else if latestTranscriptSession == nil {
+                    StatusPill(
+                        label: "A finalized transcript is required",
+                        symbol: "text.quote",
+                        color: CueTheme.secondaryInk
+                    )
+                } else {
+                    StatusPill(
+                        label: "Coaching service not configured",
+                        symbol: "lock",
+                        color: CueTheme.secondaryInk
+                    )
                 }
             }
         }
     }
 
-    private var coachingSourcePill: some View {
-        StatusPill(
-            label: model.demoMode ? "Demo fixture" : "AI generated",
-            symbol: model.demoMode ? "testtube.2" : "checkmark",
-            color: model.demoMode ? CueTheme.amber : CueTheme.green
-        )
+    private func roadmapActionButton(
+        title: String,
+        symbol: String,
+        filled: Bool,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .foregroundStyle(filled ? Color.white : CueTheme.signal)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.horizontal, 15)
+            .background(filled ? CueTheme.actionFill : CueTheme.signalSoft)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(SpringPressStyle())
+        .disabled(disabled)
+        .opacity(disabled ? 0.46 : 1)
+        .accessibilityLabel(title)
     }
 
-    private var coachingAvailabilityCopy: String {
+    private var roadmapAvailabilityCopy: String {
         if model.demoMode {
-            return "Open a session for a labeled coaching fixture. No data leaves the phone."
+            return "Preview a labeled roadmap without sending data."
         }
-        if !model.demoMode, case .localOnly = model.coachingAPIState {
-            return "Session analytics stay local. Configure the coaching service for AI practice plans."
+        if !roadmapCanBeRequested {
+            return "Your measurements remain available on this iPhone."
         }
-        return "Open a session and choose Generate AI coaching. Nothing is sent until you confirm."
+        return "Use one transcript and your measured trends to build a focused plan."
+    }
+
+    private var roadmapCanBeRequested: Bool {
+        if model.demoMode { return true }
+        if case .localOnly = model.coachingAPIState { return false }
+        return true
+    }
+
+    private var latestTranscriptSession: SessionSummary? {
+        model.sessions.first { session in
+            !session.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var roadmapSourceSession: SessionSummary? {
+        guard let sourceSessionID = model.practiceRoadmap?.sourceSessionID else { return nil }
+        return model.sessions.first { $0.sessionID == sourceSessionID }
+    }
+
+    private var roadmapConfirmationTitle: String {
+        if model.demoMode { return "Build demo roadmap?" }
+        return model.practiceRoadmap == nil ? "Build your roadmap?" : "Refresh your roadmap?"
+    }
+
+    private var roadmapConsentCopy: String {
+        if model.demoMode {
+            return "This uses a deterministic roadmap fixture. No session data leaves the phone."
+        }
+        let sessionName = pendingRoadmapSession?.name ?? "the selected session"
+        return "Voxa Cue sends exactly one finalized transcript (\(sessionName)), on-device aggregate history, and deterministic filler counts. Prior transcript text and raw audio stay on this iPhone."
+    }
+
+    private var coachConsentCopy: String {
+        if model.demoMode {
+            return "This opens a deterministic coach fixture. No session data leaves the phone."
+        }
+        let sessionName = roadmapSourceSession?.name ?? "the selected session"
+        return "Voxa Cue sends \(sessionName)’s finalized transcript, this roadmap, measured session metrics, and the messages you type. Raw audio and other transcript text stay on this iPhone."
+    }
+
+    private func requestRoadmapConsent() {
+        guard let session = latestTranscriptSession, roadmapCanBeRequested else { return }
+        pendingRoadmapSession = session
+        confirmingRoadmap = true
+    }
+
+    private func requestCoachConsent() {
+        guard roadmapSourceSession != nil, roadmapCanBeRequested else { return }
+        confirmingCoach = true
+    }
+
+    private func clearTransientCoachConversation() {
+        model.clearCoachConversation()
+        Task { @MainActor in
+            while model.isSendingCoachMessage {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            model.clearCoachConversation()
+        }
     }
 
     private var recentSessions: some View {
@@ -481,15 +719,6 @@ struct InsightsView: View {
         let firstValue = Int((first.timeInPaceRange * 100).rounded())
         let lastValue = Int((last.timeInPaceRange * 100).rounded())
         return "\(orderedSessions.count) sessions, from \(firstValue) percent to \(lastValue) percent. \(paceTrendLabel)."
-    }
-
-    private var latestInsight: (session: SessionSummary, insight: CoachingInsight)? {
-        for session in filteredSessions {
-            if let insight = model.insightBySession[session.sessionID] {
-                return (session, insight)
-            }
-        }
-        return nil
     }
 
     private func weightedPaceRange(_ sessions: [SessionSummary]) -> Double {
