@@ -147,6 +147,7 @@ describe("OpenAI structured output adapter", () => {
     const body = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       model: "explicit-test-model",
+      reasoning: { effort: "none" },
       store: false,
       text: {
         format: {

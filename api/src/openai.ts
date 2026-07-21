@@ -114,6 +114,7 @@ export const createOpenAIStructuredOutputGenerator = (
           instructions: request.instructions,
           input: request.input,
           max_output_tokens: request.maximumOutputTokens,
+          reasoning: { effort: "none" },
           store: false,
           text: {
             format: {
