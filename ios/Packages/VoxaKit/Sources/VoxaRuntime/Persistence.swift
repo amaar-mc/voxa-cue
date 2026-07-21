@@ -267,20 +267,25 @@ public final class VoxaDataStore {
         cueEvents: [SessionCueEvent],
         checkpointResults: [SessionCheckpointResult]
     ) throws {
-        context.insert(SessionRecord(summary: summary))
-        for segment in segments {
-            context.insert(TranscriptSegmentRecord(segment: segment, sessionID: summary.sessionID))
+        do {
+            context.insert(SessionRecord(summary: summary))
+            for segment in segments {
+                context.insert(TranscriptSegmentRecord(segment: segment, sessionID: summary.sessionID))
+            }
+            for sample in samples {
+                context.insert(MetricSampleRecord(id: UUID(), sessionID: summary.sessionID, metrics: sample))
+            }
+            for event in cueEvents {
+                context.insert(CueEventRecord(id: UUID(), sessionID: summary.sessionID, event: event))
+            }
+            for result in checkpointResults {
+                context.insert(CheckpointResultRecord(id: UUID(), sessionID: summary.sessionID, result: result))
+            }
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
         }
-        for sample in samples {
-            context.insert(MetricSampleRecord(id: UUID(), sessionID: summary.sessionID, metrics: sample))
-        }
-        for event in cueEvents {
-            context.insert(CueEventRecord(id: UUID(), sessionID: summary.sessionID, event: event))
-        }
-        for result in checkpointResults {
-            context.insert(CheckpointResultRecord(id: UUID(), sessionID: summary.sessionID, result: result))
-        }
-        try context.save()
     }
 
     public func fetchSessions() throws -> [SessionSummary] {
@@ -289,27 +294,37 @@ public final class VoxaDataStore {
     }
 
     public func saveDeck(id: UUID, title: String, slides: [DeckSlide], plan: DeckPlan) throws {
-        let record = DeckRecord(
-            id: id,
-            title: title,
-            createdAt: Date(),
-            slidesData: try encoder.encode(slides),
-            planData: try encoder.encode(plan)
-        )
-        context.insert(record)
-        try context.save()
+        do {
+            let record = DeckRecord(
+                id: id,
+                title: title,
+                createdAt: Date(),
+                slidesData: try encoder.encode(slides),
+                planData: try encoder.encode(plan)
+            )
+            context.insert(record)
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     public func saveInsight(sessionID: UUID, insight: CoachingInsight) throws {
-        context.insert(
-            InsightRecord(
-                id: UUID(),
-                sessionID: sessionID,
-                generatedAt: Date(),
-                insightData: try encoder.encode(insight)
+        do {
+            context.insert(
+                InsightRecord(
+                    id: UUID(),
+                    sessionID: sessionID,
+                    generatedAt: Date(),
+                    insightData: try encoder.encode(insight)
+                )
             )
-        )
-        try context.save()
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     public func fetchInsight(sessionID: UUID) throws -> CoachingInsight? {
@@ -403,15 +418,20 @@ public final class VoxaDataStore {
     }
 
     public func deleteAllLocalData() throws {
-        try context.delete(model: SessionRecord.self)
-        try context.delete(model: TranscriptSegmentRecord.self)
-        try context.delete(model: MetricSampleRecord.self)
-        try context.delete(model: CueEventRecord.self)
-        try context.delete(model: CheckpointResultRecord.self)
-        try context.delete(model: DeckRecord.self)
-        try context.delete(model: InsightRecord.self)
-        try context.delete(model: RoadmapRecord.self)
-        try context.save()
+        do {
+            try context.delete(model: SessionRecord.self)
+            try context.delete(model: TranscriptSegmentRecord.self)
+            try context.delete(model: MetricSampleRecord.self)
+            try context.delete(model: CueEventRecord.self)
+            try context.delete(model: CheckpointResultRecord.self)
+            try context.delete(model: DeckRecord.self)
+            try context.delete(model: InsightRecord.self)
+            try context.delete(model: RoadmapRecord.self)
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 }
 
