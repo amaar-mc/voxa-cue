@@ -148,3 +148,143 @@ func deletingSessionRemovesEveryRelatedArtifact() throws {
     #expect(try store.context.fetch(FetchDescriptor<CueEventRecord>()).isEmpty)
     #expect(try store.context.fetch(FetchDescriptor<CheckpointResultRecord>()).isEmpty)
 }
+
+@MainActor
+@Test("Practice roadmap persists locally and is removed with its source transcript")
+func practiceRoadmapRoundTripsAndFollowsSourceDeletion() throws {
+    let store = try VoxaDataStore(inMemory: true)
+    let summary = SessionSummary(
+        sessionID: UUID(uuidString: "D4320B16-331D-49A0-B502-6A48105CD86B")!,
+        name: "Roadmap source",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+        durationSeconds: 120,
+        targetDurationSeconds: 120,
+        targetMinimumWPM: 130,
+        targetMaximumWPM: 160,
+        speakingSeconds: 96,
+        averageWPM: 145,
+        timeInPaceRange: 0.8,
+        fillerCount: 3,
+        fillersPerSpeakingMinute: 1.875,
+        talkRatio: 0.8,
+        paceStandardDeviationWPM: 9,
+        pauseCount: 4,
+        averagePauseSeconds: 0.8,
+        longestPauseSeconds: 1.4,
+        pitchRangeSemitones: 7,
+        energyRangeDB: 12,
+        cueCount: 1,
+        transcript: "Um, this finalized transcript is the source for a private roadmap."
+    )
+    try store.saveSession(
+        summary: summary,
+        segments: [],
+        samples: [],
+        cueEvents: [],
+        checkpointResults: []
+    )
+    let snapshot = SavedPracticeRoadmap(
+        sourceSessionID: summary.sessionID,
+        generatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+        roadmap: PracticeRoadmap(
+            schemaVersion: 1,
+            headline: "Make each pause deliberate",
+            summary: "Hold your pace and replace filler starts with silence.",
+            focusFillers: [
+                RoadmapFillerFocus(phrase: "um", count: 1, guidance: "Pause before the next claim.")
+            ],
+            steps: [
+                RoadmapStep(phase: .now, title: "Reset", evidence: "One um appeared.", action: "Pause.", measurableTarget: "Zero ums."),
+                RoadmapStep(phase: .next, title: "Pace", evidence: "Pace was stable.", action: "Hold it.", measurableTarget: "80% in range."),
+                RoadmapStep(phase: .then, title: "Voice", evidence: "Pitch was measured.", action: "Stress key words.", measurableTarget: "Repeat the drill twice."),
+            ],
+            nextSessionGoal: RoadmapGoal(title: "Cleaner openings", measurement: "Likely filler count", target: "At most one"),
+            confidenceNote: "Based on one finalized transcript and measured delivery data."
+        )
+    )
+
+    try store.saveRoadmap(snapshot)
+
+    #expect(try store.fetchLatestRoadmap() == snapshot)
+
+    try store.deleteSession(sessionID: summary.sessionID)
+
+    #expect(try store.fetchLatestRoadmap() == nil)
+}
+
+@MainActor
+@Test("Deleting any session invalidates a roadmap built from longitudinal aggregates")
+func deletingAggregateContributorRemovesSavedRoadmap() throws {
+    let store = try VoxaDataStore(inMemory: true)
+    let source = roadmapPersistenceSummary(
+        sessionID: UUID(uuidString: "6292B870-3173-4380-8C24-B1068F2F1A8E")!,
+        name: "Roadmap source",
+        startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let contributor = roadmapPersistenceSummary(
+        sessionID: UUID(uuidString: "7470B910-D378-4978-A240-115B94528913")!,
+        name: "Aggregate contributor",
+        startedAt: Date(timeIntervalSince1970: 1_699_900_000)
+    )
+    for summary in [source, contributor] {
+        try store.saveSession(
+            summary: summary,
+            segments: [],
+            samples: [],
+            cueEvents: [],
+            checkpointResults: []
+        )
+    }
+    let snapshot = SavedPracticeRoadmap(
+        sourceSessionID: source.sessionID,
+        generatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+        roadmap: PracticeRoadmap(
+            schemaVersion: 1,
+            headline: "Use a deliberate opening pause",
+            summary: "The roadmap includes longitudinal session aggregates.",
+            focusFillers: [],
+            steps: [
+                RoadmapStep(phase: .now, title: "Open", evidence: "Timing was measured.", action: "Pause.", measurableTarget: "One beat."),
+                RoadmapStep(phase: .next, title: "Pace", evidence: "Pace was measured.", action: "Rehearse.", measurableTarget: "Stay in range."),
+                RoadmapStep(phase: .then, title: "Run", evidence: "History was measured.", action: "Present.", measurableTarget: "Finish on time."),
+            ],
+            nextSessionGoal: RoadmapGoal(title: "Calm opening", measurement: "Opening pause", target: "One beat"),
+            confidenceNote: "Uses the selected session and aggregate history."
+        )
+    )
+    try store.saveRoadmap(snapshot)
+
+    try store.deleteSession(sessionID: contributor.sessionID)
+
+    #expect(try store.fetchLatestRoadmap() == nil)
+}
+
+private func roadmapPersistenceSummary(
+    sessionID: UUID,
+    name: String,
+    startedAt: Date
+) -> SessionSummary {
+    SessionSummary(
+        sessionID: sessionID,
+        name: name,
+        startedAt: startedAt,
+        durationSeconds: 120,
+        targetDurationSeconds: 120,
+        targetMinimumWPM: 130,
+        targetMaximumWPM: 160,
+        speakingSeconds: 96,
+        averageWPM: 145,
+        timeInPaceRange: 0.8,
+        fillerCount: 0,
+        fillersPerSpeakingMinute: 0,
+        talkRatio: 0.8,
+        paceStandardDeviationWPM: 9,
+        pauseCount: 4,
+        averagePauseSeconds: 0.8,
+        longestPauseSeconds: 1.4,
+        pitchRangeSemitones: 7,
+        energyRangeDB: 12,
+        cueCount: 1,
+        transcript: "The finalized transcript contributes to local aggregate coaching."
+    )
+}

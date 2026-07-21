@@ -221,6 +221,19 @@ public final class InsightRecord {
     }
 }
 
+@Model
+public final class RoadmapRecord {
+    @Attribute(.unique) public var sourceSessionID: UUID
+    public var generatedAt: Date
+    public var roadmapData: Data
+
+    public init(sourceSessionID: UUID, generatedAt: Date, roadmapData: Data) {
+        self.sourceSessionID = sourceSessionID
+        self.generatedAt = generatedAt
+        self.roadmapData = roadmapData
+    }
+}
+
 @MainActor
 public final class VoxaDataStore {
     public let container: ModelContainer
@@ -237,7 +250,8 @@ public final class VoxaDataStore {
             CueEventRecord.self,
             CheckpointResultRecord.self,
             DeckRecord.self,
-            InsightRecord.self
+            InsightRecord.self,
+            RoadmapRecord.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         self.container = try ModelContainer(for: schema, configurations: [configuration])
@@ -307,6 +321,36 @@ public final class VoxaDataStore {
         return try decoder.decode(CoachingInsight.self, from: data)
     }
 
+    public func saveRoadmap(_ snapshot: SavedPracticeRoadmap) throws {
+        do {
+            let existing = try context.fetch(FetchDescriptor<RoadmapRecord>())
+            existing.forEach(context.delete)
+            context.insert(
+                RoadmapRecord(
+                    sourceSessionID: snapshot.sourceSessionID,
+                    generatedAt: snapshot.generatedAt,
+                    roadmapData: try encoder.encode(snapshot.roadmap)
+                )
+            )
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    public func fetchLatestRoadmap() throws -> SavedPracticeRoadmap? {
+        let descriptor = FetchDescriptor<RoadmapRecord>(
+            sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]
+        )
+        guard let record = try context.fetch(descriptor).first else { return nil }
+        return SavedPracticeRoadmap(
+            sourceSessionID: record.sourceSessionID,
+            generatedAt: record.generatedAt,
+            roadmap: try decoder.decode(PracticeRoadmap.self, from: record.roadmapData)
+        )
+    }
+
     public func fetchInsightContext(sessionID: UUID) throws -> SessionInsightContext {
         let cueDescriptor = FetchDescriptor<CueEventRecord>(
             predicate: #Predicate { $0.sessionID == sessionID },
@@ -342,12 +386,14 @@ public final class VoxaDataStore {
             let insights = try context.fetch(
                 FetchDescriptor<InsightRecord>(predicate: #Predicate { $0.sessionID == sessionID })
             )
+            let roadmaps = try context.fetch(FetchDescriptor<RoadmapRecord>())
 
             transcriptSegments.forEach(context.delete)
             metricSamples.forEach(context.delete)
             cueEvents.forEach(context.delete)
             checkpointResults.forEach(context.delete)
             insights.forEach(context.delete)
+            roadmaps.forEach(context.delete)
             sessions.forEach(context.delete)
             try context.save()
         } catch {
@@ -364,6 +410,7 @@ public final class VoxaDataStore {
         try context.delete(model: CheckpointResultRecord.self)
         try context.delete(model: DeckRecord.self)
         try context.delete(model: InsightRecord.self)
+        try context.delete(model: RoadmapRecord.self)
         try context.save()
     }
 }
