@@ -31,6 +31,18 @@ public struct TranscriptAnalysis: Equatable, Sendable {
     }
 }
 
+public struct FillerFrequency: Codable, Equatable, Identifiable, Sendable {
+    public let phrase: String
+    public let count: Int
+
+    public var id: String { phrase }
+
+    public init(phrase: String, count: Int) {
+        self.phrase = phrase
+        self.count = count
+    }
+}
+
 public func normalizedSpeechWords(_ text: String) -> [String] {
     text.lowercased()
         .replacingOccurrences(of: "’", with: "'")
@@ -192,6 +204,29 @@ public func analyzePresentationTranscript(
         fillerCount: matches.count,
         matchedFillers: matches.map(\.phrase)
     )
+}
+
+public func presentationFillerBreakdown(
+    _ text: String,
+    highConfidenceFillers: [String],
+    contextualFillers: [String]
+) -> [FillerFrequency] {
+    let analysis = analyzePresentationTranscript(
+        text,
+        highConfidenceFillers: highConfidenceFillers,
+        contextualFillers: contextualFillers
+    )
+    let counts = analysis.matchedFillers.reduce(into: [String: Int]()) { partial, phrase in
+        partial[phrase, default: 0] += 1
+    }
+    return counts
+        .map { FillerFrequency(phrase: $0.key, count: $0.value) }
+        .sorted { first, second in
+            if first.count == second.count {
+                return first.phrase < second.phrase
+            }
+            return first.count > second.count
+        }
 }
 
 public func timedFillerOffsets(

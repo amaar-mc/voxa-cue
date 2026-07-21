@@ -632,3 +632,128 @@ public struct CoachingInsight: Codable, Equatable, Sendable {
         self.confidenceNote = confidenceNote
     }
 }
+
+public struct RoadmapFillerFocus: Codable, Equatable, Identifiable, Sendable {
+    public let phrase: String
+    public let count: Int
+    public let guidance: String
+
+    public var id: String { phrase }
+
+    public init(phrase: String, count: Int, guidance: String) {
+        self.phrase = phrase
+        self.count = count
+        self.guidance = guidance
+    }
+}
+
+public enum RoadmapPhase: String, Codable, CaseIterable, Sendable {
+    case now
+    case next
+    case then
+}
+
+public struct RoadmapStep: Codable, Equatable, Identifiable, Sendable {
+    public let phase: RoadmapPhase
+    public let title: String
+    public let evidence: String
+    public let action: String
+    public let measurableTarget: String
+
+    public var id: RoadmapPhase { phase }
+
+    public init(
+        phase: RoadmapPhase,
+        title: String,
+        evidence: String,
+        action: String,
+        measurableTarget: String
+    ) {
+        self.phase = phase
+        self.title = title
+        self.evidence = evidence
+        self.action = action
+        self.measurableTarget = measurableTarget
+    }
+}
+
+public struct RoadmapGoal: Codable, Equatable, Sendable {
+    public let title: String
+    public let measurement: String
+    public let target: String
+
+    public init(title: String, measurement: String, target: String) {
+        self.title = title
+        self.measurement = measurement
+        self.target = target
+    }
+}
+
+public struct PracticeRoadmap: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let headline: String
+    public let summary: String
+    public let focusFillers: [RoadmapFillerFocus]
+    public let steps: [RoadmapStep]
+    public let nextSessionGoal: RoadmapGoal
+    public let confidenceNote: String
+
+    public init(
+        schemaVersion: Int,
+        headline: String,
+        summary: String,
+        focusFillers: [RoadmapFillerFocus],
+        steps: [RoadmapStep],
+        nextSessionGoal: RoadmapGoal,
+        confidenceNote: String
+    ) {
+        self.schemaVersion = schemaVersion
+        self.headline = headline
+        self.summary = summary
+        self.focusFillers = focusFillers
+        self.steps = steps
+        self.nextSessionGoal = nextSessionGoal
+        self.confidenceNote = confidenceNote
+    }
+}
+
+public struct SavedPracticeRoadmap: Codable, Equatable, Sendable {
+    public let sourceSessionID: UUID
+    public let generatedAt: Date
+    public let roadmap: PracticeRoadmap
+
+    public init(sourceSessionID: UUID, generatedAt: Date, roadmap: PracticeRoadmap) {
+        self.sourceSessionID = sourceSessionID
+        self.generatedAt = generatedAt
+        self.roadmap = roadmap
+    }
+}
+
+public enum CoachMessageRole: String, Codable, Sendable {
+    case user
+    case assistant
+}
+
+public struct CoachMessage: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public let role: CoachMessageRole
+    public let content: String
+
+    public init(id: UUID, role: CoachMessageRole, content: String) {
+        self.id = id
+        self.role = role
+        self.content = content
+    }
+}
+
+public struct CoachReply: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let reply: String
+    public let suggestedPrompts: [String]
+
+    public init(schemaVersion: Int, reply: String, suggestedPrompts: [String]) {
+        self.schemaVersion = schemaVersion
+        self.reply = reply
+        self.suggestedPrompts = suggestedPrompts
+    }
+}
