@@ -453,8 +453,14 @@ final class AppModel {
     }
 
     func handleSceneBecameInactive() {
-        guard let activeSession, activeSession.hasStarted else { return }
-        activeSession.pauseForLifecycle()
+        guard let activeSession else { return }
+        if activeSession.hasStarted {
+            activeSession.pauseForLifecycle()
+            return
+        }
+        guard case .countdown = activeSession.phase else { return }
+        cancelSessionStartWork(for: activeSession.id)
+        activeSession.cancelPreparationForLifecycle()
     }
 
     func handleSceneEnteredBackground() {

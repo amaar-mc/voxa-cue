@@ -39,6 +39,16 @@ struct VoxaCueApp: App {
                 .environment(model)
                 .modelContainer(dataStore.container)
                 .tint(CueTheme.signal)
+                .privacySensitive()
+                .overlay {
+                    if scenePhase != .active {
+                        ZStack {
+                            CueTheme.canvas.ignoresSafeArea()
+                            CueWordmark(compact: true)
+                        }
+                        .accessibilityHidden(true)
+                    }
+                }
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
