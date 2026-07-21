@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voxacue.app/contracts/coach-chat-v1.schema.json",
+  "title": "Voxa Cue Coach Chat V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reply", "suggestedPrompts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reply": { "type": "string", "minLength": 1, "maxLength": 1200 },
+    "suggestedPrompts": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+    }
+  }
+}
