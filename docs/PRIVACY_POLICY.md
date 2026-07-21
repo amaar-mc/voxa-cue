@@ -22,17 +22,17 @@ The following session data is saved locally with SwiftData so the presenter can 
 - finalized transcript segments and session transcript;
 - target and observed timing, pace, filler, talk-ratio, pause, pace-variability, pitch-range, and energy-range metrics;
 - haptic cue events and delivery status; and
-- coaching insights the presenter chose to generate.
+- coaching insights and the source-session practice roadmap the presenter chose to generate.
 
-The app also stores onboarding completion and haptic preferences in UserDefaults. Debug builds may store a local Demo Pro preference. Release builds ignore and remove that demo preference. A presenter can delete Voxa Cue's local session data from Settings. Deleting the app also removes app-local data through iOS.
+Chat turns are held only in memory while the chat sheet is open. They are not written to SwiftData and are cleared when chat closes, when any saved session is deleted, or when all local data is cleared. The app also stores onboarding completion and haptic preferences in UserDefaults. Debug builds may store a local Demo Pro preference. Release builds ignore and remove that demo preference. A presenter can delete Voxa Cue's local session data from Settings. Because a roadmap includes longitudinal aggregates, deleting any contributing session also deletes the saved roadmap; deleting the app removes app-local data through iOS.
 
 ## Optional server processing
 
 Live audio and live haptic decisions never use the Voxa Cue API.
 
-One user-initiated feature can send text through the API. After a session, AI coaching is disabled until the presenter taps Generate AI coaching and confirms Send coaching context. Only then does the app send the finalized transcript, aggregate session metrics, and cue-event summaries. Raw audio is never included.
+Remote coaching is never automatic. A per-session AI insight sends its finalized transcript, aggregate metrics, and cue-event summaries only after its confirmation. Building or refreshing a roadmap has a separate confirmation and sends exactly one user-selected finalized transcript, that session's deterministic metrics and filler counts, and transcript-free historical aggregates. It never sends prior transcript text. Opening coach chat requires another confirmation; each message then sends the selected transcript, its roadmap and metrics, and at most the last 10 turns the presenter typed or received. Raw audio is never included.
 
-The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, strips the app's session identifier before provider processing, and does not include a database. It sends the remaining text request to OpenAI using the Responses API with application-state storage disabled (`store: false`). The Voxa Cue API does not intentionally persist request bodies or generated responses.
+The API authenticates requests with an app bearer token, validates payloads, rejects audio fields, and does not include a database. The server owns the OpenAI key; it is never shipped in the iPhone app or firmware. The legacy insight route strips its session identifier, while roadmap and chat requests contain no session identifier. The API sends only the required text to `gpt-5.6-luna` through the OpenAI Responses API with application-state storage disabled (`store: false`). The Voxa Cue API does not intentionally persist request bodies, generated roadmaps, or chat responses.
 
 `store: false` is not a zero-retention guarantee. Under OpenAI's default API controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project is approved and configured for Zero Data Retention or Modified Abuse Monitoring. Hosting providers may also retain request metadata under their configured logging and security controls. The team must verify and disclose the deployed provider settings before any public release. See [OpenAI's API data controls](https://platform.openai.com/docs/guides/your-data).
 

@@ -6,13 +6,13 @@ These terms apply to the closed Voxa Cue prototype distributed by the student pr
 
 ## Prototype scope
 
-Voxa Cue provides real-time presentation metrics, optional haptic reminders, local session history, and optional AI-generated coaching. It is experimental software, may be changed or withdrawn, and is not a finished commercial service. No production account, subscription, purchase, or in-app payment is offered. Internal Debug builds may include a local StoreKit test and Demo Pro switch; they cannot make a real charge and are not present as unlock paths in Release builds.
+Voxa Cue provides real-time presentation metrics, optional haptic reminders, local session history, and optional AI-generated insights, practice roadmaps, and coach chat. It is experimental software, may be changed or withdrawn, and is not a finished commercial service. No production account, subscription, purchase, or in-app payment is offered. Internal Debug builds may include a local StoreKit test and Demo Pro switch; they cannot make a real charge and are not present as unlock paths in Release builds.
 
 The app is licensed for personal evaluation during the M&TSI project. You may not reverse engineer the hardware or software except where applicable law expressly permits it, interfere with the service, attempt to obtain server credentials, or use the prototype to violate another person's rights.
 
 ## Your content
 
-You control what you say and retain rights in that content. You give Voxa Cue only the limited permission needed to process it for live coaching on the iPhone or confirmed post-session AI coaching.
+You control what you say and type and retain rights in that content. You give Voxa Cue only the limited permission needed to process it for live coaching on the iPhone or a post-session AI action you explicitly confirm. A roadmap uses one selected finalized transcript and transcript-free history aggregates. Chat uses that selected transcript, its roadmap, and up to 10 recent typed turns; raw audio and prior transcript text are not sent.
 
 Do not speak confidential, regulated, copyrighted, or personal information unless you have authority to process it. The prototype is not designed for medical, legal, financial, employment-screening, or other regulated decisions.
 
