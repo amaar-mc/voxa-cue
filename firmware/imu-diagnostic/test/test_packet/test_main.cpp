@@ -39,14 +39,26 @@ void test_rejects_wrong_sample_buffer_size() {
       voxa::imu::serializeSample(sample, bytes, sizeof(bytes)));
 }
 
+void test_serializes_unhealthy_fault_sample() {
+  const voxa::imu::MotionSample sample{2U, 500U, 0.0F, 0.0F, 0.0F,
+                                       0.0F, 0.0F, 0.0F, false};
+  std::uint8_t bytes[voxa::imu::kSamplePacketSize]{};
+
+  TEST_ASSERT_TRUE(
+      voxa::imu::serializeSample(sample, bytes, sizeof(bytes)));
+  TEST_ASSERT_EQUAL_UINT8(0U, bytes[1]);
+  TEST_ASSERT_EQUAL_UINT8(2U, bytes[2]);
+  TEST_ASSERT_EQUAL_UINT8(0U, bytes[3]);
+}
+
 void test_serializes_sensor_info() {
   const voxa::imu::SensorInfo info{voxa::imu::SensorKind::kMpu6050, 0x68U,
-                                   voxa::imu::SensorState::kReady, 25U};
+                                   voxa::imu::SensorState::kReady, 50U};
   std::uint8_t bytes[voxa::imu::kInfoPacketSize]{};
 
   TEST_ASSERT_TRUE(voxa::imu::serializeInfo(info, bytes, sizeof(bytes)));
   const std::uint8_t expected[voxa::imu::kInfoPacketSize] = {
-      1U, 1U, 0x68U, 0U, 25U, 0U, 1U, 0U};
+      1U, 1U, 0x68U, 0U, 50U, 0U, 1U, 1U};
   TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, bytes, sizeof(bytes));
 }
 
@@ -54,6 +66,7 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_serializes_twenty_byte_motion_sample);
   RUN_TEST(test_rejects_wrong_sample_buffer_size);
+  RUN_TEST(test_serializes_unhealthy_fault_sample);
   RUN_TEST(test_serializes_sensor_info);
   return UNITY_END();
 }
