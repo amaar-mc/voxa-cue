@@ -13,6 +13,13 @@ const forbiddenAudioKeys = new Set([
   "waveform",
 ]);
 
+const audioDataUriPattern = /data\s*:\s*audio\s*\//iu;
+const audioFileUrlPattern =
+  /https?:\/\/[^\s?#]+\.(?:aac|flac|m4a|mp3|ogg|opus|wav)(?:[?#][^\s]*)?/iu;
+const encodedAudioHeaderPattern =
+  /(?:^|[^A-Za-z0-9+/])(?:SUQz|T2dnUw|UklGR|ZkxhQw)[A-Za-z0-9+/=]{4,}/u;
+const largeBase64BlockPattern = /[A-Za-z0-9+/]{1024,}={0,2}/u;
+
 export type RequestBodyError = {
   readonly ok: false;
   readonly status: 400 | 413 | 415;
@@ -84,21 +91,42 @@ const readBoundedBody = async (
   return body;
 };
 
-const containsForbiddenAudioField = (value: unknown): boolean => {
-  if (Array.isArray(value)) {
-    return value.some((item) => containsForbiddenAudioField(item));
-  }
-  if (value === null || typeof value !== "object") {
-    return false;
+const containsForbiddenAudioContent = (value: unknown): boolean => {
+  const pending: unknown[] = [value];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (typeof current === "string") {
+      if (
+        audioDataUriPattern.test(current) ||
+        audioFileUrlPattern.test(current) ||
+        encodedAudioHeaderPattern.test(current) ||
+        largeBase64BlockPattern.test(current)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (Array.isArray(current)) {
+      pending.push(...current);
+      continue;
+    }
+    if (current === null || typeof current !== "object") {
+      continue;
+    }
+
+    for (const [key, child] of Object.entries(current)) {
+      const normalizedKey = key
+        .toLocaleLowerCase("en-US")
+        .replaceAll(/[^a-z0-9]/g, "");
+      if (forbiddenAudioKeys.has(normalizedKey)) {
+        return true;
+      }
+      pending.push(child);
+    }
   }
 
-  return Object.entries(value).some(([key, child]) => {
-    const normalizedKey = key.toLocaleLowerCase("en-US").replaceAll(/[^a-z0-9]/g, "");
-    return (
-      forbiddenAudioKeys.has(normalizedKey) ||
-      containsForbiddenAudioField(child)
-    );
-  });
+  return false;
 };
 
 export const readJsonBody = async (
@@ -128,7 +156,7 @@ export const readJsonBody = async (
   try {
     const decodedBody = utf8Decoder.decode(bodyResult);
     const parsedBody: unknown = JSON.parse(decodedBody);
-    if (containsForbiddenAudioField(parsedBody)) {
+    if (containsForbiddenAudioContent(parsedBody)) {
       return {
         ok: false,
         status: 400,
