@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "voxa_ble_transport.hpp"
+#include "voxa_driver_health.hpp"
 #include "voxa_haptic_hardware.hpp"
 #include "voxa_patterns.hpp"
 #include "voxa_protocol.hpp"
@@ -51,7 +52,7 @@ PlaybackState playback{};
 SessionLightState sessionLight{};
 voxa::EmergencyBuzzerState emergencyBuzzer{};
 voxa::SequenceTracker sequenceTracker{};
-bool driverReady = false;
+voxa::DriverHealthState driverHealth{};
 
 bool timeReached(std::uint32_t nowMilliseconds,
                  std::uint32_t deadlineMilliseconds) {
@@ -240,8 +241,9 @@ PlaybackUpdate updatePlayback(std::uint32_t nowMilliseconds) {
                       kDriverProbeIntervalMilliseconds)) {
     playback.lastDriverProbeMilliseconds = nowMilliseconds;
     if (!driverPresent()) {
+      setHapticOutput(0U, playback.command.intensity);
       playback.active = false;
-      driverReady = false;
+      voxa::recordDriverFault(nowMilliseconds, &driverHealth);
       return PlaybackUpdate::kDriverFault;
     }
   }
@@ -294,8 +296,11 @@ void handleCommandFrame(const voxa::ble_transport::ReceivedCommandFrame& frame,
     return;
   }
 
-  if (!driverReady || !driverPresent()) {
-    driverReady = false;
+  if (!driverHealth.ready || !driverPresent()) {
+    if (driverHealth.ready) {
+      setHapticOutput(0U, parsed.command.intensity);
+      voxa::recordDriverFault(nowMilliseconds, &driverHealth);
+    }
     publishStatus(parsed.command.sequence, voxa::StatusState::kRejected,
                   voxa::ErrorCode::kDriverFault);
     return;
@@ -323,7 +328,8 @@ void setup() {
   Serial.begin(115200);
   voxa::clearSequenceTracker(&sequenceTracker);
   initializeSessionLight();
-  driverReady = initializeHapticDriver();
+  voxa::recordDriverRecovery(initializeHapticDriver(), millis(),
+                             &driverHealth);
   const bool bluetoothReady = voxa::ble_transport::initialize();
   if (bluetoothReady) {
     publishStatus(0U, voxa::StatusState::kCompleted,
@@ -332,7 +338,7 @@ void setup() {
 
   if (!bluetoothReady) {
     Serial.println("Bluetooth initialization failed");
-  } else if (driverReady) {
+  } else if (driverHealth.ready) {
     Serial.println("Voxa Cue firmware 1.3 ready");
   } else {
     Serial.println("DRV2605L not detected; haptic commands will be rejected");
@@ -342,6 +348,11 @@ void setup() {
 void loop() {
   const std::uint32_t nowMilliseconds = millis();
   voxa::ble_transport::poll();
+
+  if (voxa::driverRecoveryIsDue(driverHealth, nowMilliseconds)) {
+    voxa::recordDriverRecovery(initializeHapticDriver(), nowMilliseconds,
+                               &driverHealth);
+  }
 
   voxa::ble_transport::ReceivedCommandFrame frame{};
   if (voxa::ble_transport::dequeueCommand(&frame)) {
