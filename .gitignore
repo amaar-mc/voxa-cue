@@ -13,6 +13,7 @@ api/.vercel/
 api/dist/
 api/coverage/
 firmware/voxa-wearable/.pio/
+firmware/voxa-wearable-nrf54/.pio/
 .env*
 !.env.example
 *.log
