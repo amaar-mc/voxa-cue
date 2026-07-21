@@ -59,6 +59,17 @@ export function decodeSample(input) {
 }
 
 /**
+ * @param {ReturnType<typeof decodeSample>} sample
+ * @returns {ReturnType<typeof decodeSample>}
+ */
+export function requireHealthySample(sample) {
+  if (!sample.healthy) {
+    throw new Error("Sensor read fault; unhealthy sample ignored.");
+  }
+  return sample;
+}
+
+/**
  * @param {DataView | Uint8Array} input
  * @returns {{ sensorKind: number, sensorName: string, address: number, addressHex: string, state: number, stateName: string, sampleRateHertz: number, firmware: string }}
  */
