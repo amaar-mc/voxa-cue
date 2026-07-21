@@ -9,28 +9,44 @@ import {
 } from "./openai";
 import type { StructuredOutputGenerator } from "./openai";
 import {
+  coachChatInstructions,
+  createCoachChatInput,
   createDeckPlanInput,
   createInsightInput,
+  createRoadmapInput,
   deckPlanInstructions,
   insightInstructions,
+  roadmapInstructions,
 } from "./prompts";
 import {
+  coachChatJsonSchema,
+  coachChatRequestSchema,
+  coachChatResponseSchema,
   deckPlanJsonSchema,
   deckPlanRequestSchema,
   deckPlanResponseSchema,
   insightJsonSchema,
   insightRequestSchema,
   insightResponseSchema,
+  roadmapJsonSchema,
+  roadmapRequestSchema,
+  roadmapResponseSchema,
 } from "./schemas";
 import type {
+  CoachChatRequest,
+  CoachChatResponse,
   DeckPlanRequest,
   DeckPlanResponse,
   InsightRequest,
   InsightResponse,
+  RoadmapRequest,
+  RoadmapResponse,
 } from "./schemas";
 
 const deckPlanMaximumBytes = 512 * 1_024;
 const insightMaximumBytes = 256 * 1_024;
+const roadmapMaximumBytes = 256 * 1_024;
+const coachChatMaximumBytes = 256 * 1_024;
 
 type ErrorCode =
   | "audio_not_accepted"
@@ -214,6 +230,76 @@ const generateInsight = async (
     signal,
   });
   const parsed = insightResponseSchema.safeParse(generated);
+  return parsed.success ? parsed.data : null;
+};
+
+const normalizedPhrase = (phrase: string): string =>
+  phrase.toLocaleLowerCase("en-US").replaceAll(/\s+/gu, " ").trim();
+
+const validateRoadmapSemantics = (
+  roadmap: RoadmapResponse,
+  request: RoadmapRequest,
+): boolean => {
+  const expectedPhases = ["now", "next", "then"] as const;
+  if (
+    !roadmap.steps.every(
+      (step, index) => step.phase === expectedPhases[index],
+    )
+  ) {
+    return false;
+  }
+
+  const suppliedFillers = new Map(
+    request.session.fillerBreakdown.map((item) => [
+      normalizedPhrase(item.phrase),
+      item.count,
+    ]),
+  );
+  const returnedPhrases = new Set<string>();
+  return roadmap.focusFillers.every((item) => {
+    const phrase = normalizedPhrase(item.phrase);
+    if (returnedPhrases.has(phrase) || suppliedFillers.get(phrase) !== item.count) {
+      return false;
+    }
+    returnedPhrases.add(phrase);
+    return true;
+  });
+};
+
+const generateRoadmap = async (
+  dependencies: AppDependencies,
+  request: RoadmapRequest,
+  signal: AbortSignal,
+): Promise<RoadmapResponse | null> => {
+  const generated = await dependencies.generateStructuredOutput({
+    schemaName: "voxa_cue_roadmap_v1",
+    instructions: roadmapInstructions,
+    input: createRoadmapInput(request),
+    jsonSchema: roadmapJsonSchema as unknown as Record<string, unknown>,
+    maximumOutputTokens: 2_200,
+    signal,
+  });
+  const parsed = roadmapResponseSchema.safeParse(generated);
+  if (!parsed.success || !validateRoadmapSemantics(parsed.data, request)) {
+    return null;
+  }
+  return parsed.data;
+};
+
+const generateCoachChat = async (
+  dependencies: AppDependencies,
+  request: CoachChatRequest,
+  signal: AbortSignal,
+): Promise<CoachChatResponse | null> => {
+  const generated = await dependencies.generateStructuredOutput({
+    schemaName: "voxa_cue_coach_chat_v1",
+    instructions: coachChatInstructions,
+    input: createCoachChatInput(request),
+    jsonSchema: coachChatJsonSchema as unknown as Record<string, unknown>,
+    maximumOutputTokens: 700,
+    signal,
+  });
+  const parsed = coachChatResponseSchema.safeParse(generated);
   return parsed.success ? parsed.data : null;
 };
 
@@ -452,6 +538,70 @@ export const createApp = (dependencies: AppDependencies): Hono => {
         );
       }
       return context.json(insight, 200);
+    } catch (error) {
+      return modelFailureResponse(error, context);
+    }
+  });
+
+  app.post("/v1/roadmaps", async (context) => {
+    const parsedRequest = await parseBody(
+      context,
+      roadmapMaximumBytes,
+      roadmapRequestSchema,
+    );
+    if (!parsedRequest.ok) {
+      return parsedRequest.response;
+    }
+
+    try {
+      const roadmap = await runWithModelRequestDeadline(
+        context.req.raw.signal,
+        dependencies.modelRequestTimeoutMilliseconds,
+        async (signal) =>
+          generateRoadmap(dependencies, parsedRequest.value, signal),
+      );
+      if (roadmap === null) {
+        return jsonError(
+          context,
+          502,
+          "invalid_model_response",
+          "The coaching service returned an invalid roadmap.",
+          [],
+        );
+      }
+      return context.json(roadmap, 200);
+    } catch (error) {
+      return modelFailureResponse(error, context);
+    }
+  });
+
+  app.post("/v1/coach-chat", async (context) => {
+    const parsedRequest = await parseBody(
+      context,
+      coachChatMaximumBytes,
+      coachChatRequestSchema,
+    );
+    if (!parsedRequest.ok) {
+      return parsedRequest.response;
+    }
+
+    try {
+      const reply = await runWithModelRequestDeadline(
+        context.req.raw.signal,
+        dependencies.modelRequestTimeoutMilliseconds,
+        async (signal) =>
+          generateCoachChat(dependencies, parsedRequest.value, signal),
+      );
+      if (reply === null) {
+        return jsonError(
+          context,
+          502,
+          "invalid_model_response",
+          "The coaching service returned an invalid chat reply.",
+          [],
+        );
+      }
+      return context.json(reply, 200);
     } catch (error) {
       return modelFailureResponse(error, context);
     }

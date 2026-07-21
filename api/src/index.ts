@@ -20,16 +20,28 @@ export type {
   StructuredOutputGenerator,
 } from "./openai";
 export {
+  coachChatRequestSchema,
+  coachChatResponseSchema,
   deckPlanRequestSchema,
   deckPlanResponseSchema,
   environmentSchema,
   insightRequestSchema,
   insightResponseSchema,
+  roadmapHistorySchema,
+  roadmapRequestSchema,
+  roadmapResponseSchema,
+  roadmapSessionSchema,
 } from "./schemas";
 export type {
+  CoachChatRequest,
+  CoachChatResponse,
   DeckPlanRequest,
   DeckPlanResponse,
   InsightRequest,
   InsightResponse,
+  RoadmapHistory,
+  RoadmapRequest,
+  RoadmapResponse,
+  RoadmapSession,
   RuntimeEnvironment,
 } from "./schemas";
