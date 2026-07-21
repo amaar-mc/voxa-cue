@@ -22,8 +22,6 @@ export type {
 export {
   coachChatRequestSchema,
   coachChatResponseSchema,
-  deckPlanRequestSchema,
-  deckPlanResponseSchema,
   environmentSchema,
   insightRequestSchema,
   insightResponseSchema,
@@ -35,8 +33,6 @@ export {
 export type {
   CoachChatRequest,
   CoachChatResponse,
-  DeckPlanRequest,
-  DeckPlanResponse,
   InsightRequest,
   InsightResponse,
   RoadmapHistory,
