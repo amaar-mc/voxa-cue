@@ -332,7 +332,7 @@ struct SettingsView: View {
         if model.usesTemporaryRecoveryStorage {
             return "Persistent history is unavailable in this recovery launch. Clearing here affects temporary sessions only; deleting the app removes the unavailable store."
         }
-        return "Transcripts, metrics, cue history, and generated insights"
+        return "Transcripts, metrics, cue history, insights, and roadmap"
     }
 
     private var deletionDialogTitle: String {
@@ -344,7 +344,7 @@ struct SettingsView: View {
     private var deletionActionTitle: String {
         if model.demoMode { return "Clear demo data" }
         if model.usesTemporaryRecoveryStorage { return "Clear temporary sessions" }
-        return "Delete sessions and insights"
+        return "Delete sessions and coaching"
     }
 
     private var deletionButtonTitle: String {
@@ -360,7 +360,7 @@ struct SettingsView: View {
         if model.usesTemporaryRecoveryStorage {
             return "This clears only sessions created during this recovery launch. It cannot modify the unavailable persistent store; delete Voxa Cue from the iPhone to remove that store."
         }
-        return "This permanently removes transcripts, metrics, cue history, and AI coaching stored by Voxa Cue on this phone."
+        return "This permanently removes transcripts, metrics, cue history, insights, the saved roadmap, and transient coach chat from this iPhone."
     }
 
     private var isAPIConfigured: Bool {
@@ -593,15 +593,15 @@ private struct SettingsDocumentView: View {
                 ),
                 SettingsDocumentSection(
                     title: "Saved on this phone",
-                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, and generated coaching insights are stored locally. Imported files, slide text, slide titles, and raw audio are not retained. You can delete all local Voxa Cue data from Settings."
+                    body: "Completed session summaries, finalized transcript text, metric samples, haptic cue events, generated insights, and the practice roadmap tied to its source session are stored locally. Because the roadmap uses historical aggregates, deleting any saved session invalidates it. Coach chat is transient and clears when closed or when any saved session is deleted. Imported files, slide text, slide titles, and raw audio are not retained."
                 ),
                 SettingsDocumentSection(
                     title: "Optional remote features",
-                    body: "Session information is never sent automatically. When a coaching service is configured, the final transcript, aggregate metrics, and cue delivery history leave the phone only after you explicitly confirm Generate AI coaching. Raw audio is never included."
+                    body: "Nothing is sent automatically. Roadmap confirmation sends one selected finalized transcript, its deterministic metrics and filler counts, and transcript-free historical aggregates. A separate chat confirmation sends that transcript, its roadmap and metrics, and up to 10 typed turns. Raw audio and prior transcript text are never included."
                 ),
                 SettingsDocumentSection(
                     title: "AI provider retention",
-                    body: "The Voxa Cue API validates the request, removes the app session identifier, and forwards only the required text to OpenAI. It requests no Responses API application-state storage. That setting is not a zero-retention guarantee: under default provider controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project has approved Modified Abuse Monitoring or Zero Data Retention controls."
+                    body: "The server owns the OpenAI key and sends only the confirmed text to gpt-5.6-luna through the Responses API with application-state storage disabled. That setting is not a zero-retention guarantee: under default provider controls, abuse-monitoring logs may include prompts, responses, and derived metadata for up to 30 days unless the production project has approved Modified Abuse Monitoring or Zero Data Retention controls."
                 ),
                 SettingsDocumentSection(
                     title: "Cue Band connection",
