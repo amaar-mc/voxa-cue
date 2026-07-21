@@ -722,6 +722,22 @@ func pacePresetRanges() {
     #expect(SpeakingPacePreset.matching(minimumWPM: 125, maximumWPM: 165) == nil)
 }
 
+@Test("Session names are bounded to eighty visible characters")
+func sessionNameLengthIsBounded() {
+    #expect(boundedSessionName("Pitch") == "Pitch")
+    #expect(boundedSessionName(String(repeating: "A", count: 100)).count == 80)
+    #expect(boundedSessionName(String(repeating: "🎤", count: 100)).count == 80)
+}
+
+@Test("Imported presentation filenames cannot bypass the session-name bound")
+func importedPresentationNameIsBounded() {
+    let filename = String(repeating: "Quarterly results ", count: 8) + ".pptx"
+    let url = URL(fileURLWithPath: "/tmp/\(filename)")
+
+    #expect(presentationSessionName(from: url).count == 80)
+    #expect(!presentationSessionName(from: url).contains(".pptx"))
+}
+
 @Test("Session setup describes haptics as explicit pulses")
 func hapticPatternDescriptionsNamePulses() {
     #expect(hapticPatternPulseDescription(.doubleTap) == "2 short pulses")

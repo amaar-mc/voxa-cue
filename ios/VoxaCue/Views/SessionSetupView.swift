@@ -1,6 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import VoxaCore
+
+func boundedSessionName(_ name: String) -> String {
+    String(name.prefix(80))
+}
+
+func presentationSessionName(from url: URL) -> String {
+    boundedSessionName(url.deletingPathExtension().lastPathComponent)
+}
 import VoxaRuntime
 
 func presentationImportFailureMessage(
@@ -225,7 +233,13 @@ struct SessionSetupView: View {
                         .font(.cueCaption)
                         .foregroundStyle(CueTheme.secondaryInk)
                     HStack(spacing: 10) {
-                        TextField("Name this session", text: $name)
+                        TextField(
+                            "Name this session",
+                            text: Binding(
+                                get: { name },
+                                set: { name = boundedSessionName($0) }
+                            )
+                        )
                             .font(.system(.body, design: .rounded, weight: .semibold))
                             .textInputAutocapitalization(.sentences)
                             .submitLabel(.done)
@@ -541,7 +555,7 @@ struct SessionSetupView: View {
                 let slides = try await Task.detached(priority: .userInitiated) {
                     try PresentationFileParser(limits: .production).parse(url: url)
                 }.value
-                let nextGeneratedName = url.deletingPathExtension().lastPathComponent
+                let nextGeneratedName = presentationSessionName(from: url)
                 importedSlides = slides
                 importedFileName = nextGeneratedName
                 if name == "Practice Session"
