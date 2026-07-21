@@ -5,7 +5,10 @@ This checklist separates the closed M&TSI demonstration from a public App Store 
 ## Closed M&TSI demo gate
 
 - [ ] `pnpm install` completes from the repository root.
-- [ ] `pnpm verify` passes API checks, Swift package and simulator app tests, Debug and credential-free Release generic-device iOS builds, privacy-manifest lint, haptic firmware tests/builds, and standalone IMU lab tests/build.
+- [ ] `pnpm verify` passes API checks, Swift package and simulator app tests,
+  Debug and credential-free Release generic-device iOS builds,
+  privacy-manifest lint, haptic firmware tests/builds, standalone IMU lab
+  tests/build, and the isolated gesture-model notebook pipeline.
 - [ ] The VoxaCue iOS test target compiles with `xcodebuild build-for-testing` and its tests execute on the exact demonstration iPhone.
 - [ ] A signed build installs and launches on the exact demonstration iPhone running iOS 26+.
 - [ ] Microphone, Speech Recognition, and Bluetooth permission paths are exercised from a clean install.

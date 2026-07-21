@@ -91,8 +91,9 @@ Before the first BLE test, update the Nano 33 IoT NINA-W102 connectivity firmwar
 ## 5. Test the standalone IMU lab
 
 The IMU experiment is deliberately separate from the iPhone app and production
-haptic firmware. Wire `VCC → 3V3`, `GND → GND`, `SDA → A4/SDA`, and
-`SCL → A5/SCL`, then find the connected USB port and temporarily flash the lab:
+haptic firmware. It reads the Nano 33 IoT's onboard LSM6DS3 at `0x6A`; no
+external IMU is required. Find the connected USB port and temporarily flash the
+lab:
 
 ```sh
 uvx --with pip platformio device list
@@ -107,6 +108,11 @@ window, the page shows acceleration and rotation on all three axes, a 0–100
 heuristic movement score, an editable too-little/balanced/too-much classification,
 and CSV export. Chrome Web Bluetooth is required; Safari and iPhone browsers do
 not support this test.
+
+Use the separate recorder in `ml/gesture-classifier/recorder` to collect
+pseudonymous labeled trials for the gesture-versus-fidget classifier. Its CSV
+and manifest stay on the local computer until the researcher deliberately moves
+them.
 
 Flashing the lab replaces the haptic sketch. Restore production firmware after
 the test:
