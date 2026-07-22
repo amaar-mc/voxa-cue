@@ -29,15 +29,15 @@ The backend is optional. A backend outage cannot interrupt transcription, analyt
 
 | Severity | Gap | Evidence | Required public-release change |
 | --- | --- | --- | --- |
-| P1 | One shared bearer token protects every user and device | `api/src/app.ts`, `ios/VoxaCue/App/AppConfiguration.swift` | Replace it with user- or device-scoped authentication, revocation, and key rotation |
-| P1 | No per-user rate limit, quota, spend ceiling, or idempotency protection | `api/src/app.ts` | Add rate limits, spend ceilings, abuse controls, quotas, and idempotency for generation routes |
+| P1 | One shared bearer token protects every user and device | `api/src/create-app.ts`, `ios/VoxaCue/App/AppConfiguration.swift` | Replace it with user- or device-scoped authentication, revocation, and key rotation |
+| P1 | No per-user rate limit, quota, spend ceiling, or idempotency protection | `api/src/create-app.ts` | Add rate limits, spend ceilings, abuse controls, quotas, and idempotency for generation routes |
 | P1 | Release builds compile-disable AI coaching | `ios/VoxaCue/App/AppConfiguration.swift`, `ios/Config/ReleaseBuildSettings.xcconfig` | Enable only after public authentication exists; the current fail-closed behavior is correct |
-| P2 | Provider authentication/configuration failures and provider outages share one sanitized 503 class | `api/src/app.ts` | Add privacy-safe operator telemetry that distinguishes configuration from outage; client-facing 429 retry windows are already preserved and bounded |
+| P2 | Provider authentication/configuration failures and provider outages share one sanitized 503 class | `api/src/create-app.ts` | Add privacy-safe operator telemetry that distinguishes configuration from outage; client-facing 429 retry windows are already preserved and bounded |
 | P2 | `/readyz` checks model access but performs no structured generation canary | `api/src/openai.ts` | Add a private scheduled canary and alerting outside the request path |
 | P2 | No aggregate token/latency metrics or stable safety identifier | `api/src/openai.ts` | Record privacy-safe usage metrics and pass a pseudonymous safety identifier after production identity exists |
 | P2 | The iOS response-size cap is enforced after the body downloads | `ios/Packages/VoxaKit/Sources/VoxaRuntime/VoxaAPIClient.swift` | Enforce the cap while streaming or through URLSession delegate limits |
 | P2 | JSON audio-content filtering is signature-based rather than a semantic guarantee | `api/src/http.ts` | Keep audio and presentation upload routes absent, test known encodings, monitor authenticated misuse, and avoid describing the filter as proof of arbitrary text provenance |
-| P2 | Strict response schemas bound shape but do not prove every free-text coaching claim is supported | `api/src/app.ts`, `api/src/prompts.ts` | Add machine-checkable evidence references for quantitative claims and retain explicit uncertainty copy |
+| P2 | Strict response schemas bound shape but do not prove every free-text coaching claim is supported | `api/src/create-app.ts`, `api/src/prompts.ts` | Add machine-checkable evidence references for quantitative claims and retain explicit uncertainty copy |
 
 ## Model and data boundary
 
