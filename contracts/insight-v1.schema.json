@@ -13,7 +13,7 @@
     "confidenceNote"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "type": "number", "const": 1 },
     "overallSummary": { "type": "string", "minLength": 1, "maxLength": 600 },
     "strengths": {
       "type": "array",

@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "reply", "suggestedPrompts"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "type": "number", "const": 1 },
     "reply": { "type": "string", "minLength": 1, "maxLength": 1200 },
     "suggestedPrompts": {
       "type": "array",

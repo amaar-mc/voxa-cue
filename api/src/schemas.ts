@@ -372,7 +372,7 @@ export const insightJsonSchema = {
     "confidenceNote",
   ],
   properties: {
-    schemaVersion: { const: 1 },
+    schemaVersion: { type: "number", const: 1 },
     overallSummary: { type: "string", minLength: 1, maxLength: 600 },
     strengths: {
       type: "array",
@@ -440,7 +440,7 @@ export const roadmapJsonSchema = {
     "confidenceNote",
   ],
   properties: {
-    schemaVersion: { const: 1 },
+    schemaVersion: { type: "number", const: 1 },
     headline: { type: "string", minLength: 1, maxLength: 100 },
     summary: { type: "string", minLength: 1, maxLength: 500 },
     focusFillers: {
@@ -509,7 +509,7 @@ export const coachChatJsonSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "reply", "suggestedPrompts"],
   properties: {
-    schemaVersion: { const: 1 },
+    schemaVersion: { type: "number", const: 1 },
     reply: { type: "string", minLength: 1, maxLength: 1_200 },
     suggestedPrompts: {
       type: "array",

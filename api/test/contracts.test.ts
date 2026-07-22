@@ -29,6 +29,19 @@ const removeContractMetadata = (
 };
 
 describe("shared response contracts", () => {
+  it("types fixed schema versions for strict Structured Outputs", () => {
+    for (const schema of [
+      insightJsonSchema,
+      roadmapJsonSchema,
+      coachChatJsonSchema,
+    ]) {
+      expect(schema.properties.schemaVersion).toEqual({
+        type: "number",
+        const: 1,
+      });
+    }
+  });
+
   it("keeps the insight Structured Output schema aligned with contracts", async () => {
     const contract = await readContract("insight-v1.schema.json");
 

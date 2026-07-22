@@ -14,7 +14,7 @@
     "confidenceNote"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "type": "number", "const": 1 },
     "headline": { "type": "string", "minLength": 1, "maxLength": 100 },
     "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
     "focusFillers": {
