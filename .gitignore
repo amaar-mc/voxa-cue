@@ -19,3 +19,4 @@ firmware/voxa-wearable-nrf54/.pio/
 *.log
 /tmp/
 /output/
+.vercel
