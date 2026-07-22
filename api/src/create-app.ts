@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { ZodType } from "zod";
 
-import { readJsonBody, secureTokenEquals } from "./http";
+import { readJsonBody, secureTokenEquals } from "./http.js";
 import {
   createStructuredGenerationTimeoutError,
   isStructuredGenerationTimeoutError,
-} from "./openai";
-import type { StructuredOutputGenerator } from "./openai";
+} from "./openai.js";
+import type { StructuredOutputGenerator } from "./openai.js";
 import {
   coachChatInstructions,
   createCoachChatInput,
@@ -15,7 +15,7 @@ import {
   createRoadmapInput,
   insightInstructions,
   roadmapInstructions,
-} from "./prompts";
+} from "./prompts.js";
 import {
   coachChatJsonSchema,
   coachChatRequestSchema,
@@ -26,7 +26,7 @@ import {
   roadmapJsonSchema,
   roadmapRequestSchema,
   roadmapResponseSchema,
-} from "./schemas";
+} from "./schemas.js";
 import type {
   CoachChatRequest,
   CoachChatResponse,
@@ -34,7 +34,7 @@ import type {
   InsightResponse,
   RoadmapRequest,
   RoadmapResponse,
-} from "./schemas";
+} from "./schemas.js";
 
 const insightMaximumBytes = 256 * 1_024;
 const roadmapMaximumBytes = 256 * 1_024;
