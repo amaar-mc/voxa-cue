@@ -1,16 +1,16 @@
-export { createApp } from "./app";
+export { createApp } from "./create-app.js";
 export type {
   AppDependencies,
   ReadinessCheck,
   RequestLogEvent,
   RequestLogger,
-} from "./app";
+} from "./create-app.js";
 export {
   createStructuredGenerationTimeoutError,
   createOpenAIReadinessCheck,
   createOpenAIStructuredOutputGenerator,
   isStructuredGenerationTimeoutError,
-} from "./openai";
+} from "./openai.js";
 export type {
   OpenAIConfiguration,
   OpenAIReadinessCheck,
@@ -18,7 +18,7 @@ export type {
   StructuredGenerationRequest,
   StructuredGenerationTimeoutError,
   StructuredOutputGenerator,
-} from "./openai";
+} from "./openai.js";
 export {
   coachChatRequestSchema,
   coachChatResponseSchema,
@@ -29,7 +29,7 @@ export {
   roadmapRequestSchema,
   roadmapResponseSchema,
   roadmapSessionSchema,
-} from "./schemas";
+} from "./schemas.js";
 export type {
   CoachChatRequest,
   CoachChatResponse,
@@ -40,4 +40,4 @@ export type {
   RoadmapResponse,
   RoadmapSession,
   RuntimeEnvironment,
-} from "./schemas";
+} from "./schemas.js";

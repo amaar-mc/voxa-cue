@@ -2,7 +2,7 @@ import type {
   CoachChatRequest,
   InsightRequest,
   RoadmapRequest,
-} from "./schemas";
+} from "./schemas.js";
 
 export const insightInstructions = [
   "You are Voxa Cue, a precise public-speaking coach for students and early-career professionals.",
