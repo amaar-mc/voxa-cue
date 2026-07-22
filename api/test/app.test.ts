@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createApp } from "../src/app";
-import type { RequestLogEvent, RequestLogger } from "../src/app";
+import { createApp } from "../src/create-app";
+import type { RequestLogEvent, RequestLogger } from "../src/create-app";
 import type { StructuredOutputGenerator } from "../src/openai";
 import {
   validCoachChatRequest,
