@@ -1,11 +1,11 @@
-import { handle } from "hono/vercel";
+import { Hono } from "hono";
 
-import { createApp } from "../src/app";
+import { createApp } from "./src/create-app.js";
 import {
   createOpenAIReadinessCheck,
   createOpenAIStructuredOutputGenerator,
-} from "../src/openai";
-import { environmentSchema } from "../src/schemas";
+} from "./src/openai.js";
+import { environmentSchema } from "./src/schemas.js";
 
 const environment = environmentSchema.parse({
   OPENAI_API_KEY: process.env["OPENAI_API_KEY"],
@@ -40,8 +40,12 @@ const app = createApp({
   },
 });
 
+if (!(app instanceof Hono)) {
+  throw new Error("Voxa Cue API entrypoint must export a Hono application.");
+}
+
 export const config = {
   maxDuration: 30,
 };
 
-export default handle(app);
+export default app;
